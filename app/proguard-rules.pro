@@ -1,0 +1,1 @@
+-keep class su.neit.vaiwu.PetSnapshot { <init>(...); }

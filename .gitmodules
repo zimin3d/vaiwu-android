@@ -1,0 +1,3 @@
+[submodule "external/vaiwu"]
+	path = external/vaiwu
+	url = git@github.com:zimin3d/vaiwu.git

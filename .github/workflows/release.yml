@@ -1,0 +1,60 @@
+name: Android release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+
+      - name: Prepare signing key
+        env:
+          VAIWU_KEYSTORE_BASE64: ${{ secrets.VAIWU_KEYSTORE_BASE64 }}
+          VAIWU_STORE_PASSWORD: ${{ secrets.VAIWU_STORE_PASSWORD }}
+          VAIWU_KEY_ALIAS: ${{ secrets.VAIWU_KEY_ALIAS }}
+          VAIWU_KEY_PASSWORD: ${{ secrets.VAIWU_KEY_PASSWORD }}
+        run: |
+          test -n "$VAIWU_KEYSTORE_BASE64"
+          test -n "$VAIWU_STORE_PASSWORD"
+          test -n "$VAIWU_KEY_ALIAS"
+          test -n "$VAIWU_KEY_PASSWORD"
+          printf '%s' "$VAIWU_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/vaiwu.keystore"
+
+      - name: Check release version
+        run: |
+          APP_VERSION="$(./gradlew --no-daemon -q printVersionName)"
+          test "$APP_VERSION" = "${GITHUB_REF_NAME#v}"
+
+      - name: Build signed APK
+        env:
+          VAIWU_STORE_FILE: ${{ runner.temp }}/vaiwu.keystore
+          VAIWU_STORE_PASSWORD: ${{ secrets.VAIWU_STORE_PASSWORD }}
+          VAIWU_KEY_ALIAS: ${{ secrets.VAIWU_KEY_ALIAS }}
+          VAIWU_KEY_PASSWORD: ${{ secrets.VAIWU_KEY_PASSWORD }}
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk vaiwu-android.apk
+
+      - name: Publish release APK
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: vaiwu-android.apk
+          target_commitish: ${{ github.sha }}
