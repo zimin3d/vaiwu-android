@@ -15,8 +15,8 @@ android {
         applicationId = "su.neit.vaiwu"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
 
         externalNativeBuild {
             cmake {
@@ -27,13 +27,13 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            val storePath = System.getenv("VAIWU_STORE_FILE").orEmpty()
-            if (storePath.isNotEmpty()) {
-                storeFile = file(storePath)
-                storePassword = System.getenv("VAIWU_STORE_PASSWORD")
-                keyAlias = System.getenv("VAIWU_KEY_ALIAS")
-                keyPassword = System.getenv("VAIWU_KEY_PASSWORD")
+        if (!System.getenv("KEYSTORE_FILE").isNullOrEmpty()) {
+            create("release") {
+                storeFile = file(System.getenv("KEYSTORE_FILE"))
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = "filament"
+                keyPassword = System.getenv("KEYSTORE_PASSWORD")
+                storeType = "pkcs12"
             }
         }
     }
@@ -43,9 +43,9 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (!System.getenv("VAIWU_STORE_FILE").isNullOrEmpty()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = signingConfigs.getByName(
+                if (System.getenv("KEYSTORE_FILE").isNullOrEmpty()) "debug" else "release",
+            )
         }
     }
 
@@ -93,10 +93,4 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
-}
-
-tasks.register("printVersionName") {
-    doLast {
-        println(android.defaultConfig.versionName)
-    }
 }

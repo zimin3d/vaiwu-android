@@ -1,37 +1,80 @@
-name: Android CI
+name: Android APK
 
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build:
+  apk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
         with:
           gradle-version: wrapper
 
-      - name: Build and lint
-        run: ./gradlew --no-daemon lintDebug assembleDebug
+      - name: Prepare signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::KEYSTORE_B64 is not set: building a debug-signed APK, no GitHub release will be published"
+          else
+            B64="$(printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t')"
+            if ! printf '%s' "$B64" | python3 -c "import base64,sys; s=sys.stdin.read(); s=s[:s.rfind('=')+1] if '=' in s else s; s=s.rstrip('='); s+='='*(-len(s)%4); sys.stdout.buffer.write(base64.b64decode(s, validate=True))" > "$RUNNER_TEMP/vaiwu.p12" 2>/dev/null; then
+              echo "::error::KEYSTORE_B64 cannot be decoded"
+              exit 1
+            fi
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/vaiwu.p12" >> "$GITHUB_ENV"
+            echo "SIGNED=1" >> "$GITHUB_ENV"
+          fi
 
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+      - name: Verify signing key
+        if: env.SIGNED == '1'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          KEYSTORE_PASSWORD="$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d ' \r\n\t')"
+          echo "::add-mask::$KEYSTORE_PASSWORD"
+          keytool -list -storetype pkcs12 -keystore "$KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias filament > /dev/null
+
+      - name: Build APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
+        run: |
+          if [ -n "$KEYSTORE_PASSWORD" ]; then
+            export KEYSTORE_PASSWORD="$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d ' \r\n\t')"
+            echo "::add-mask::$KEYSTORE_PASSWORD"
+          fi
+          ./gradlew --no-daemon lintDebug assembleRelease
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk out/vaiwu-android.apk
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: vaiwu-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: vaiwu-android-apk
+          path: out/vaiwu-android.apk
           retention-days: 14
+
+      - name: Publish signed release
+        if: github.ref_type == 'tag' && env.SIGNED == '1'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          generate_release_notes: true
+          files: out/vaiwu-android.apk

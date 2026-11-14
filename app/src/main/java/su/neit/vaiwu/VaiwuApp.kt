@@ -62,7 +62,7 @@ fun VaiwuApp(viewModel: PetViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Vaiwu · v${BuildConfig.VERSION_NAME}") },
+                title = { Text("Vaiwu · ${BuildConfig.VERSION_NAME}") },
                 actions = {
                     TextButton(onClick = viewModel::checkForUpdates) {
                         Text("Обновить")
