@@ -62,9 +62,21 @@ jobs:
             export KEYSTORE_PASSWORD="$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d ' \r\n\t')"
             echo "::add-mask::$KEYSTORE_PASSWORD"
           fi
-          ./gradlew --no-daemon lintDebug assembleRelease
+          set -o pipefail
+          ./gradlew --no-daemon lintDebug assembleRelease 2>&1 | tee build.log
           mkdir -p out
           cp app/build/outputs/apk/release/app-release.apk out/vaiwu-android.apk
+
+      - name: Expose build error
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("build.log")
+          text = path.read_text(errors="replace")[-16000:] if path.exists() else "Build step failed before Gradle started"
+          text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          print(f"::error::{text}")
+          PY
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
