@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
+#include <random>
 #include <string>
 
 #include "vaiwu/game/Characters.hpp"
@@ -12,9 +12,20 @@
 
 namespace {
 
+struct NativePetState {
+    vaiwu::game::VaiwuPet pet;
+    bool rpsStarted{false};
+    std::mt19937 rng{std::random_device{}()};
+};
+
+NativePetState* state(jlong handle)
+{
+    return reinterpret_cast<NativePetState*>(static_cast<intptr_t>(handle));
+}
+
 vaiwu::game::VaiwuPet* pet(jlong handle)
 {
-    return reinterpret_cast<vaiwu::game::VaiwuPet*>(static_cast<intptr_t>(handle));
+    return &state(handle)->pet;
 }
 
 jstring javaString(JNIEnv* env, const std::string& value)
@@ -72,13 +83,13 @@ std::string shopEffect(const vaiwu::game::ShopItemInfo& info)
 extern "C" JNIEXPORT jlong JNICALL
 Java_su_neit_vaiwu_NativePet_nativeCreate(JNIEnv*, jobject)
 {
-    return static_cast<jlong>(reinterpret_cast<intptr_t>(new vaiwu::game::VaiwuPet()));
+    return static_cast<jlong>(reinterpret_cast<intptr_t>(new NativePetState()));
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_su_neit_vaiwu_NativePet_nativeDestroy(JNIEnv*, jobject, jlong handle)
 {
-    delete pet(handle);
+    delete state(handle);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -90,6 +101,7 @@ Java_su_neit_vaiwu_NativePet_nativeStartNew(
     if (utfName != nullptr) {
         env->ReleaseStringUTFChars(name, utfName);
     }
+    state(handle)->rpsStarted = false;
     pet(handle)->startNew(static_cast<vaiwu::game::CharacterId>(characterId), petName,
         static_cast<std::uint64_t>(nowMs));
 }
@@ -103,6 +115,7 @@ Java_su_neit_vaiwu_NativePet_nativeLoad(
         return JNI_FALSE;
     }
     const bool loaded = pet(handle)->deserialize(utfData, static_cast<std::uint64_t>(nowMs));
+    state(handle)->rpsStarted = false;
     env->ReleaseStringUTFChars(data, utfData);
     return loaded ? JNI_TRUE : JNI_FALSE;
 }
@@ -297,24 +310,37 @@ Java_su_neit_vaiwu_NativePet_nativeSell(JNIEnv*, jobject, jlong handle, jint ite
 extern "C" JNIEXPORT jint JNICALL
 Java_su_neit_vaiwu_NativePet_nativeStartPlay(JNIEnv*, jobject, jlong handle)
 {
-    return static_cast<jint>(pet(handle)->startPlay());
+    auto* s = state(handle);
+    const auto result = s->pet.startPlay();
+    s->rpsStarted = result == vaiwu::game::ActionResult::Ok;
+    return static_cast<jint>(result);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_su_neit_vaiwu_NativePet_nativeCancelPlay(JNIEnv*, jobject, jlong handle)
+{
+    state(handle)->rpsStarted = false;
 }
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_su_neit_vaiwu_NativePet_nativePlayRps(JNIEnv* env, jobject, jlong handle, jint userChoice)
 {
-    auto* p = pet(handle);
-    const int petChoice = std::rand() % 3;
+    auto* s = state(handle);
+    if (!s->rpsStarted || !s->pet.alive() || userChoice < 0 || userChoice > 2) {
+        return nullptr;
+    }
+    s->rpsStarted = false;
+    const int petChoice = std::uniform_int_distribution<int>(0, 2)(s->rng);
     const int difference = (userChoice - petChoice + 3) % 3;
     const int outcome = difference == 0 ? 0 : difference == 1 ? 1 : -1;
     const int reward = outcome > 0 ? 2 : 0;
     if (outcome > 0) {
-        p->applyPlayResult(true);
-        p->addCoins(reward);
+        s->pet.applyPlayResult(true);
+        s->pet.addCoins(reward);
     } else if (outcome < 0) {
-        p->applyPlayResult(false);
+        s->pet.applyPlayResult(false);
     } else {
-        p->giveAffection(3.0f);
+        s->pet.giveAffection(3.0f);
     }
     const jclass resultClass = env->FindClass("su/neit/vaiwu/RpsResult");
     const jmethodID constructor = env->GetMethodID(resultClass, "<init>", "(III)V");

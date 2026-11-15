@@ -4,14 +4,20 @@ import android.app.Application
 import android.util.AtomicFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.Executors
 
 sealed interface UpdateUiState {
     data object Idle : UpdateUiState
@@ -25,6 +31,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val pet = NativePet()
     private val saveStore = AtomicFile(File(application.filesDir, "pet.save"))
     private val updater = GitHubUpdateManager(application)
+    private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    private val saveScope = CoroutineScope(SupervisorJob() + saveDispatcher)
     private var lastSaveAt = 0L
 
     private val _snapshot = MutableStateFlow<PetSnapshot?>(null)
@@ -72,6 +80,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetPet() {
+        flushSave()
         saveStore.delete()
         _snapshot.value = null
         _screen.value = AppScreen.Home
@@ -82,6 +91,9 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openHome() {
+        if (_screen.value == AppScreen.Rps) {
+            pet.cancelPlay()
+        }
         _screen.value = AppScreen.Home
         _rpsResult.value = null
     }
@@ -112,6 +124,11 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     fun playRps(choice: Int) {
         if (_screen.value != AppScreen.Rps || _rpsResult.value != null) return
         val result = pet.playRps(choice)
+        if (result == null) {
+            _screen.value = AppScreen.Home
+            _message.value = "Раунд уже завершён или питомец недоступен"
+            return
+        }
         _rpsResult.value = result
         refreshPet()
         refreshEconomy()
@@ -176,21 +193,26 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun savePet() {
-        if (_snapshot.value == null) return
-        val output = try {
-            saveStore.startWrite()
-        } catch (_: Exception) {
-            return
+        val data = saveData() ?: return
+        lastSaveAt = System.currentTimeMillis()
+        saveScope.launch {
+            if (!writeSave(data)) {
+                withContext(Dispatchers.Main) {
+                    _message.value = "Не удалось сохранить игру"
+                }
+            }
         }
-        try {
-            val savedAt = System.currentTimeMillis()
-            val data = "$SaveHeader $savedAt\n${pet.save()}"
-            output.write(data.toByteArray(Charsets.UTF_8))
-            output.fd.sync()
-            saveStore.finishWrite(output)
+    }
+
+    fun flushSave() {
+        val data = saveData() ?: return
+        val saved = runBlocking {
+            withContext(saveDispatcher) { writeSave(data) }
+        }
+        if (saved) {
             lastSaveAt = System.currentTimeMillis()
-        } catch (_: Exception) {
-            saveStore.failWrite(output)
+        } else {
+            _message.value = "Не удалось сохранить игру"
         }
     }
 
@@ -244,6 +266,29 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _updateState.value = UpdateUiState.Idle
     }
 
+    private fun saveData(): String? {
+        if (_snapshot.value == null) return null
+        val savedAt = System.currentTimeMillis()
+        return "$SaveHeader $savedAt\n${pet.save()}"
+    }
+
+    private fun writeSave(data: String): Boolean {
+        val output = try {
+            saveStore.startWrite()
+        } catch (_: Exception) {
+            return false
+        }
+        return try {
+            output.write(data.toByteArray(Charsets.UTF_8))
+            output.fd.sync()
+            saveStore.finishWrite(output)
+            true
+        } catch (_: Exception) {
+            saveStore.failWrite(output)
+            false
+        }
+    }
+
     private fun loadSavedPet() {
         if (!saveStore.baseFile.exists()) return
         try {
@@ -286,7 +331,9 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-        savePet()
+        flushSave()
+        saveScope.cancel()
+        saveDispatcher.close()
         pet.close()
         super.onCleared()
     }

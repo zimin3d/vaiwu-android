@@ -44,7 +44,10 @@ class NativePet : Closeable {
     fun startPlay(): Int = nativeStartPlay(handle)
 
     @Synchronized
-    fun playRps(choice: Int): RpsResult = nativePlayRps(handle, choice)
+    fun cancelPlay() = nativeCancelPlay(handle)
+
+    @Synchronized
+    fun playRps(choice: Int): RpsResult? = nativePlayRps(handle, choice)
 
     @Synchronized
     override fun close() {
@@ -68,7 +71,8 @@ class NativePet : Closeable {
     private external fun nativeEquip(handle: Long, slot: Int, itemId: Int)
     private external fun nativeSell(handle: Long, itemId: Int): Int
     private external fun nativeStartPlay(handle: Long): Int
-    private external fun nativePlayRps(handle: Long, choice: Int): RpsResult
+    private external fun nativeCancelPlay(handle: Long)
+    private external fun nativePlayRps(handle: Long, choice: Int): RpsResult?
 
     companion object {
         init {

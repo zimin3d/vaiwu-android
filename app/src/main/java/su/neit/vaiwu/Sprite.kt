@@ -1,21 +1,26 @@
 package su.neit.vaiwu
 
+import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 internal val characterIds = listOf("aoi", "hina", "rin", "yuki", "akane", "unicorn", "kolobok")
 internal val emotionIds = listOf("idle", "happy", "sad", "angry", "sleepy", "sick", "dead")
@@ -27,6 +32,18 @@ data class SpriteAnimation(
     init {
         require(frames.isNotEmpty())
         require(frameDurationMs > 0)
+    }
+}
+
+private object SpriteBitmapCache {
+    private val bitmaps = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+    }
+
+    fun get(assetName: String): Bitmap? = bitmaps.get(assetName)
+
+    fun put(assetName: String, bitmap: Bitmap) {
+        bitmaps.put(assetName, bitmap)
     }
 }
 
@@ -67,17 +84,15 @@ fun SpriteImage(animation: SpriteAnimation, description: String, modifier: Modif
 
 @Composable
 private fun AssetImage(assetName: String, description: String, modifier: Modifier) {
-    val context = LocalContext.current
-    val bitmap: ImageBitmap? = remember(assetName) {
-        runCatching {
-            context.assets.open(assetName).use { stream ->
-                BitmapFactory.decodeStream(stream).asImageBitmap()
-            }
-        }.getOrNull()
+    val context = LocalContext.current.applicationContext
+    val bitmap = remember(assetName) { mutableStateOf(SpriteBitmapCache.get(assetName)) }
+    LaunchedEffect(assetName) {
+        bitmap.value = withContext(Dispatchers.IO) { decodeAsset(context, assetName) }
     }
-    if (bitmap != null) {
+    val currentBitmap = bitmap.value
+    if (currentBitmap != null) {
         Image(
-            painter = BitmapPainter(bitmap),
+            painter = BitmapPainter(currentBitmap.asImageBitmap()),
             contentDescription = description,
             modifier = modifier,
             contentScale = ContentScale.Fit,
@@ -85,4 +100,13 @@ private fun AssetImage(assetName: String, description: String, modifier: Modifie
     } else {
         Box(modifier)
     }
+}
+
+private fun decodeAsset(context: Context, assetName: String): Bitmap? {
+    SpriteBitmapCache.get(assetName)?.let { return it }
+    val bitmap = runCatching {
+        context.assets.open(assetName).use(BitmapFactory::decodeStream)
+    }.getOrNull() ?: return null
+    SpriteBitmapCache.put(assetName, bitmap)
+    return bitmap
 }

@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
-        viewModel.savePet()
+        viewModel.flushSave()
         super.onStop()
     }
 }

@@ -2,7 +2,10 @@ package su.neit.vaiwu
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import org.json.JSONObject
@@ -10,6 +13,8 @@ import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
+import java.util.Locale
 import java.util.zip.ZipFile
 
 data class ReleaseInfo(
@@ -18,6 +23,7 @@ data class ReleaseInfo(
     val notes: String,
     val apkUrl: String,
     val sizeBytes: Long,
+    val sha256: String,
 )
 
 class GitHubUpdateManager(private val context: Context) {
@@ -38,19 +44,34 @@ class GitHubUpdateManager(private val context: Context) {
     }
 
     fun download(release: ReleaseInfo): File {
+        if (release.sizeBytes > MaxApkBytes) {
+            throw IOException("APK превышает допустимый размер")
+        }
         val updatesDir = File(context.filesDir, "updates").apply { mkdirs() }
         val target = File(updatesDir, "vaiwu-${release.version}.apk")
         val partial = File(updatesDir, "${target.name}.part")
         partial.delete()
 
         val connection = openConnection(release.apkUrl, readTimeoutMs = 60_000)
+        val digest = MessageDigest.getInstance("SHA-256")
         try {
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 throw IOException("Загрузка APK: HTTP ${connection.responseCode}")
             }
             connection.inputStream.use { input ->
                 partial.outputStream().buffered().use { output ->
-                    input.copyTo(output)
+                    val buffer = ByteArray(32 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        if (total > MaxApkBytes) {
+                            throw IOException("APK превышает допустимый размер")
+                        }
+                        digest.update(buffer, 0, count)
+                        output.write(buffer, 0, count)
+                    }
                 }
             }
         } catch (error: Exception) {
@@ -63,6 +84,11 @@ class GitHubUpdateManager(private val context: Context) {
         if (partial.length() == 0L || (release.sizeBytes > 0 && partial.length() != release.sizeBytes)) {
             partial.delete()
             throw IOException("APK загружен не полностью")
+        }
+        val expectedDigest = release.sha256.hexToBytes()
+        if (!MessageDigest.isEqual(digest.digest(), expectedDigest)) {
+            partial.delete()
+            throw IOException("SHA-256 загруженного APK не совпадает с GitHub Releases")
         }
         try {
             ZipFile(partial).use { apk ->
@@ -84,10 +110,23 @@ class GitHubUpdateManager(private val context: Context) {
     }
 
     fun install(apk: File) {
-        val archiveInfo = context.packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
+        val signatureFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+        val archiveInfo = context.packageManager.getPackageArchiveInfo(apk.absolutePath, signatureFlags)
         if (archiveInfo?.packageName != context.packageName) {
             apk.delete()
             throw IOException("APK принадлежит другому приложению")
+        }
+        val installedInfo = context.packageManager.getPackageInfo(context.packageName, signatureFlags)
+        val installedCertificates = certificateHashes(installedInfo)
+        val archiveCertificates = certificateHashes(archiveInfo)
+        if (installedCertificates.isEmpty() || installedCertificates != archiveCertificates) {
+            apk.delete()
+            throw IOException("Подпись APK не совпадает с установленным приложением")
         }
 
         if (!context.packageManager.canRequestPackageInstalls()) {
@@ -108,7 +147,24 @@ class GitHubUpdateManager(private val context: Context) {
         context.startActivity(install)
     }
 
+    @Suppress("DEPRECATION")
+    private fun certificateHashes(info: PackageInfo): Set<String> {
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.signingInfo?.apkContentsSigners
+        } else {
+            info.signatures
+        }
+        return signatures.orEmpty().map { signature ->
+            MessageDigest.getInstance("SHA-256")
+                .digest(signature.toByteArray())
+                .toHexString()
+        }.toSet()
+    }
+
     private fun openConnection(url: String, readTimeoutMs: Int = 15_000): HttpURLConnection {
+        if (!url.startsWith("https://")) {
+            throw IOException("Обновление разрешено только по HTTPS")
+        }
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = true
         connection.connectTimeout = 15_000
@@ -130,12 +186,17 @@ class GitHubUpdateManager(private val context: Context) {
             }
         }
         val asset = apk ?: throw IOException("В релизе нет $APK_ASSET_NAME")
+        val sha256 = asset.optString("digest").removePrefix("sha256:")
+        if (!sha256.matches(Regex("[0-9a-fA-F]{64}"))) {
+            throw IOException("GitHub не предоставил SHA-256 для APK")
+        }
         return ReleaseInfo(
             version = json.getString("tag_name").removePrefix("v"),
             title = json.optString("name").ifBlank { json.getString("tag_name") },
             notes = json.optString("body"),
             apkUrl = asset.getString("browser_download_url"),
             sizeBytes = asset.optLong("size"),
+            sha256 = sha256,
         )
     }
 
@@ -143,7 +204,16 @@ class GitHubUpdateManager(private val context: Context) {
         private const val RELEASES_API_URL =
             "https://api.github.com/repos/zimin3d/vaiwu-android/releases/latest"
         private const val APK_ASSET_NAME = "vaiwu-android.apk"
+        private const val MaxApkBytes = 64L * 1024 * 1024
     }
+}
+
+private fun String.hexToBytes(): ByteArray = ByteArray(length / 2) { index ->
+    substring(index * 2, index * 2 + 2).toInt(16).toByte()
+}
+
+private fun ByteArray.toHexString(): String = joinToString("") { byte ->
+    "%02x".format(Locale.US, byte.toInt() and 0xff)
 }
 
 class UnknownAppSourcesRequiredException : IOException()
