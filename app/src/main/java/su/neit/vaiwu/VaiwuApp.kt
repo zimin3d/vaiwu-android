@@ -1,7 +1,5 @@
 package su.neit.vaiwu
 
-import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,20 +34,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.util.Locale
 
-private val characterIds = listOf("aoi", "hina", "rin", "yuki", "akane", "unicorn", "kolobok")
 private val characterNames = listOf("Aoi", "Hina", "Rin", "Yuki", "Akane", "Uni", "Kolobok")
-private val emotionIds = listOf("idle", "happy", "sad", "angry", "sleepy", "sick", "dead")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +48,10 @@ fun VaiwuApp(viewModel: PetViewModel) {
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val screen by viewModel.screen.collectAsStateWithLifecycle()
+    val shopItems by viewModel.shopItems.collectAsStateWithLifecycle()
+    val inventory by viewModel.inventory.collectAsStateWithLifecycle()
+    val rpsResult by viewModel.rpsResult.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -83,11 +78,35 @@ fun VaiwuApp(viewModel: PetViewModel) {
                 if (currentPet == null) {
                     CharacterSelection(onSelect = viewModel::createPet)
                 } else {
-                    PetHome(
-                        pet = currentPet,
-                        onAction = viewModel::performAction,
-                        onReset = viewModel::resetPet,
-                    )
+                    when (screen) {
+                        AppScreen.Home -> PetHome(
+                            pet = currentPet,
+                            onAction = viewModel::performAction,
+                            onReset = viewModel::resetPet,
+                            onPlay = viewModel::startRps,
+                            onShop = viewModel::openShop,
+                        )
+                        AppScreen.Shop -> ShopScreen(
+                            items = shopItems,
+                            coins = currentPet.coins,
+                            onBuy = viewModel::buyItem,
+                            onInventory = viewModel::openInventory,
+                            onHome = viewModel::openHome,
+                        )
+                        AppScreen.Inventory -> InventoryScreen(
+                            inventory = inventory,
+                            onEquip = viewModel::equip,
+                            onSell = viewModel::sell,
+                            onHome = viewModel::openHome,
+                        )
+                        AppScreen.Rps -> RpsScreen(
+                            pet = currentPet,
+                            result = rpsResult,
+                            onChoice = viewModel::playRps,
+                            onAgain = viewModel::startRps,
+                            onHome = viewModel::openHome,
+                        )
+                    }
                 }
             }
             Text(
@@ -131,7 +150,7 @@ private fun CharacterSelection(onSelect: (Int) -> Unit) {
                             .padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        AssetImage(spriteAsset(index, 0), name)
+                        PetSprite(index, 0, name, Modifier.size(96.dp, 128.dp))
                         Text(name, style = MaterialTheme.typography.titleMedium)
                     }
                 }
@@ -141,7 +160,13 @@ private fun CharacterSelection(onSelect: (Int) -> Unit) {
 }
 
 @Composable
-private fun PetHome(pet: PetSnapshot, onAction: (Int) -> Unit, onReset: () -> Unit) {
+private fun PetHome(
+    pet: PetSnapshot,
+    onAction: (Int) -> Unit,
+    onReset: () -> Unit,
+    onPlay: () -> Unit,
+    onShop: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -160,7 +185,12 @@ private fun PetHome(pet: PetSnapshot, onAction: (Int) -> Unit, onReset: () -> Un
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(8.dp))
-        AssetImage(spriteAsset(pet.characterId, pet.emotionId), pet.petName, large = true)
+        PetSprite(
+            characterId = pet.characterId,
+            emotionId = pet.emotionId,
+            description = pet.petName,
+            modifier = Modifier.size(144.dp, 192.dp),
+        )
         if (pet.isSick) {
             Text("Она заболела — нужно лекарство", color = MaterialTheme.colorScheme.secondary)
         }
@@ -175,7 +205,12 @@ private fun PetHome(pet: PetSnapshot, onAction: (Int) -> Unit, onReset: () -> Un
             2 -> Button(onClick = onReset) { Text("Начать заново") }
             1 -> Button(onClick = { onAction(5) }) { Text("Разбудить") }
             else -> {
-                ActionRow("Покормить", 0, "Поиграть", 1, onAction)
+                Button(onClick = onShop, modifier = Modifier.fillMaxWidth()) {
+                    Text("Магазин · ${pet.coins} монет")
+                }
+                ActionRow("Покормить", 0, "Поиграть", 1) { action ->
+                    if (action == 1) onPlay() else onAction(action)
+                }
                 ActionRow("Помыть", 2, "Поговорить", 4, onAction)
                 ActionRow("Убрать", 3, "Обнять", 7, onAction)
                 if (pet.isSick) {
@@ -230,32 +265,6 @@ private fun StatBar(label: String, value: Float) {
         )
     }
     Spacer(Modifier.height(7.dp))
-}
-
-@Composable
-private fun AssetImage(assetName: String, description: String, large: Boolean = false) {
-    val context = LocalContext.current
-    val bitmap: ImageBitmap? = remember(assetName) {
-        runCatching {
-            context.assets.open(assetName).use { stream ->
-                BitmapFactory.decodeStream(stream).asImageBitmap()
-            }
-        }.getOrNull()
-    }
-    if (bitmap != null) {
-        Image(
-            painter = BitmapPainter(bitmap),
-            contentDescription = description,
-            modifier = if (large) Modifier.size(144.dp, 192.dp) else Modifier.size(96.dp, 128.dp),
-            contentScale = ContentScale.Fit,
-        )
-    }
-}
-
-private fun spriteAsset(characterId: Int, emotionId: Int): String {
-    val character = characterIds.getOrElse(characterId) { characterIds.first() }
-    val emotion = emotionIds.getOrElse(emotionId) { emotionIds.first() }
-    return "sprite_${character}_${emotion}.png"
 }
 
 @Composable

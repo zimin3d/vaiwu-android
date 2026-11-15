@@ -36,6 +36,18 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val _updateState = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
     val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
 
+    private val _screen = MutableStateFlow(AppScreen.Home)
+    val screen: StateFlow<AppScreen> = _screen.asStateFlow()
+
+    private val _shopItems = MutableStateFlow<List<ShopItemSnapshot>>(emptyList())
+    val shopItems: StateFlow<List<ShopItemSnapshot>> = _shopItems.asStateFlow()
+
+    private val _inventory = MutableStateFlow<InventorySnapshot?>(null)
+    val inventory: StateFlow<InventorySnapshot?> = _inventory.asStateFlow()
+
+    private val _rpsResult = MutableStateFlow<RpsResult?>(null)
+    val rpsResult: StateFlow<RpsResult?> = _rpsResult.asStateFlow()
+
     init {
         loadSavedPet()
         viewModelScope.launch {
@@ -62,7 +74,82 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     fun resetPet() {
         saveStore.delete()
         _snapshot.value = null
+        _screen.value = AppScreen.Home
+        _shopItems.value = emptyList()
+        _inventory.value = null
+        _rpsResult.value = null
         _message.value = "Выбери свою Vaiwu"
+    }
+
+    fun openHome() {
+        _screen.value = AppScreen.Home
+        _rpsResult.value = null
+    }
+
+    fun openShop() {
+        refreshEconomy()
+        _screen.value = AppScreen.Shop
+    }
+
+    fun openInventory() {
+        _inventory.value = pet.inventory()
+        _screen.value = AppScreen.Inventory
+    }
+
+    fun startRps() {
+        val result = pet.startPlay()
+        refreshPet()
+        if (result == ActionOk) {
+            _rpsResult.value = null
+            _screen.value = AppScreen.Rps
+            _message.value = "Выбери камень, бумагу или ножницы"
+        } else {
+            _message.value = actionMessage(result)
+        }
+        savePet()
+    }
+
+    fun playRps(choice: Int) {
+        if (_screen.value != AppScreen.Rps || _rpsResult.value != null) return
+        val result = pet.playRps(choice)
+        _rpsResult.value = result
+        refreshPet()
+        refreshEconomy()
+        _message.value = when (result.outcome) {
+            1 -> "Победа! +${result.reward} монеты"
+            0 -> "Ничья"
+            else -> "В этот раз не повезло"
+        }
+        savePet()
+    }
+
+    fun buyItem(itemId: Int) {
+        val item = _shopItems.value.firstOrNull { it.id == itemId } ?: return
+        val bought = pet.buy(itemId)
+        _message.value = when {
+            bought -> "Куплено: ${item.name}"
+            item.owned -> "Эта вещь уже куплена"
+            else -> "Не хватает монет"
+        }
+        refreshPet()
+        refreshEconomy()
+        savePet()
+    }
+
+    fun equip(slot: Int, itemId: Int) {
+        pet.equip(slot, itemId)
+        _inventory.value = pet.inventory()
+        _shopItems.value = pet.shop().toList()
+        _message.value = if (itemId >= 0) "Снаряжение надето" else "Слот освобождён"
+        savePet()
+    }
+
+    fun sell(itemId: Int) {
+        val gold = pet.sell(itemId)
+        _message.value = if (gold > 0) "Продано за $gold монет" else "Эту вещь нельзя продать"
+        refreshPet()
+        refreshEconomy()
+        savePet()
     }
 
     fun performAction(action: Int) {
@@ -83,9 +170,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             result == ActionRefusedDead -> "Питомец ушёл..."
             result == ActionRefusedSleeping -> "Тихо, она спит"
             result == ActionRefusedCaprice -> "Она капризничает"
-            result == ActionNotHungry -> "Я уже сыта"
-            result == ActionTooTired -> "Слишком мало энергии"
-            else -> "Действие недоступно"
+            else -> actionMessage(result)
         }
         savePet()
     }
@@ -183,6 +268,21 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun refreshPet() {
         _snapshot.value = pet.snapshot()
+    }
+
+    private fun refreshEconomy() {
+        if (_snapshot.value == null) return
+        _shopItems.value = pet.shop().toList()
+        _inventory.value = pet.inventory()
+    }
+
+    private fun actionMessage(result: Int): String = when (result) {
+        ActionRefusedDead -> "Питомец ушёл..."
+        ActionRefusedSleeping -> "Тихо, она спит"
+        ActionRefusedCaprice -> "Она капризничает"
+        ActionNotHungry -> "Я уже сыта"
+        ActionTooTired -> "Слишком мало энергии"
+        else -> "Действие недоступно"
     }
 
     override fun onCleared() {
