@@ -14,9 +14,10 @@ internal object OfflineDecay {
     const val HungerDecayPerMinute = 0.5f
 
     /**
-     * Returns the timestamp the simulation should resume from. It is never
-     * later than [savedAt] and never earlier than `now - MaxOfflineMs` or the
-     * point where [hunger] would reach [MinOfflineHunger].
+     * Returns the timestamp the simulation should resume from. A valid past
+     * [savedAt] is moved forward by at most `MaxOfflineMs` and at most to the
+     * point where [hunger] would reach [MinOfflineHunger]. Missing or future
+     * timestamps fall back to [now].
      */
     fun effectiveSaveTime(savedAt: Long, now: Long, hunger: Float): Long {
         if (savedAt <= 0L || now <= savedAt) return now

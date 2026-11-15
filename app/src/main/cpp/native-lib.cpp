@@ -216,7 +216,7 @@ Java_su_neit_vaiwu_NativePet_nativeShop(JNIEnv* env, jobject, jlong handle)
     int totalItems = 0;
     for (int category = 0; category < kShopCategoryCount; ++category) {
         int count = 0;
-        shopCategoryItems(static_cast<ShopCategory>(category), count);
+        (void)shopCategoryItems(static_cast<ShopCategory>(category), count);
         totalItems += count;
     }
     jobjectArray result = env->NewObjectArray(totalItems, itemClass, nullptr);
@@ -335,7 +335,7 @@ Java_su_neit_vaiwu_NativePet_nativeEquip(JNIEnv*, jobject, jlong handle, jint sl
     auto* p = pet(handle);
     setEquipped(p->rpg(), static_cast<EquipSlot>(slot), itemId);
     normalizeRpg(p->character(), p->rpg());
-    return JNI_TRUE;
+    return p->rpg().equipped[slot] == itemId ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jint JNICALL

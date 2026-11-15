@@ -44,7 +44,7 @@ fun ShopScreen(
     onInventory: () -> Unit,
     onHome: () -> Unit,
 ) {
-    val shopCategoryNames = stringArrayResource(R.string.shop_categories)
+    val shopCategoryNames = stringArrayResource(R.array.shop_categories)
     var category by remember { mutableIntStateOf(0) }
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         ScreenHeader(stringResource(R.string.shop_title), onHome)
@@ -114,7 +114,7 @@ fun InventoryScreen(
     onSell: (Int) -> Unit,
     onHome: () -> Unit,
 ) {
-    val equipmentSlotNames = stringArrayResource(R.string.equipment_slots)
+    val equipmentSlotNames = stringArrayResource(R.array.equipment_slots)
     var pendingSale by remember { mutableStateOf<EquipmentSnapshot?>(null) }
     Column(
         modifier = Modifier
@@ -222,7 +222,7 @@ fun RpsScreen(
     onAgain: () -> Unit,
     onHome: () -> Unit,
 ) {
-    val rpsChoiceNames = stringArrayResource(R.string.rps_choices)
+    val rpsChoiceNames = stringArrayResource(R.array.rps_choices)
     Column(
         modifier = Modifier.fillMaxSize().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

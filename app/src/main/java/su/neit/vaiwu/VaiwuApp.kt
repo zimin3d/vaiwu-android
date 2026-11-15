@@ -158,7 +158,7 @@ fun VaiwuApp(viewModel: PetViewModel) {
 
 @Composable
 private fun CharacterSelection(onSelect: (Int) -> Unit) {
-    val characterNames = stringArrayResource(R.string.character_names)
+    val characterNames = stringArrayResource(R.array.character_names)
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
             stringResource(R.string.choose_pet),
