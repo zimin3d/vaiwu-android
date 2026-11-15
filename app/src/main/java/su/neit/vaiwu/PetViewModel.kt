@@ -8,22 +8,26 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileNotFoundException
 import java.util.concurrent.Executors
 
 sealed interface UpdateUiState {
     data object Idle : UpdateUiState
     data object Checking : UpdateUiState
     data class Available(val release: ReleaseInfo) : UpdateUiState
-    data class Downloading(val release: ReleaseInfo) : UpdateUiState
+    data class Downloading(
+        val release: ReleaseInfo,
+        val receivedBytes: Long = 0L,
+        val totalBytes: Long = 0L,
+    ) : UpdateUiState
     data class Error(val message: String) : UpdateUiState
 }
 
@@ -34,6 +38,9 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val saveScope = CoroutineScope(SupervisorJob() + saveDispatcher)
     private var lastSaveAt = 0L
+    private var inForeground = true
+    private var backgroundedAt = 0L
+    private var backgroundSave: String? = null
 
     private val _snapshot = MutableStateFlow<PetSnapshot?>(null)
     val snapshot: StateFlow<PetSnapshot?> = _snapshot.asStateFlow()
@@ -59,16 +66,50 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadSavedPet()
         viewModelScope.launch {
-            while (true) {
+            while (isActive) {
                 delay(1_000)
-                if (_snapshot.value != null) {
-                    pet.tick(System.currentTimeMillis())
-                    refreshPet()
-                    if (System.currentTimeMillis() - lastSaveAt >= 15_000) {
-                        savePet()
-                    }
+                if (!inForeground || _snapshot.value == null) continue
+                val now = System.currentTimeMillis()
+                pet.tick(now)
+                refreshPet()
+                if (now - lastSaveAt >= SaveIntervalMs) {
+                    savePet()
                 }
             }
+        }
+    }
+
+    fun onForeground() {
+        if (inForeground) return
+        inForeground = true
+        val core = backgroundSave
+        val startedAt = backgroundedAt
+        backgroundSave = null
+        backgroundedAt = 0L
+        val current = _snapshot.value
+        if (core == null || current == null || startedAt <= 0L) return
+
+        val now = System.currentTimeMillis()
+        val effectiveStart = OfflineDecay.effectiveSaveTime(startedAt, now, current.hunger)
+        if (pet.load(core, effectiveStart)) {
+            pet.tick(now)
+            refreshPet()
+            // Loading resets the in-progress round, so the RPS screen would
+            // otherwise accept a choice that the native side rejects.
+            if (_screen.value == AppScreen.Rps) {
+                _screen.value = AppScreen.Home
+                _rpsResult.value = null
+            }
+        }
+    }
+
+    fun onBackground() {
+        if (!inForeground) return
+        inForeground = false
+        backgroundedAt = System.currentTimeMillis()
+        backgroundSave = if (_snapshot.value != null) pet.save() else null
+        if (backgroundSave != null) {
+            savePet()
         }
     }
 
@@ -80,14 +121,18 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetPet() {
-        flushSave()
-        saveStore.delete()
+        backgroundSave = null
+        backgroundedAt = 0L
+        lastSaveAt = 0L
         _snapshot.value = null
         _screen.value = AppScreen.Home
         _shopItems.value = emptyList()
         _inventory.value = null
         _rpsResult.value = null
         _message.value = "Выбери свою Vaiwu"
+        // Queued on the same single-thread dispatcher, so pending saves land
+        // before the files are removed.
+        saveScope.launch { saveStore.delete() }
     }
 
     fun openHome() {
@@ -111,10 +156,14 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     fun startRps() {
         val result = pet.startPlay()
         refreshPet()
-        if (result == ActionOk) {
+        val awake = _snapshot.value?.lifeState == LifeState.Awake
+        if (result == ActionResult.Ok && awake) {
             _rpsResult.value = null
             _screen.value = AppScreen.Rps
             _message.value = "Выбери камень, бумагу или ножницы"
+        } else if (result == ActionResult.Ok) {
+            pet.cancelPlay()
+            _message.value = "Она слишком устала для игры"
         } else {
             _message.value = actionMessage(result)
         }
@@ -133,8 +182,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         refreshPet()
         refreshEconomy()
         _message.value = when (result.outcome) {
-            1 -> "Победа! +${result.reward} монеты"
-            0 -> "Ничья"
+            RpsOutcome.Win -> "Победа! +${result.reward} монеты"
+            RpsOutcome.Draw -> "Ничья"
             else -> "В этот раз не повезло"
         }
         savePet()
@@ -154,10 +203,14 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun equip(slot: Int, itemId: Int) {
-        pet.equip(slot, itemId)
+        val changed = pet.equip(slot, itemId)
         _inventory.value = pet.inventory()
         _shopItems.value = pet.shop().toList()
-        _message.value = if (itemId >= 0) "Снаряжение надето" else "Слот освобождён"
+        _message.value = when {
+            !changed -> "Не удалось изменить снаряжение"
+            itemId >= 0 -> "Снаряжение надето"
+            else -> "Слот освобождён"
+        }
         savePet()
     }
 
@@ -173,48 +226,27 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         val result = pet.action(action)
         refreshPet()
         _message.value = when {
-            action == 5 && result == 0 -> "Пора вставать!"
-            action == 6 -> "Лекарство принято"
-            result == ActionOk -> when (action) {
-                0 -> "Вкусно!"
-                1 -> "С тобой весело!"
-                2 -> "Теперь я чистенькая"
-                3 -> "Так-то лучше"
-                4 -> "Мне есть что тебе сказать"
-                7 -> "Мне тепло рядом с тобой"
+            action == PetAction.Wake && result == ActionResult.Ok -> "Пора вставать!"
+            action == PetAction.Medicine -> "Лекарство принято"
+            result == ActionResult.Ok -> when (action) {
+                PetAction.Feed -> "Вкусно!"
+                PetAction.Wash -> "Теперь я чистенькая"
+                PetAction.Clean -> "Так-то лучше"
+                PetAction.Talk -> "Мне есть что тебе сказать"
+                PetAction.Hug -> "Мне тепло рядом с тобой"
                 else -> ""
             }
-            result == ActionRefusedDead -> "Питомец ушёл..."
-            result == ActionRefusedSleeping -> "Тихо, она спит"
-            result == ActionRefusedCaprice -> "Она капризничает"
+            result == ActionResult.RefusedDead -> "Питомец ушёл..."
+            result == ActionResult.RefusedSleeping -> "Тихо, она спит"
+            result == ActionResult.RefusedCaprice -> "Она капризничает"
             else -> actionMessage(result)
         }
         savePet()
     }
 
-    fun savePet() {
-        val data = saveData() ?: return
-        lastSaveAt = System.currentTimeMillis()
-        saveScope.launch {
-            if (!writeSave(data)) {
-                withContext(Dispatchers.Main) {
-                    _message.value = "Не удалось сохранить игру"
-                }
-            }
-        }
-    }
+    fun savePet() = enqueueSave()
 
-    fun flushSave() {
-        val data = saveData() ?: return
-        val saved = runBlocking {
-            withContext(saveDispatcher) { writeSave(data) }
-        }
-        if (saved) {
-            lastSaveAt = System.currentTimeMillis()
-        } else {
-            _message.value = "Не удалось сохранить игру"
-        }
-    }
+    fun flushSave() = enqueueSave()
 
     fun checkForUpdates() {
         if (_updateState.value !is UpdateUiState.Idle &&
@@ -246,7 +278,12 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _updateState.value = UpdateUiState.Downloading(available.release)
         viewModelScope.launch {
             try {
-                val apk = withContext(Dispatchers.IO) { updater.download(available.release) }
+                val apk = withContext(Dispatchers.IO) {
+                    updater.download(available.release) { received, total ->
+                        _updateState.value =
+                            UpdateUiState.Downloading(available.release, received, total)
+                    }
+                }
                 updater.install(apk)
                 _updateState.value = UpdateUiState.Idle
                 _message.value = "Подтверди установку в системном окне"
@@ -264,6 +301,18 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissUpdate() {
         _updateState.value = UpdateUiState.Idle
+    }
+
+    private fun enqueueSave() {
+        val data = saveData() ?: return
+        lastSaveAt = System.currentTimeMillis()
+        saveScope.launch {
+            if (!writeSave(data)) {
+                withContext(Dispatchers.Main) {
+                    _message.value = "Не удалось сохранить игру"
+                }
+            }
+        }
     }
 
     private fun saveData(): String? {
@@ -290,25 +339,35 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun loadSavedPet() {
-        if (!saveStore.baseFile.exists()) return
-        try {
-            val data = saveStore.openRead().bufferedReader().use { it.readText() }
-            val separator = data.indexOf('\n')
-            val header = if (separator >= 0) data.substring(0, separator) else ""
-            val savedAt = if (header.startsWith(SaveHeader)) {
-                header.removePrefix(SaveHeader).trim().toLong()
-            } else {
-                System.currentTimeMillis()
-            }
-            val coreSave = if (separator >= 0) data.substring(separator + 1) else data
-            if (pet.load(coreSave, savedAt)) {
-                pet.tick(System.currentTimeMillis())
-                refreshPet()
-                _message.value = "С возвращением!"
-            }
+        val data = try {
+            saveStore.openRead().bufferedReader().use { it.readText() }
+        } catch (_: FileNotFoundException) {
+            // AtomicFile restores the .bak copy before throwing, if one exists.
+            return
         } catch (_: Exception) {
             _message.value = "Сохранение повреждено, можно начать заново"
+            return
         }
+        val separator = data.indexOf('\n')
+        val header = if (separator >= 0) data.substring(0, separator) else ""
+        val savedAt = if (header.startsWith(SaveHeader)) {
+            header.removePrefix(SaveHeader).trim().toLongOrNull() ?: System.currentTimeMillis()
+        } else {
+            System.currentTimeMillis()
+        }
+        val coreSave = if (separator >= 0) data.substring(separator + 1) else data
+        if (!pet.load(coreSave, savedAt)) {
+            _message.value = "Сохранение повреждено, можно начать заново"
+            return
+        }
+        val now = System.currentTimeMillis()
+        // Hunger is only known after parsing, so reload with a capped start
+        // time: offline decay must not starve the pet to death.
+        val effectiveStart = OfflineDecay.effectiveSaveTime(savedAt, now, pet.snapshot().hunger)
+        if (effectiveStart != savedAt && !pet.load(coreSave, effectiveStart)) return
+        pet.tick(now)
+        refreshPet()
+        _message.value = "С возвращением!"
     }
 
     private fun refreshPet() {
@@ -322,17 +381,18 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun actionMessage(result: Int): String = when (result) {
-        ActionRefusedDead -> "Питомец ушёл..."
-        ActionRefusedSleeping -> "Тихо, она спит"
-        ActionRefusedCaprice -> "Она капризничает"
-        ActionNotHungry -> "Я уже сыта"
-        ActionTooTired -> "Слишком мало энергии"
+        ActionResult.RefusedDead -> "Питомец ушёл..."
+        ActionResult.RefusedSleeping -> "Тихо, она спит"
+        ActionResult.RefusedCaprice -> "Она капризничает"
+        ActionResult.NotHungry -> "Я уже сыта"
+        ActionResult.TooTired -> "Слишком мало энергии"
         else -> "Действие недоступно"
     }
 
     override fun onCleared() {
+        // Enqueue the final save, then let the executor drain queued writes.
+        // Cancelling the scope here would drop the save.
         flushSave()
-        saveScope.cancel()
         saveDispatcher.close()
         pet.close()
         super.onCleared()
@@ -340,11 +400,6 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val SaveHeader = "VAIWU-ANDROID-1"
-        const val ActionOk = 0
-        const val ActionRefusedDead = 1
-        const val ActionRefusedSleeping = 2
-        const val ActionRefusedCaprice = 3
-        const val ActionNotHungry = 4
-        const val ActionTooTired = 5
+        const val SaveIntervalMs = 15_000L
     }
 }

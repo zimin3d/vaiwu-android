@@ -1,0 +1,29 @@
+Vaiwu Android
+=============
+
+This repository contains an Android front-end for the Vaiwu virtual pet.
+
+Third-party notices
+-------------------
+
+### Vaiwu game firmware
+
+The native simulation and sprite assets are built from the `external/vaiwu`
+submodule:
+
+- Copyright (c) 2026 Tamagotchi Vaiwu contributors
+- Licensed under the MIT License.
+
+A copy of the license is bundled with the application at
+`app/src/main/assets/licenses/vaiwu-MIT.txt` and is also available in
+`external/vaiwu/LICENSE`.
+
+### AndroidX, Kotlin, Gradle
+
+The application depends on AndroidX, Kotlin, and Gradle components. Their
+licenses are provided by the respective upstream projects.
+
+Application code
+----------------
+
+No license is declared for the Android application code in this repository.

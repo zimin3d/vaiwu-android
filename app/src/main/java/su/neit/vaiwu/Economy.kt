@@ -50,7 +50,3 @@ enum class AppScreen {
     Inventory,
     Rps,
 }
-
-val shopCategoryNames = listOf("Еда", "Аптека", "Подарки", "Оружие", "Броня", "Амулеты")
-val equipmentSlotNames = listOf("Оружие", "Броня", "Амулет")
-val rpsChoiceNames = listOf("Камень", "Бумага", "Ножницы")

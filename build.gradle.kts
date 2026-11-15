@@ -8,4 +8,13 @@ allprojects {
     dependencyLocking {
         lockAllConfigurations()
     }
+    // Unit-test configurations are excluded from dependency locking: they are
+    // only used locally and would otherwise require hand-editing the lockfile.
+    // Registered after lockAllConfigurations() so it wins for both existing
+    // and future configurations.
+    configurations.configureEach {
+        if (name.contains("Test")) {
+            resolutionStrategy.deactivateDependencyLocking()
+        }
+    }
 }

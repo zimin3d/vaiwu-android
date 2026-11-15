@@ -30,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,16 +44,20 @@ fun ShopScreen(
     onInventory: () -> Unit,
     onHome: () -> Unit,
 ) {
+    val shopCategoryNames = stringArrayResource(R.string.shop_categories)
     var category by remember { mutableIntStateOf(0) }
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        ScreenHeader("Магазин", onHome)
+        ScreenHeader(stringResource(R.string.shop_title), onHome)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Монеты: $coins", style = MaterialTheme.typography.titleMedium)
-            TextButton(onClick = onInventory) { Text("Снаряжение") }
+            Text(
+                stringResource(R.string.coins, coins),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            TextButton(onClick = onInventory) { Text(stringResource(R.string.equipment)) }
         }
         ScrollableTabRow(selectedTabIndex = category, edgePadding = 0.dp) {
             shopCategoryNames.forEachIndexed { index, name ->
@@ -84,10 +90,13 @@ fun ShopScreen(
                             }
                         }
                         if (item.owned) {
-                            Text("Куплено", color = MaterialTheme.colorScheme.secondary)
+                            Text(
+                                stringResource(R.string.bought),
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
                         } else {
                             Button(onClick = { onBuy(item.id) }) {
-                                Text("${item.price} · Купить")
+                                Text(stringResource(R.string.buy_with_price, item.price))
                             }
                         }
                     }
@@ -105,6 +114,7 @@ fun InventoryScreen(
     onSell: (Int) -> Unit,
     onHome: () -> Unit,
 ) {
+    val equipmentSlotNames = stringArrayResource(R.string.equipment_slots)
     var pendingSale by remember { mutableStateOf<EquipmentSnapshot?>(null) }
     Column(
         modifier = Modifier
@@ -112,21 +122,41 @@ fun InventoryScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
     ) {
-        ScreenHeader("Снаряжение", onHome)
+        ScreenHeader(stringResource(R.string.equipment), onHome)
         if (inventory == null) {
-            Text("Нет данных")
+            Text(stringResource(R.string.no_data))
             return@Column
         }
         Text(
-            "Уровень ${inventory.level} · Опыт ${inventory.xp}/${inventory.xpNext}",
+            stringResource(R.string.inventory_level, inventory.level, inventory.xp, inventory.xpNext),
             style = MaterialTheme.typography.titleMedium,
         )
-        Text("HP ${inventory.hp}/${inventory.hpMax} · MP ${inventory.mp}/${inventory.mpMax}")
-        Text("Зелье здоровья: ${inventory.potions} · Зелье маны: ${inventory.mpPotions}")
+        Text(
+            stringResource(
+                R.string.inventory_hp_mp,
+                inventory.hp,
+                inventory.hpMax,
+                inventory.mp,
+                inventory.mpMax,
+            ),
+        )
+        Text(
+            stringResource(
+                R.string.inventory_potions,
+                inventory.potions,
+                inventory.mpPotions,
+            ),
+        )
         Spacer(Modifier.height(8.dp))
         Text(
-            "СИЛ ${inventory.strength} · ЖИВ ${inventory.vitality} · ЛОВ ${inventory.agility}\n" +
-                "МАГ ${inventory.magic} · УДЧ ${inventory.luck}",
+            stringResource(
+                R.string.inventory_stats,
+                inventory.strength,
+                inventory.vitality,
+                inventory.agility,
+                inventory.magic,
+                inventory.luck,
+            ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(12.dp))
@@ -134,7 +164,10 @@ fun InventoryScreen(
             Text(slotName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             val owned = inventory.equipment.filter { it.slot == slot && it.owned }
             if (owned.isEmpty()) {
-                Text("Пока пусто", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    stringResource(R.string.slot_empty),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             owned.forEach { item ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -143,12 +176,16 @@ fun InventoryScreen(
                         Text(item.bonuses, style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (item.equipped) {
-                                OutlinedButton(onClick = { onEquip(slot, -1) }) { Text("Снять") }
+                                OutlinedButton(onClick = { onEquip(slot, -1) }) {
+                                    Text(stringResource(R.string.unequip))
+                                }
                             } else {
-                                Button(onClick = { onEquip(slot, item.id) }) { Text("Надеть") }
+                                Button(onClick = { onEquip(slot, item.id) }) {
+                                    Text(stringResource(R.string.equip))
+                                }
                             }
                             TextButton(onClick = { pendingSale = item }) {
-                                Text("Продать · ${item.sellPrice}")
+                                Text(stringResource(R.string.sell_with_price, item.sellPrice))
                             }
                         }
                     }
@@ -160,15 +197,19 @@ fun InventoryScreen(
     pendingSale?.let { item ->
         AlertDialog(
             onDismissRequest = { pendingSale = null },
-            title = { Text("Продать ${item.name}?") },
-            text = { Text("Будет возвращено ${item.sellPrice} монет.") },
+            title = { Text(stringResource(R.string.sell_title, item.name)) },
+            text = { Text(stringResource(R.string.sell_text, item.sellPrice)) },
             confirmButton = {
                 TextButton(onClick = {
                     onSell(item.id)
                     pendingSale = null
-                }) { Text("Продать") }
+                }) { Text(stringResource(R.string.sell)) }
             },
-            dismissButton = { TextButton(onClick = { pendingSale = null }) { Text("Отмена") } },
+            dismissButton = {
+                TextButton(onClick = { pendingSale = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
         )
     }
 }
@@ -181,11 +222,12 @@ fun RpsScreen(
     onAgain: () -> Unit,
     onHome: () -> Unit,
 ) {
+    val rpsChoiceNames = stringArrayResource(R.string.rps_choices)
     Column(
         modifier = Modifier.fillMaxSize().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        ScreenHeader("Камень · Ножницы · Бумага", onHome)
+        ScreenHeader(stringResource(R.string.rps_title), onHome)
         PetSprite(
             characterId = pet.characterId,
             emotionId = pet.emotionId,
@@ -193,7 +235,10 @@ fun RpsScreen(
             modifier = Modifier.size(144.dp, 192.dp),
         )
         if (result == null) {
-            Text("Победа принесёт 2 монеты", modifier = Modifier.padding(vertical = 12.dp))
+            Text(
+                stringResource(R.string.rps_win_hint),
+                modifier = Modifier.padding(vertical = 12.dp),
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -206,22 +251,26 @@ fun RpsScreen(
             }
         } else {
             Text(
-                "У ${pet.petName}: ${rpsChoiceNames[result.petChoice]}",
+                stringResource(
+                    R.string.rps_pet_choice,
+                    pet.petName,
+                    rpsChoiceNames[result.petChoice],
+                ),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
             )
             Text(
                 when (result.outcome) {
-                    1 -> "Ты выиграл! +${result.reward} монеты"
-                    0 -> "Ничья"
-                    else -> "Ты проиграл"
+                    RpsOutcome.Win -> stringResource(R.string.rps_win, result.reward)
+                    RpsOutcome.Draw -> stringResource(R.string.rps_draw)
+                    else -> stringResource(R.string.rps_loss)
                 },
                 modifier = Modifier.padding(12.dp),
                 color = MaterialTheme.colorScheme.secondary,
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
             )
-            Button(onClick = onAgain) { Text("Играть ещё") }
+            Button(onClick = onAgain) { Text(stringResource(R.string.rps_again)) }
         }
     }
 }
@@ -232,7 +281,7 @@ private fun ScreenHeader(title: String, onHome: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(onClick = onHome) { Text("Домой") }
+        TextButton(onClick = onHome) { Text(stringResource(R.string.home)) }
         Text(
             title,
             modifier = Modifier.weight(1f),

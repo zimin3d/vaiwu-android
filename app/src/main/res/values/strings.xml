@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vaiwu</string>
+    <string name="title_version">Vaiwu · %1$s</string>
+    <string name="update">Обновить</string>
+    <string name="home">Домой</string>
+    <string name="cancel">Отмена</string>
+
+    <string name="choose_pet">Кто поселится в твоём телефоне?</string>
+    <string name="pet_summary">День %1$d · %2$d монет · %3$s</string>
+    <string name="weight_kg">%1$.1f кг</string>
+    <string name="pet_sick">Она заболела — нужно лекарство</string>
+    <string name="stat_hunger">Сытость</string>
+    <string name="stat_happiness">Счастье</string>
+    <string name="stat_energy">Энергия</string>
+    <string name="stat_discipline">Дисциплина</string>
+    <string name="percent">%1$d%%</string>
+    <string name="start_over">Начать заново</string>
+    <string name="wake_up">Разбудить</string>
+    <string name="shop_with_coins">Магазин · %1$d монет</string>
+    <string name="action_feed">Покормить</string>
+    <string name="action_play">Поиграть</string>
+    <string name="action_wash">Помыть</string>
+    <string name="action_talk">Поговорить</string>
+    <string name="action_clean">Убрать</string>
+    <string name="action_hug">Обнять</string>
+    <string name="give_medicine">Дать лекарство</string>
+
+    <string name="reset_title">Начать заново?</string>
+    <string name="reset_text">Текущий питомец и весь прогресс будут удалены. Это действие нельзя отменить.</string>
+
+    <string name="update_title">Обновление</string>
+    <string name="update_checking">Проверяем GitHub Releases…</string>
+    <string name="update_downloading">Скачиваем %1$s…</string>
+    <string name="update_downloading_progress">Скачиваем %1$s… %2$d%%</string>
+    <string name="update_available">Доступна версия %1$s</string>
+    <string name="update_download">Скачать</string>
+    <string name="update_later">Позже</string>
+    <string name="update_close">Закрыть</string>
+
+    <string name="shop_title">Магазин</string>
+    <string name="coins">Монеты: %1$d</string>
+    <string name="equipment">Снаряжение</string>
+    <string name="bought">Куплено</string>
+    <string name="buy_with_price">%1$d · Купить</string>
+    <string name="no_data">Нет данных</string>
+    <string name="inventory_level">Уровень %1$d · Опыт %2$d/%3$d</string>
+    <string name="inventory_hp_mp">HP %1$d/%2$d · MP %3$d/%4$d</string>
+    <string name="inventory_potions">Зелье здоровья: %1$d · Зелье маны: %2$d</string>
+    <string name="inventory_stats">СИЛ %1$d · ЖИВ %2$d · ЛОВ %3$d\nМАГ %4$d · УДЧ %5$d</string>
+    <string name="slot_empty">Пока пусто</string>
+    <string name="unequip">Снять</string>
+    <string name="equip">Надеть</string>
+    <string name="sell_with_price">Продать · %1$d</string>
+    <string name="sell_title">Продать %1$s?</string>
+    <string name="sell_text">Будет возвращено %1$d монет.</string>
+    <string name="sell">Продать</string>
+
+    <string name="rps_title">Камень · Ножницы · Бумага</string>
+    <string name="rps_win_hint">Победа принесёт 2 монеты</string>
+    <string name="rps_pet_choice">У %1$s: %2$s</string>
+    <string name="rps_win">Ты выиграл! +%1$d монеты</string>
+    <string name="rps_draw">Ничья</string>
+    <string name="rps_loss">Ты проиграл</string>
+    <string name="rps_again">Играть ещё</string>
+
+    <string-array name="character_names">
+        <item>Aoi</item>
+        <item>Hina</item>
+        <item>Rin</item>
+        <item>Yuki</item>
+        <item>Akane</item>
+        <item>Uni</item>
+        <item>Kolobok</item>
+    </string-array>
+
+    <string-array name="shop_categories">
+        <item>Еда</item>
+        <item>Аптека</item>
+        <item>Подарки</item>
+        <item>Оружие</item>
+        <item>Броня</item>
+        <item>Амулеты</item>
+    </string-array>
+
+    <string-array name="equipment_slots">
+        <item>Оружие</item>
+        <item>Броня</item>
+        <item>Амулет</item>
+    </string-array>
+
+    <string-array name="rps_choices">
+        <item>Камень</item>
+        <item>Бумага</item>
+        <item>Ножницы</item>
+    </string-array>
+</resources>

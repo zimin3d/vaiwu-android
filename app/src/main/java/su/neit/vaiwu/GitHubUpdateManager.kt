@@ -35,6 +35,7 @@ class GitHubUpdateManager(private val context: Context) {
                 HttpURLConnection.HTTP_NOT_FOUND -> return null
                 else -> throw IOException("GitHub вернул HTTP ${connection.responseCode}")
             }
+            verifyFinalHost(connection)
             val body = connection.inputStream.bufferedReader().use { it.readText() }
             val release = parseRelease(JSONObject(body))
             return release.takeIf { isNewerVersion(it.version, currentVersion) }
@@ -43,13 +44,16 @@ class GitHubUpdateManager(private val context: Context) {
         }
     }
 
-    fun download(release: ReleaseInfo): File {
+    fun download(release: ReleaseInfo, onProgress: (Long, Long) -> Unit = { _, _ -> }): File {
         if (release.sizeBytes > MaxApkBytes) {
             throw IOException("APK превышает допустимый размер")
         }
-        val updatesDir = File(context.filesDir, "updates").apply { mkdirs() }
-        val target = File(updatesDir, "vaiwu-${release.version}.apk")
+        // Cache storage is excluded from backups by the platform and is
+        // reachable through FileProvider (unlike noBackupFilesDir).
+        val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
+        val target = File(updatesDir, "vaiwu-${sanitizeFileName(release.version)}.apk")
         val partial = File(updatesDir, "${target.name}.part")
+        cleanOldDownloads(updatesDir, keep = setOf(target.name, partial.name))
         partial.delete()
 
         val connection = openConnection(release.apkUrl, readTimeoutMs = 60_000)
@@ -58,6 +62,7 @@ class GitHubUpdateManager(private val context: Context) {
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 throw IOException("Загрузка APK: HTTP ${connection.responseCode}")
             }
+            verifyFinalHost(connection)
             connection.inputStream.use { input ->
                 partial.outputStream().buffered().use { output ->
                     val buffer = ByteArray(32 * 1024)
@@ -71,6 +76,7 @@ class GitHubUpdateManager(private val context: Context) {
                         }
                         digest.update(buffer, 0, count)
                         output.write(buffer, 0, count)
+                        onProgress(total, release.sizeBytes)
                     }
                 }
             }
@@ -162,10 +168,15 @@ class GitHubUpdateManager(private val context: Context) {
     }
 
     private fun openConnection(url: String, readTimeoutMs: Int = 15_000): HttpURLConnection {
-        if (!url.startsWith("https://")) {
-            throw IOException("Обновление разрешено только по HTTPS")
+        val parsed = try {
+            URL(url)
+        } catch (_: Exception) {
+            throw IOException("Некорректный адрес обновления")
         }
-        val connection = URL(url).openConnection() as HttpURLConnection
+        if (parsed.protocol != "https" || parsed.host !in AllowedHosts) {
+            throw IOException("Обновление разрешено только с GitHub по HTTPS")
+        }
+        val connection = parsed.openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = true
         connection.connectTimeout = 15_000
         connection.readTimeout = readTimeoutMs
@@ -173,6 +184,31 @@ class GitHubUpdateManager(private val context: Context) {
         connection.setRequestProperty("User-Agent", "Vaiwu-Android/${BuildConfig.VERSION_NAME}")
         connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
         return connection
+    }
+
+    /**
+     * Automatic redirects could leave GitHub, so re-check the URL that the
+     * connection actually landed on before reading any bytes.
+     */
+    private fun verifyFinalHost(connection: HttpURLConnection) {
+        val finalUrl = connection.url
+        if (finalUrl.protocol != "https" || finalUrl.host !in AllowedHosts) {
+            throw IOException("GitHub перенаправил загрузку на недоверенный адрес")
+        }
+    }
+
+    private fun cleanOldDownloads(directory: File, keep: Set<String>) {
+        directory.listFiles()?.forEach { file ->
+            val stale = file.name.endsWith(".apk") || file.name.endsWith(".part")
+            if (stale && file.name !in keep) {
+                file.delete()
+            }
+        }
+    }
+
+    private fun sanitizeFileName(version: String): String {
+        val safe = version.replace(Regex("[^A-Za-z0-9._-]"), "_").take(64)
+        return safe.ifBlank { "update" }
     }
 
     private fun parseRelease(json: JSONObject): ReleaseInfo {
@@ -205,6 +241,12 @@ class GitHubUpdateManager(private val context: Context) {
             "https://api.github.com/repos/zimin3d/vaiwu-android/releases/latest"
         private const val APK_ASSET_NAME = "vaiwu-android.apk"
         private const val MaxApkBytes = 64L * 1024 * 1024
+        private val AllowedHosts = setOf(
+            "api.github.com",
+            "github.com",
+            "objects.githubusercontent.com",
+            "release-assets.githubusercontent.com",
+        )
     }
 }
 
@@ -218,7 +260,7 @@ private fun ByteArray.toHexString(): String = joinToString("") { byte ->
 
 class UnknownAppSourcesRequiredException : IOException()
 
-private fun isNewerVersion(candidate: String, current: String): Boolean {
+internal fun isNewerVersion(candidate: String, current: String): Boolean {
     val candidateParts = versionParts(candidate) ?: return false
     val currentParts = versionParts(current) ?: return false
     val count = maxOf(candidateParts.size, currentParts.size)
@@ -230,7 +272,7 @@ private fun isNewerVersion(candidate: String, current: String): Boolean {
     return false
 }
 
-private fun versionParts(version: String): List<Long>? {
+internal fun versionParts(version: String): List<Long>? {
     val core = version.trim()
         .removePrefix("v")
         .removePrefix("V")

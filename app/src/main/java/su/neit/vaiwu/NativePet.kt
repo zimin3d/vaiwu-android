@@ -35,7 +35,7 @@ class NativePet : Closeable {
     fun inventory(): InventorySnapshot = nativeInventory(handle)
 
     @Synchronized
-    fun equip(slot: Int, itemId: Int) = nativeEquip(handle, slot, itemId)
+    fun equip(slot: Int, itemId: Int): Boolean = nativeEquip(handle, slot, itemId)
 
     @Synchronized
     fun sell(itemId: Int): Int = nativeSell(handle, itemId)
@@ -68,7 +68,7 @@ class NativePet : Closeable {
     private external fun nativeShop(handle: Long): Array<ShopItemSnapshot>
     private external fun nativeBuy(handle: Long, itemId: Int): Boolean
     private external fun nativeInventory(handle: Long): InventorySnapshot
-    private external fun nativeEquip(handle: Long, slot: Int, itemId: Int)
+    private external fun nativeEquip(handle: Long, slot: Int, itemId: Int): Boolean
     private external fun nativeSell(handle: Long, itemId: Int): Int
     private external fun nativeStartPlay(handle: Long): Int
     private external fun nativeCancelPlay(handle: Long)

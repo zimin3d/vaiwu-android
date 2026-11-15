@@ -67,10 +67,22 @@ jobs:
             export KEYSTORE_PASSWORD="$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d ' \r\n\t')"
             echo "::add-mask::$KEYSTORE_PASSWORD"
           fi
+          EXTRA_ARGS=()
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            # Dependabot bumps versions before we can refresh verification
+            # metadata; warn instead of failing the whole build.
+            EXTRA_ARGS+=(--dependency-verification=lenient)
+          fi
           set -o pipefail
-          ./gradlew --no-daemon lintDebug assembleRelease 2>&1 | tee build.log
+          ./gradlew --no-daemon "${EXTRA_ARGS[@]}" lintDebug testDebugUnitTest assembleRelease 2>&1 | tee build.log
           mkdir -p out
           cp app/build/outputs/apk/release/app-release.apk out/vaiwu-android.apk
+
+      - name: Verify APK signature
+        if: env.SIGNED == '1'
+        run: |
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          "$APKSIGNER" verify --verbose out/vaiwu-android.apk
 
       - name: Expose build error
         if: failure()

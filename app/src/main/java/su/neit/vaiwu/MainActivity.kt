@@ -26,8 +26,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        viewModel.onForeground()
+    }
+
     override fun onStop() {
-        viewModel.flushSave()
+        viewModel.onBackground()
         super.onStop()
     }
 }

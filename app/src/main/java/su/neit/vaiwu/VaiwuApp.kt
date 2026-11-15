@@ -1,8 +1,10 @@
 package su.neit.vaiwu
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,16 +33,17 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import java.util.Locale
-
-private val characterNames = listOf("Aoi", "Hina", "Rin", "Yuki", "Akane", "Uni", "Kolobok")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,14 +55,19 @@ fun VaiwuApp(viewModel: PetViewModel) {
     val shopItems by viewModel.shopItems.collectAsStateWithLifecycle()
     val inventory by viewModel.inventory.collectAsStateWithLifecycle()
     val rpsResult by viewModel.rpsResult.collectAsStateWithLifecycle()
+    var confirmingReset by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = screen != AppScreen.Home) {
+        viewModel.openHome()
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Vaiwu · ${BuildConfig.VERSION_NAME}") },
+                title = { Text(stringResource(R.string.title_version, BuildConfig.VERSION_NAME)) },
                 actions = {
                     TextButton(onClick = viewModel::checkForUpdates) {
-                        Text("Обновить")
+                        Text(stringResource(R.string.update))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -82,7 +90,7 @@ fun VaiwuApp(viewModel: PetViewModel) {
                         AppScreen.Home -> PetHome(
                             pet = currentPet,
                             onAction = viewModel::performAction,
-                            onReset = viewModel::resetPet,
+                            onReset = { confirmingReset = true },
                             onPlay = viewModel::startRps,
                             onShop = viewModel::openShop,
                         )
@@ -124,13 +132,36 @@ fun VaiwuApp(viewModel: PetViewModel) {
         onDownload = viewModel::downloadUpdate,
         onDismiss = viewModel::dismissUpdate,
     )
+    if (confirmingReset) {
+        AlertDialog(
+            onDismissRequest = { confirmingReset = false },
+            title = { Text(stringResource(R.string.reset_title)) },
+            text = { Text(stringResource(R.string.reset_text)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmingReset = false
+                        viewModel.resetPet()
+                    },
+                ) {
+                    Text(stringResource(R.string.start_over))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmingReset = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 }
 
 @Composable
 private fun CharacterSelection(onSelect: (Int) -> Unit) {
+    val characterNames = stringArrayResource(R.string.character_names)
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
-            "Кто поселится в твоём телефоне?",
+            stringResource(R.string.choose_pet),
             modifier = Modifier.padding(20.dp),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
@@ -138,7 +169,7 @@ private fun CharacterSelection(onSelect: (Int) -> Unit) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+            contentPadding = PaddingValues(12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -167,6 +198,7 @@ private fun PetHome(
     onPlay: () -> Unit,
     onShop: () -> Unit,
 ) {
+    val weight = stringResource(R.string.weight_kg, pet.weightKg)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -180,8 +212,7 @@ private fun PetHome(
             fontWeight = FontWeight.Bold,
         )
         Text(
-            "День ${pet.ageSeconds / 86_400 + 1} · ${pet.coins} монет · " +
-                String.format(Locale.US, "%.1f кг", pet.weightKg),
+            stringResource(R.string.pet_summary, pet.ageSeconds / 86_400 + 1, pet.coins, weight),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(8.dp))
@@ -192,30 +223,55 @@ private fun PetHome(
             modifier = Modifier.size(144.dp, 192.dp),
         )
         if (pet.isSick) {
-            Text("Она заболела — нужно лекарство", color = MaterialTheme.colorScheme.secondary)
+            Text(
+                stringResource(R.string.pet_sick),
+                color = MaterialTheme.colorScheme.secondary,
+            )
         }
         Spacer(Modifier.height(8.dp))
-        StatBar("Сытость", pet.hunger)
-        StatBar("Счастье", pet.happiness)
-        StatBar("Энергия", pet.energy)
-        StatBar("Дисциплина", pet.discipline)
+        StatBar(stringResource(R.string.stat_hunger), pet.hunger)
+        StatBar(stringResource(R.string.stat_happiness), pet.happiness)
+        StatBar(stringResource(R.string.stat_energy), pet.energy)
+        StatBar(stringResource(R.string.stat_discipline), pet.discipline)
         Spacer(Modifier.height(12.dp))
 
         when (pet.lifeState) {
-            2 -> Button(onClick = onReset) { Text("Начать заново") }
-            1 -> Button(onClick = { onAction(5) }) { Text("Разбудить") }
+            LifeState.Dead -> Button(onClick = onReset) { Text(stringResource(R.string.start_over)) }
+            LifeState.Sleeping -> Button(onClick = { onAction(PetAction.Wake) }) {
+                Text(stringResource(R.string.wake_up))
+            }
             else -> {
                 Button(onClick = onShop, modifier = Modifier.fillMaxWidth()) {
-                    Text("Магазин · ${pet.coins} монет")
+                    Text(stringResource(R.string.shop_with_coins, pet.coins))
                 }
-                ActionRow("Покормить", 0, "Поиграть", 1) { action ->
-                    if (action == 1) onPlay() else onAction(action)
+                ActionRow(
+                    stringResource(R.string.action_feed),
+                    PetAction.Feed,
+                    stringResource(R.string.action_play),
+                    PetAction.Play,
+                ) { action ->
+                    if (action == PetAction.Play) onPlay() else onAction(action)
                 }
-                ActionRow("Помыть", 2, "Поговорить", 4, onAction)
-                ActionRow("Убрать", 3, "Обнять", 7, onAction)
+                ActionRow(
+                    stringResource(R.string.action_wash),
+                    PetAction.Wash,
+                    stringResource(R.string.action_talk),
+                    PetAction.Talk,
+                    onAction,
+                )
+                ActionRow(
+                    stringResource(R.string.action_clean),
+                    PetAction.Clean,
+                    stringResource(R.string.action_hug),
+                    PetAction.Hug,
+                    onAction,
+                )
                 if (pet.isSick) {
-                    Button(onClick = { onAction(6) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Дать лекарство")
+                    Button(
+                        onClick = { onAction(PetAction.Medicine) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.give_medicine))
                     }
                 }
             }
@@ -258,7 +314,7 @@ private fun StatBar(label: String, value: Float) {
                 .height(8.dp),
         )
         Text(
-            "${value.toInt()}%",
+            stringResource(R.string.percent, value.toInt()),
             modifier = Modifier.width(44.dp),
             textAlign = TextAlign.End,
             style = MaterialTheme.typography.bodySmall,
@@ -271,42 +327,75 @@ private fun StatBar(label: String, value: Float) {
 private fun UpdateDialog(state: UpdateUiState, onDownload: () -> Unit, onDismiss: () -> Unit) {
     when (state) {
         UpdateUiState.Idle -> Unit
-        UpdateUiState.Checking -> ProgressDialog("Проверяем GitHub Releases…")
-        is UpdateUiState.Downloading -> ProgressDialog("Скачиваем ${state.release.version}…")
+        UpdateUiState.Checking -> ProgressDialog(stringResource(R.string.update_checking))
+        is UpdateUiState.Downloading -> {
+            val percent = if (state.totalBytes > 0) {
+                (state.receivedBytes * 100 / state.totalBytes).toInt().coerceIn(0, 100)
+            } else {
+                null
+            }
+            val text = if (percent == null) {
+                stringResource(R.string.update_downloading, state.release.version)
+            } else {
+                stringResource(R.string.update_downloading_progress, state.release.version, percent)
+            }
+            ProgressDialog(text, percent?.let { it / 100f })
+        }
         is UpdateUiState.Available -> AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(state.release.title) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text("Доступна версия ${state.release.version}")
+                    Text(stringResource(R.string.update_available, state.release.version))
                     if (state.release.notes.isNotBlank()) {
                         Spacer(Modifier.height(8.dp))
                         Text(state.release.notes, modifier = Modifier.heightIn(max = 240.dp))
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = onDownload) { Text("Скачать") } },
-            dismissButton = { TextButton(onClick = onDismiss) { Text("Позже") } },
+            confirmButton = {
+                TextButton(onClick = onDownload) {
+                    Text(stringResource(R.string.update_download))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.update_later))
+                }
+            },
         )
         is UpdateUiState.Error -> AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Обновление") },
+            title = { Text(stringResource(R.string.update_title)) },
             text = { Text(state.message) },
-            confirmButton = { TextButton(onClick = onDismiss) { Text("Закрыть") } },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.update_close))
+                }
+            },
         )
     }
 }
 
 @Composable
-private fun ProgressDialog(text: String) {
+private fun ProgressDialog(text: String, fraction: Float? = null) {
     AlertDialog(
         onDismissRequest = {},
-        title = { Text("Обновление") },
+        title = { Text(stringResource(R.string.update_title)) },
         text = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(modifier = Modifier.size(28.dp))
-                Spacer(Modifier.width(16.dp))
-                Text(text)
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Text(text)
+                }
+                if (fraction != null) {
+                    Spacer(Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = { fraction.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         },
         confirmButton = {},
