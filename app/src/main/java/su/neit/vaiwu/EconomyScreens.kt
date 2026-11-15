@@ -276,7 +276,7 @@ fun RpsScreen(
 }
 
 @Composable
-private fun ScreenHeader(title: String, onHome: () -> Unit) {
+fun ScreenHeader(title: String, onHome: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

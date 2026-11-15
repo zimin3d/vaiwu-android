@@ -83,7 +83,12 @@ fun SpriteImage(animation: SpriteAnimation, description: String, modifier: Modif
 }
 
 @Composable
-private fun AssetImage(assetName: String, description: String, modifier: Modifier) {
+fun AssetImage(
+    assetName: String,
+    description: String,
+    modifier: Modifier,
+    contentScale: ContentScale = ContentScale.Fit,
+) {
     val context = LocalContext.current.applicationContext
     val bitmap = remember(assetName) { mutableStateOf(SpriteBitmapCache.get(assetName)) }
     LaunchedEffect(assetName) {
@@ -95,7 +100,7 @@ private fun AssetImage(assetName: String, description: String, modifier: Modifie
             painter = BitmapPainter(currentBitmap.asImageBitmap()),
             contentDescription = description,
             modifier = modifier,
-            contentScale = ContentScale.Fit,
+            contentScale = contentScale,
         )
     } else {
         Box(modifier)

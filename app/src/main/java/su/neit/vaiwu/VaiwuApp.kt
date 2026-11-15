@@ -1,6 +1,7 @@
 package su.neit.vaiwu
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,6 +40,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -47,7 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VaiwuApp(viewModel: PetViewModel) {
+fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
@@ -55,6 +59,11 @@ fun VaiwuApp(viewModel: PetViewModel) {
     val shopItems by viewModel.shopItems.collectAsStateWithLifecycle()
     val inventory by viewModel.inventory.collectAsStateWithLifecycle()
     val rpsResult by viewModel.rpsResult.collectAsStateWithLifecycle()
+    val miniGame by viewModel.miniGame.collectAsStateWithLifecycle()
+    val battle by viewModel.battle.collectAsStateWithLifecycle()
+    val chatMessages by viewModel.chatMessages.collectAsStateWithLifecycle()
+    val chatBusy by viewModel.chatBusy.collectAsStateWithLifecycle()
+    val assistantSettings by viewModel.assistantSettings.collectAsStateWithLifecycle()
     var confirmingReset by remember { mutableStateOf(false) }
 
     BackHandler(enabled = screen != AppScreen.Home) {
@@ -84,15 +93,22 @@ fun VaiwuApp(viewModel: PetViewModel) {
             Box(modifier = Modifier.weight(1f)) {
                 val currentPet = snapshot
                 if (currentPet == null) {
-                    CharacterSelection(onSelect = viewModel::createPet)
+                    CharacterSelection(
+                        onSelect = { id, name -> viewModel.createPet(id, name) },
+                        profile = viewModel::characterProfile,
+                    )
                 } else {
                     when (screen) {
                         AppScreen.Home -> PetHome(
                             pet = currentPet,
                             onAction = viewModel::performAction,
                             onReset = { confirmingReset = true },
-                            onPlay = viewModel::startRps,
+                            onPlay = viewModel::openGames,
                             onShop = viewModel::openShop,
+                            onChat = viewModel::openChat,
+                            onStats = viewModel::openStats,
+                            onSettings = viewModel::openSettings,
+                            onHelp = viewModel::openHelp,
                         )
                         AppScreen.Shop -> ShopScreen(
                             items = shopItems,
@@ -114,6 +130,53 @@ fun VaiwuApp(viewModel: PetViewModel) {
                             onAgain = viewModel::startRps,
                             onHome = viewModel::openHome,
                         )
+                        AppScreen.Games -> GamesScreen(
+                            onRps = viewModel::startRps,
+                            onMiniGame = viewModel::startMiniGame,
+                            onBattle = viewModel::startBattle,
+                            onHome = viewModel::openHome,
+                        )
+                        AppScreen.MiniGame -> miniGame?.let { game ->
+                            MiniGameScreen(
+                                pet = currentPet,
+                                state = game,
+                                onChoice = viewModel::chooseMiniGame,
+                                onAgain = { viewModel.startMiniGame(game.kind, game.sequence.size) },
+                                onHome = viewModel::openHome,
+                            )
+                        }
+                        AppScreen.Battle -> battle?.let { currentBattle ->
+                            BattleScreen(
+                                battle = currentBattle,
+                                onAction = viewModel::battleAction,
+                                onNextRoom = viewModel::nextDungeonRoom,
+                                onAllocate = viewModel::allocateStat,
+                                onHome = viewModel::openHome,
+                            )
+                        }
+                        AppScreen.Stats -> StatsScreen(
+                            inventory = inventory,
+                            onAllocate = viewModel::allocateStat,
+                            onEquipment = viewModel::openInventory,
+                            onHome = viewModel::openHome,
+                        )
+                        AppScreen.Chat -> ChatScreen(
+                            messages = chatMessages,
+                            busy = chatBusy,
+                            speechEnabled = assistantSettings.speechEnabled,
+                            voice = voice,
+                            onSend = viewModel::submitChat,
+                            onHome = viewModel::openHome,
+                        )
+                        AppScreen.Settings -> SettingsScreen(
+                            settings = assistantSettings,
+                            voice = voice,
+                            onSave = viewModel::saveAssistantSettings,
+                            onUpdate = viewModel::checkForUpdates,
+                            onReset = { confirmingReset = true },
+                            onHome = viewModel::openHome,
+                        )
+                        AppScreen.Help -> HelpScreen(onHome = viewModel::openHome)
                     }
                 }
             }
@@ -157,14 +220,22 @@ fun VaiwuApp(viewModel: PetViewModel) {
 }
 
 @Composable
-private fun CharacterSelection(onSelect: (Int) -> Unit) {
+private fun CharacterSelection(onSelect: (Int, String) -> Unit, profile: (Int) -> CharacterProfile?) {
     val characterNames = stringArrayResource(R.array.character_names)
+    var petName by remember { mutableStateOf("") }
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
             stringResource(R.string.choose_pet),
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(20.dp, 20.dp, 20.dp, 4.dp),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
+        )
+        OutlinedTextField(
+            value = petName,
+            onValueChange = { petName = it.take(24) },
+            label = { Text("Имя питомца (необязательно)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
         )
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
@@ -174,7 +245,8 @@ private fun CharacterSelection(onSelect: (Int) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             itemsIndexed(characterNames) { index, name ->
-                Card(onClick = { onSelect(index) }) {
+                val stats = remember(index) { profile(index) }
+                Card(onClick = { onSelect(index, petName) }) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -183,6 +255,14 @@ private fun CharacterSelection(onSelect: (Int) -> Unit) {
                     ) {
                         PetSprite(index, 0, name, Modifier.size(96.dp, 128.dp))
                         Text(name, style = MaterialTheme.typography.titleMedium)
+                        stats?.let {
+                            Text(
+                                "СИЛ ${it.strength} · ЖИВ ${it.vitality}\nЛОВ ${it.agility} · МАГ ${it.magic} · УДЧ ${it.luck}",
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = TextAlign.Center,
+                            )
+                            Text("Любимая еда: ${it.favoriteFood}", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
@@ -197,15 +277,23 @@ private fun PetHome(
     onReset: () -> Unit,
     onPlay: () -> Unit,
     onShop: () -> Unit,
+    onChat: () -> Unit,
+    onStats: () -> Unit,
+    onSettings: () -> Unit,
+    onHelp: () -> Unit,
 ) {
     val weight = stringResource(R.string.weight_kg, pet.weightKg)
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    Box(modifier = Modifier.fillMaxSize()) {
+        AssetImage(homeBackgroundForHour(hour), "Дом", Modifier.fillMaxSize(), ContentScale.Crop)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xB318122B))
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         Text(
             pet.petName,
             style = MaterialTheme.typography.headlineMedium,
@@ -244,6 +332,12 @@ private fun PetHome(
                 Button(onClick = onShop, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.shop_with_coins, pet.coins))
                 }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TextButton(onClick = onChat, modifier = Modifier.weight(1f)) { Text("Чат") }
+                    TextButton(onClick = onStats, modifier = Modifier.weight(1f)) { Text("Статы") }
+                    TextButton(onClick = onHelp, modifier = Modifier.weight(1f)) { Text("Помощь") }
+                    TextButton(onClick = onSettings, modifier = Modifier.weight(1f)) { Text("Настройки") }
+                }
                 ActionRow(
                     stringResource(R.string.action_feed),
                     PetAction.Feed,
@@ -277,6 +371,7 @@ private fun PetHome(
             }
         }
         Spacer(Modifier.height(12.dp))
+        }
     }
 }
 

@@ -8,13 +8,17 @@ import androidx.compose.ui.graphics.Color
 private val VaiwuColors = darkColorScheme(
     primary = Color(0xFFD5B8FF),
     onPrimary = Color(0xFF38235B),
-    secondary = Color(0xFFFFC2D4),
-    background = Color(0xFF171421),
-    surface = Color(0xFF241D31),
-    onBackground = Color(0xFFF4EDFF),
-    onSurface = Color(0xFFF4EDFF),
-    surfaceVariant = Color(0xFF352A45),
-    onSurfaceVariant = Color(0xFFD8CBE6),
+    secondary = Color(0xFF37E08D),
+    background = Color(0xFF18122B),
+    surface = Color(0xFF241B3D),
+    onBackground = Color(0xFFF2E6FF),
+    onSurface = Color(0xFFF2E6FF),
+    surfaceVariant = Color(0xFF322659),
+    onSurfaceVariant = Color(0xFF9C8FC7),
+    primaryContainer = Color(0xFF3A2F5C),
+    onPrimaryContainer = Color(0xFFF2E6FF),
+    error = Color(0xFFE04452),
+    outline = Color(0xFF3A2F5C),
 )
 
 @Composable

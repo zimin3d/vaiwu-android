@@ -17,6 +17,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileNotFoundException
+import java.text.DateFormat
+import java.util.Date
 import java.util.concurrent.Executors
 
 sealed interface UpdateUiState {
@@ -35,6 +37,9 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val pet = NativePet()
     private val saveStore = AtomicFile(File(application.filesDir, "pet.save"))
     private val updater = GitHubUpdateManager(application)
+    private val assistantClient = AssistantClient()
+    private val reminders = ReminderScheduler(application)
+    private val settingsStore = application.getSharedPreferences("settings", 0)
     private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val saveScope = CoroutineScope(SupervisorJob() + saveDispatcher)
     private var lastSaveAt = 0L
@@ -63,6 +68,22 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val _rpsResult = MutableStateFlow<RpsResult?>(null)
     val rpsResult: StateFlow<RpsResult?> = _rpsResult.asStateFlow()
 
+    private val miniGameEngine = MiniGameEngine()
+    private val _miniGame = MutableStateFlow<MiniGameState?>(null)
+    val miniGame: StateFlow<MiniGameState?> = _miniGame.asStateFlow()
+
+    private val _battle = MutableStateFlow<BattleSnapshot?>(null)
+    val battle: StateFlow<BattleSnapshot?> = _battle.asStateFlow()
+
+    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+    private val _chatBusy = MutableStateFlow(false)
+    val chatBusy: StateFlow<Boolean> = _chatBusy.asStateFlow()
+
+    private val _assistantSettings = MutableStateFlow(readAssistantSettings())
+    val assistantSettings: StateFlow<AssistantSettings> = _assistantSettings.asStateFlow()
+
     init {
         loadSavedPet()
         viewModelScope.launch {
@@ -75,6 +96,16 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 if (now - lastSaveAt >= SaveIntervalMs) {
                     savePet()
                 }
+            }
+        }
+        viewModelScope.launch {
+            while (isActive) {
+                delay(100)
+                val current = _miniGame.value ?: continue
+                if (!inForeground || current.finished) continue
+                val next = miniGameEngine.tick(current, 100)
+                _miniGame.value = next
+                settleMiniGame(current, next)
             }
         }
     }
@@ -96,10 +127,14 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             refreshPet()
             // Loading resets the in-progress round, so the RPS screen would
             // otherwise accept a choice that the native side rejects.
-            if (_screen.value == AppScreen.Rps) {
+            if (_screen.value == AppScreen.Rps || _screen.value == AppScreen.MiniGame ||
+                _screen.value == AppScreen.Battle
+            ) {
                 _screen.value = AppScreen.Home
-                _rpsResult.value = null
             }
+            _rpsResult.value = null
+            _miniGame.value = null
+            _battle.value = null
         }
     }
 
@@ -113,12 +148,15 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun createPet(characterId: Int) {
-        pet.startNew(characterId, "", System.currentTimeMillis())
+    fun createPet(characterId: Int, name: String = "") {
+        val safeName = name.filter { it != '\n' && it != '\r' }.take(24).trim()
+        pet.startNew(characterId, safeName, System.currentTimeMillis())
         refreshPet()
-        _message.value = "Рада знакомству!"
+        _message.value = pet.phrase(PhraseContext.Greeting) ?: "Рада знакомству!"
         savePet()
     }
+
+    fun characterProfile(characterId: Int): CharacterProfile? = pet.characterProfile(characterId)
 
     fun resetPet() {
         backgroundSave = null
@@ -129,6 +167,9 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _shopItems.value = emptyList()
         _inventory.value = null
         _rpsResult.value = null
+        _miniGame.value = null
+        _battle.value = null
+        _chatMessages.value = emptyList()
         _message.value = "Выбери свою Vaiwu"
         // Queued on the same single-thread dispatcher, so pending saves land
         // before the files are removed.
@@ -136,11 +177,43 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openHome() {
-        if (_screen.value == AppScreen.Rps) {
+        if (_screen.value == AppScreen.Rps || _screen.value == AppScreen.MiniGame) {
             pet.cancelPlay()
+        }
+        if (_screen.value == AppScreen.Battle) {
+            pet.leaveBattle()
+            _battle.value = null
+            savePet()
         }
         _screen.value = AppScreen.Home
         _rpsResult.value = null
+        _miniGame.value = null
+    }
+
+    fun openGames() {
+        _screen.value = AppScreen.Games
+    }
+
+    fun openStats() {
+        _inventory.value = pet.inventory()
+        _screen.value = AppScreen.Stats
+    }
+
+    fun openChat() {
+        if (_chatMessages.value.isEmpty()) {
+            _chatMessages.value = listOf(ChatMessage(
+                pet.phrase(PhraseContext.Greeting) ?: "О чём поговорим?", true,
+            ))
+        }
+        _screen.value = AppScreen.Chat
+    }
+
+    fun openSettings() {
+        _screen.value = AppScreen.Settings
+    }
+
+    fun openHelp() {
+        _screen.value = AppScreen.Help
     }
 
     fun openShop() {
@@ -189,6 +262,202 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         savePet()
     }
 
+    fun startMiniGame(kind: MiniGameKind, melodyLength: Int = 4) {
+        val result = pet.startPlay()
+        refreshPet()
+        if (result != ActionResult.Ok || _snapshot.value?.lifeState != LifeState.Awake) {
+            pet.cancelPlay()
+            _message.value = if (_snapshot.value?.lifeState == LifeState.Sleeping) {
+                "Она слишком устала для игры"
+            } else {
+                actionMessage(result)
+            }
+            savePet()
+            return
+        }
+        _miniGame.value = miniGameEngine.start(kind, melodyLength)
+        _screen.value = AppScreen.MiniGame
+        _message.value = "Игра началась!"
+        savePet()
+    }
+
+    fun chooseMiniGame(choice: Int) {
+        val current = _miniGame.value ?: return
+        val next = miniGameEngine.choose(current, choice)
+        _miniGame.value = next
+        settleMiniGame(current, next)
+    }
+
+    private fun settleMiniGame(previous: MiniGameState, current: MiniGameState) {
+        if (previous.finished || !current.finished) return
+        if (!pet.finishGame(current.outcome, current.reward)) {
+            _message.value = "Раунд уже завершён"
+            return
+        }
+        refreshPet()
+        refreshEconomy()
+        _message.value = when {
+            current.outcome > 0 -> "Победа! +${current.reward} монеты"
+            current.outcome < 0 -> "В этот раз не повезло"
+            else -> "Ничья"
+        }
+        savePet()
+    }
+
+    fun startBattle(dungeon: Boolean) {
+        val result = pet.startBattle(dungeon)
+        refreshPet()
+        if (result != ActionResult.Ok || _snapshot.value?.lifeState != LifeState.Awake) {
+            pet.leaveBattle()
+            _message.value = if (_snapshot.value?.lifeState == LifeState.Sleeping) {
+                "Она слишком устала для приключения"
+            } else {
+                actionMessage(result)
+            }
+        } else {
+            _battle.value = pet.battleSnapshot()
+            _screen.value = AppScreen.Battle
+            _message.value = if (dungeon) "Данж начался" else "Приключение началось"
+        }
+        savePet()
+    }
+
+    fun battleAction(action: Int) {
+        if (_screen.value != AppScreen.Battle) return
+        val result = pet.battleAction(action) ?: return
+        _battle.value = result
+        refreshPet()
+        _inventory.value = pet.inventory()
+        if (result.over && !result.awaitingRest) {
+            _message.value = when (result.outcome) {
+                BattleOutcome.Victory -> pet.phrase(PhraseContext.Victory) ?: "Победа!"
+                BattleOutcome.Defeat -> pet.phrase(PhraseContext.Fainted) ?: "Она вернулась домой"
+                else -> "Добыча сохранена"
+            }
+        }
+        savePet()
+    }
+
+    fun nextDungeonRoom() {
+        if (!pet.nextDungeonRoom()) return
+        _battle.value = pet.battleSnapshot()
+        refreshPet()
+        savePet()
+    }
+
+    fun allocateStat(stat: Int) {
+        if (stat !in 0..4) return
+        pet.allocateStat(stat)
+        _inventory.value = pet.inventory()
+        _battle.value = pet.battleSnapshot()
+        refreshPet()
+        savePet()
+    }
+
+    fun saveAssistantSettings(apiKey: String, speechEnabled: Boolean, latitude: Double, longitude: Double): Boolean {
+        if (!latitude.isFinite() || !longitude.isFinite() ||
+            latitude !in -90.0..90.0 || longitude !in -180.0..180.0
+        ) {
+            _message.value = "Проверь координаты"
+            return false
+        }
+        settingsStore.edit()
+            .putString("openrouter_key", apiKey.trim().take(300))
+            .putBoolean("speech", speechEnabled)
+            .putString("latitude", latitude.toString())
+            .putString("longitude", longitude.toString())
+            .putBoolean("location_configured", true)
+            .apply()
+        _assistantSettings.value = readAssistantSettings()
+        _message.value = "Настройки сохранены"
+        return true
+    }
+
+    fun submitChat(rawText: String) {
+        val text = rawText.trim().take(2_000)
+        if (text.isEmpty() || _chatBusy.value || _snapshot.value == null) return
+        _chatMessages.value = (_chatMessages.value + ChatMessage(text, false)).takeLast(50)
+        val intent = pet.parseIntent(text)
+        if (intent == null) {
+            answerChat(pet.phrase(PhraseContext.Talked) ?: "Я рядом и слушаю тебя")
+            return
+        }
+        when (intent.kind) {
+            AssistantKind.SetAlarm -> {
+                val at = nextAlarmAt(intent.hour, intent.minute, System.currentTimeMillis())
+                reminders.schedule(at, text)
+                answerChat("Напоминание установлено на ${formatReminderTime(at)}")
+            }
+            AssistantKind.Reminder -> {
+                val at = System.currentTimeMillis() + intent.afterMinutes.coerceIn(1, 1_440) * 60_000L
+                reminders.schedule(at, text)
+                answerChat("Напомню ${formatReminderTime(at)}")
+            }
+            AssistantKind.Pomodoro -> {
+                val at = System.currentTimeMillis() + 25 * 60_000L
+                reminders.schedule(at, "Помодоро завершён")
+                answerChat("Засекаю 25 минут. Время сосредоточиться!")
+            }
+            AssistantKind.Cancel -> {
+                reminders.cancelAll()
+                answerChat("Все напоминания отменены")
+            }
+            AssistantKind.MissingTime -> answerChat("Уточни время, например: «напомни в 18:30»")
+            AssistantKind.Joke -> answerChat(pet.joke())
+            AssistantKind.Time -> answerChat("Сейчас ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())}")
+            AssistantKind.Convert -> answerChat(intent.conversion)
+            AssistantKind.Weather -> loadWeather()
+            else -> loadChatAnswer()
+        }
+    }
+
+    private fun loadWeather() {
+        val settings = _assistantSettings.value
+        if (!settings.locationConfigured) {
+            answerChat("Укажи координаты в настройках, чтобы я могла узнать погоду")
+            return
+        }
+        _chatBusy.value = true
+        viewModelScope.launch {
+            val answer = try {
+                withContext(Dispatchers.IO) {
+                    assistantClient.weather(settings.latitude, settings.longitude)
+                }
+            } catch (_: Exception) {
+                "Не удалось получить погоду. Проверь подключение к интернету."
+            }
+            _chatBusy.value = false
+            answerChat(answer)
+        }
+    }
+
+    private fun loadChatAnswer() {
+        val settings = _assistantSettings.value
+        val key = settingsStore.getString("openrouter_key", "").orEmpty()
+        if (key.isBlank()) {
+            answerChat(pet.phrase(PhraseContext.Talked) ?: "Я рядом и слушаю тебя")
+            return
+        }
+        val current = _snapshot.value ?: return
+        _chatBusy.value = true
+        viewModelScope.launch {
+            val answer = try {
+                withContext(Dispatchers.IO) {
+                    assistantClient.chat(key, current.petName, current.characterName, _chatMessages.value)
+                }
+            } catch (_: Exception) {
+                pet.phrase(PhraseContext.Talked)?.let { "Связь недоступна, поэтому отвечаю офлайн. $it" }
+                    ?: "Связь недоступна, но я всё равно рядом"
+            }
+            _chatBusy.value = false
+            answerChat(answer)
+        }
+    }
+
+    private fun answerChat(text: String) {
+        _chatMessages.value = (_chatMessages.value + ChatMessage(text, true)).takeLast(50)
+    }
+
     fun buyItem(itemId: Int) {
         val item = _shopItems.value.firstOrNull { it.id == itemId } ?: return
         val bought = pet.buy(itemId)
@@ -228,13 +497,16 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _message.value = when {
             action == PetAction.Wake && result == ActionResult.Ok -> "Пора вставать!"
             action == PetAction.Medicine -> "Лекарство принято"
-            result == ActionResult.Ok -> when (action) {
-                PetAction.Feed -> "Вкусно!"
-                PetAction.Wash -> "Теперь я чистенькая"
-                PetAction.Clean -> "Так-то лучше"
-                PetAction.Talk -> "Мне есть что тебе сказать"
-                PetAction.Hug -> "Мне тепло рядом с тобой"
-                else -> ""
+            result == ActionResult.Ok -> {
+                val context = when (action) {
+                    PetAction.Feed -> PhraseContext.Fed
+                    PetAction.Wash -> PhraseContext.Washed
+                    PetAction.Clean -> PhraseContext.Toilet
+                    PetAction.Talk -> PhraseContext.Talked
+                    PetAction.Hug -> PhraseContext.Hugged
+                    else -> null
+                }
+                context?.let(pet::phrase) ?: ""
             }
             result == ActionResult.RefusedDead -> "Питомец ушёл..."
             result == ActionResult.RefusedSleeping -> "Тихо, она спит"
@@ -242,6 +514,10 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             else -> actionMessage(result)
         }
         savePet()
+    }
+
+    fun reportError(text: String) {
+        _message.value = text
     }
 
     fun savePet() = enqueueSave()
@@ -379,6 +655,14 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _shopItems.value = pet.shop().toList()
         _inventory.value = pet.inventory()
     }
+
+    private fun readAssistantSettings(): AssistantSettings = AssistantSettings(
+        speechEnabled = settingsStore.getBoolean("speech", false),
+        hasApiKey = !settingsStore.getString("openrouter_key", "").isNullOrBlank(),
+        locationConfigured = settingsStore.getBoolean("location_configured", false),
+        latitude = settingsStore.getString("latitude", "0")?.toDoubleOrNull() ?: 0.0,
+        longitude = settingsStore.getString("longitude", "0")?.toDoubleOrNull() ?: 0.0,
+    )
 
     private fun actionMessage(result: Int): String = when (result) {
         ActionResult.RefusedDead -> "Питомец ушёл..."

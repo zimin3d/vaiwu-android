@@ -35,6 +35,7 @@ data class InventorySnapshot(
     val agility: Int,
     val magic: Int,
     val luck: Int,
+    val statPoints: Int,
     val equipment: Array<EquipmentSnapshot>,
 )
 
@@ -48,5 +49,12 @@ enum class AppScreen {
     Home,
     Shop,
     Inventory,
+    Games,
     Rps,
+    MiniGame,
+    Battle,
+    Stats,
+    Chat,
+    Settings,
+    Help,
 }

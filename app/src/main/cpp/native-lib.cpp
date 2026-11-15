@@ -1,6 +1,7 @@
 #include <jni.h>
 
 #include "AndroidGame.hpp"
+#include "NativeState.hpp"
 
 #include <cstdint>
 #include <cstdio>
@@ -13,12 +14,6 @@
 #include "vaiwu/game/VaiwuPet.hpp"
 
 namespace {
-
-struct NativePetState {
-    vaiwu::game::VaiwuPet pet;
-    bool rpsStarted{false};
-    std::mt19937 rng{std::random_device{}()};
-};
 
 NativePetState* state(jlong handle)
 {
@@ -107,6 +102,7 @@ Java_su_neit_vaiwu_NativePet_nativeStartNew(
         env->ReleaseStringUTFChars(name, utfName);
     }
     state(handle)->rpsStarted = false;
+    state(handle)->battle.leave();
     pet(handle)->startNew(static_cast<vaiwu::game::CharacterId>(characterId), petName,
         static_cast<std::uint64_t>(nowMs));
 }
@@ -121,6 +117,7 @@ Java_su_neit_vaiwu_NativePet_nativeLoad(
     }
     const bool loaded = pet(handle)->deserialize(utfData, static_cast<std::uint64_t>(nowMs));
     state(handle)->rpsStarted = false;
+    state(handle)->battle.leave();
     env->ReleaseStringUTFChars(data, utfData);
     return loaded ? JNI_TRUE : JNI_FALSE;
 }
@@ -162,6 +159,27 @@ Java_su_neit_vaiwu_NativePet_nativeAction(JNIEnv*, jobject, jlong handle, jint a
     default:
         return -1;
     }
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_su_neit_vaiwu_NativePet_nativeFinishGame(
+    JNIEnv*, jobject, jlong handle, jint outcome, jint reward)
+{
+    auto* s = state(handle);
+    if (!s->rpsStarted || outcome < -1 || outcome > 1) {
+        return JNI_FALSE;
+    }
+    s->rpsStarted = false;
+    auto* p = pet(handle);
+    if (outcome > 0) {
+        p->applyPlayResult(true);
+        p->addCoins(reward > 0 ? static_cast<std::uint32_t>(reward) : 0U);
+    } else if (outcome < 0) {
+        p->applyPlayResult(false);
+    } else {
+        p->giveAffection(3.0f);
+    }
+    return JNI_TRUE;
 }
 
 extern "C" JNIEXPORT jobject JNICALL
@@ -312,7 +330,7 @@ Java_su_neit_vaiwu_NativePet_nativeInventory(JNIEnv* env, jobject, jlong handle)
         return nullptr;
     }
     const jmethodID constructor = env->GetMethodID(inventoryClass, "<init>",
-        "(IIIIIIIIIIIIII[Lsu/neit/vaiwu/EquipmentSnapshot;)V");
+        "(IIIIIIIIIIIIIII[Lsu/neit/vaiwu/EquipmentSnapshot;)V");
     if (constructor == nullptr) {
         return nullptr;
     }
@@ -324,7 +342,7 @@ Java_su_neit_vaiwu_NativePet_nativeInventory(JNIEnv* env, jobject, jlong handle)
         static_cast<jint>(progress.potions), static_cast<jint>(progress.mpPotions),
         static_cast<jint>(total.str), static_cast<jint>(total.vit),
         static_cast<jint>(total.agi), static_cast<jint>(total.mag), static_cast<jint>(total.luck),
-        equipment);
+        static_cast<jint>(progress.statPoints), equipment);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL

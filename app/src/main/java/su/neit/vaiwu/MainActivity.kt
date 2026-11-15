@@ -11,16 +11,18 @@ import androidx.compose.ui.Modifier
 
 class MainActivity : ComponentActivity() {
     private val viewModel: PetViewModel by viewModels()
+    private lateinit var voice: VoiceController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        voice = VoiceController(this, viewModel::submitChat, viewModel::reportError)
         setContent {
             VaiwuTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    VaiwuApp(viewModel)
+                    VaiwuApp(viewModel, voice)
                 }
             }
         }
@@ -34,5 +36,10 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         viewModel.onBackground()
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        voice.close()
+        super.onDestroy()
     }
 }
