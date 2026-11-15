@@ -26,6 +26,16 @@ data class ReleaseInfo(
     val sha256: String,
 )
 
+private val AllowedUpdateHosts = setOf(
+    "api.github.com",
+    "github.com",
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+)
+
+internal fun isAllowedUpdateUrl(url: URL): Boolean =
+    url.protocol == "https" && url.host in AllowedUpdateHosts
+
 class GitHubUpdateManager(private val context: Context) {
     fun findLatestUpdate(currentVersion: String): ReleaseInfo? {
         val connection = openConnection(RELEASES_API_URL)
@@ -173,7 +183,7 @@ class GitHubUpdateManager(private val context: Context) {
         } catch (_: Exception) {
             throw IOException("Некорректный адрес обновления")
         }
-        if (parsed.protocol != "https" || parsed.host !in AllowedHosts) {
+        if (!isAllowedUpdateUrl(parsed)) {
             throw IOException("Обновление разрешено только с GitHub по HTTPS")
         }
         val connection = parsed.openConnection() as HttpURLConnection
@@ -192,7 +202,7 @@ class GitHubUpdateManager(private val context: Context) {
      */
     private fun verifyFinalHost(connection: HttpURLConnection) {
         val finalUrl = connection.url
-        if (finalUrl.protocol != "https" || finalUrl.host !in AllowedHosts) {
+        if (!isAllowedUpdateUrl(finalUrl)) {
             throw IOException("GitHub перенаправил загрузку на недоверенный адрес")
         }
     }
@@ -241,12 +251,6 @@ class GitHubUpdateManager(private val context: Context) {
             "https://api.github.com/repos/zimin3d/vaiwu-android/releases/latest"
         private const val APK_ASSET_NAME = "vaiwu-android.apk"
         private const val MaxApkBytes = 64L * 1024 * 1024
-        private val AllowedHosts = setOf(
-            "api.github.com",
-            "github.com",
-            "objects.githubusercontent.com",
-            "release-assets.githubusercontent.com",
-        )
     }
 }
 

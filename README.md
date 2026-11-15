@@ -41,9 +41,22 @@ signed and published to GitHub Releases; untagged builds are debug-signed.
 
 ## Tests
 
+Run the native regression tests and the Android unit tests:
+
 ```sh
+python3 app/src/test/cpp/run_host_tests.py
 ./gradlew :app:testDebugUnitTest
 ```
+
+Before considering a change complete, run the full check suite and require every
+check to pass:
+
+```sh
+./gradlew --no-daemon lintDebug testDebugUnitTest assembleRelease
+```
+
+The `Android APK` workflow runs both native and Android tests on every push and
+pull request.
 
 ## Dependency integrity
 

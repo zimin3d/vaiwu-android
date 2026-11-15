@@ -1,5 +1,7 @@
 #include <jni.h>
 
+#include "AndroidGame.hpp"
+
 #include <cstdint>
 #include <cstdio>
 #include <random>
@@ -328,14 +330,10 @@ Java_su_neit_vaiwu_NativePet_nativeInventory(JNIEnv* env, jobject, jlong handle)
 extern "C" JNIEXPORT jboolean JNICALL
 Java_su_neit_vaiwu_NativePet_nativeEquip(JNIEnv*, jobject, jlong handle, jint slot, jint itemId)
 {
-    using namespace vaiwu::game;
-    if (slot < 0 || slot >= kEquipSlotCount || itemId < -1 || itemId >= kEquipItemCount) {
-        return JNI_FALSE;
-    }
     auto* p = pet(handle);
-    setEquipped(p->rpg(), static_cast<EquipSlot>(slot), itemId);
-    normalizeRpg(p->character(), p->rpg());
-    return p->rpg().equipped[slot] == itemId ? JNI_TRUE : JNI_FALSE;
+    return vaiwu::android::applyEquipment(p->character(), p->rpg(), slot, itemId)
+        ? JNI_TRUE
+        : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jint JNICALL
