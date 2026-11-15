@@ -214,8 +214,26 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(
             self.config.endpoint, "https://example.test/v1/images/generations"
         )
-        trailing = gen_art.ApiConfig(base_url="https://example.test/")
-        self.assertEqual(trailing.endpoint, "https://example.test/v1/images/generations")
+
+    def test_base_url_may_include_the_v1_suffix(self):
+        # Providers document their base URL either way; both must work.
+        for base_url in (
+            "https://example.test",
+            "https://example.test/",
+            "https://example.test/v1",
+            "https://example.test/v1/",
+        ):
+            with self.subTest(base_url=base_url):
+                config = gen_art.ApiConfig(base_url=base_url)
+                self.assertEqual(
+                    config.endpoint, "https://example.test/v1/images/generations"
+                )
+
+    def test_base_url_may_keep_a_path_prefix(self):
+        config = gen_art.ApiConfig(base_url="https://example.test/openai/v1")
+        self.assertEqual(
+            config.endpoint, "https://example.test/openai/v1/images/generations"
+        )
 
     def test_size_override_wins_over_the_target(self):
         self.assertEqual(self.config.size_for(self.asset), "1024x1536")

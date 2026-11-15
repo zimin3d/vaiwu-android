@@ -81,6 +81,45 @@ The request is `POST <base-url>/v1/images/generations` with
 understood. If the server rejects `response_format` (as `gpt-image-1` does),
 the tool retries once without that field.
 
+### Connecting a provider
+
+Any host that implements `POST /v1/images/generations` works. Take the base URL
+and the model name from the provider's documentation; the base URL may be given
+with or without a trailing `/v1`.
+
+| provider | `--base-url` | `--model` |
+| --- | --- | --- |
+| OpenAI | `https://api.openai.com` | `gpt-image-1` or `dall-e-3` |
+| self-hosted gateway (LiteLLM, one-api, ...) | the gateway root | whatever it exposes |
+| any other OpenAI-compatible host | its API root | its image model |
+
+Keep the key out of the repository with a local `.env` (already git-ignored):
+
+```sh
+cat > .env <<'EOF'
+VAIWU_ART_API_KEY=sk-...
+VAIWU_ART_BASE_URL=https://api.openai.com
+VAIWU_ART_MODEL=gpt-image-1
+EOF
+set -a; . ./.env; set +a
+python3 tools/art/gen_art.py
+```
+
+Check the wiring before spending anything:
+
+```sh
+python3 tools/art/gen_art.py --list                              # offline, no key
+python3 tools/art/gen_art.py --no-generate                       # no network
+python3 tools/art/gen_art.py --characters aoi --emotions idle    # one request
+```
+
+Requests go through `urllib`, so `HTTPS_PROXY` / `https_proxy` are honoured.
+A failed request prints the HTTP status and the provider's own message, for
+example `401: invalid api key` or `404: ...` when the base URL is wrong.
+
+The tool always sends `Authorization: Bearer <key>`. A provider that wants a
+different header needs a small change in `post_json`.
+
 ## Generated prompt files
 
 ```sh

@@ -188,7 +188,12 @@ class ApiConfig:
 
     @property
     def endpoint(self) -> str:
-        return self.base_url.rstrip("/") + "/v1/images/generations"
+        # Providers document their base URL either with or without the /v1
+        # suffix, so accept both instead of producing /v1/v1/... and a 404.
+        base = self.base_url.rstrip("/")
+        if base.endswith("/v1"):
+            base = base[: -len("/v1")]
+        return base + "/v1/images/generations"
 
     def size_for(self, asset: art_prompts.Asset) -> str:
         return self.size_override or asset.target.api_size
@@ -270,7 +275,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--base-url",
         default=env_first(BASE_URL_ENV) or DEFAULT_BASE_URL,
-        help=f"API root, without /v1 (env: {', '.join(BASE_URL_ENV)})",
+        help=f"API root, with or without a trailing /v1 (env: {', '.join(BASE_URL_ENV)})",
     )
     parser.add_argument(
         "--api-key",
