@@ -60,6 +60,9 @@ jobs:
       - name: Run native host unit tests
         run: python3 app/src/test/cpp/run_host_tests.py
 
+      - name: Run art tooling tests
+        run: python3 -m unittest discover -s tools/art -t tools/art
+
       - name: Build APK
         env:
           KEYSTORE_PASSWORD: ${{ github.ref_type == 'tag' && secrets.KEYSTORE_PASSWORD || '' }}

@@ -1,0 +1,48 @@
+# sprite_aoi_idle (96x128, 3:4)
+# api size: 1024x1536
+
+young anime girl, long straight pastel blue hair reaching the waist with a shiny highlight band, jagged fringe, light blue eyes, soft blush, light blue sundress with thin shoulder straps, fitted bodice and flared skirt with a darker blue hem band, white socks, dark mary-jane shoes, gentle calm smile, relaxed pose, arms at sides, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_aoi_happy (96x128, 3:4)
+# api size: 1024x1536
+
+young anime girl, long straight pastel blue hair reaching the waist with a shiny highlight band, jagged fringe, light blue eyes, soft blush, light blue sundress with thin shoulder straps, fitted bodice and flared skirt with a darker blue hem band, white socks, dark mary-jane shoes, joyful laughing, closed ^ ^ eyes, open mouth smile, small sparkles around, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_aoi_sad (96x128, 3:4)
+# api size: 1024x1536
+
+young anime girl, long straight pastel blue hair reaching the waist with a shiny highlight band, jagged fringe, light blue eyes, soft blush, light blue sundress with thin shoulder straps, fitted bodice and flared skirt with a darker blue hem band, white socks, dark mary-jane shoes, sad drooping eyebrows, watery teary eyes, single tear drop, small frown, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_aoi_angry (96x128, 3:4)
+# api size: 1024x1536
+
+young anime girl, long straight pastel blue hair reaching the waist with a shiny highlight band, jagged fringe, light blue eyes, soft blush, light blue sundress with thin shoulder straps, fitted bodice and flared skirt with a darker blue hem band, white socks, dark mary-jane shoes, angry furrowed brows, pouting frown, red anger vein mark on head, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_aoi_sleepy (96x128, 3:4)
+# api size: 1024x1536
+
+young anime girl, long straight pastel blue hair reaching the waist with a shiny highlight band, jagged fringe, light blue eyes, soft blush, light blue sundress with thin shoulder straps, fitted bodice and flared skirt with a darker blue hem band, white socks, dark mary-jane shoes, sleepy closed eyes, small yawn, "Zzz" letters floating above head, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_aoi_sick (96x128, 3:4)
+# api size: 1024x1536
+
+young anime girl, long straight pastel blue hair reaching the waist with a shiny highlight band, jagged fringe, light blue eyes, soft blush, light blue sundress with thin shoulder straps, fitted bodice and flared skirt with a darker blue hem band, white socks, dark mary-jane shoes, dizzy spiral eyes, pale sickly greenish face, big sweat drop on temple, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_aoi_dead (96x128, 3:4)
+# api size: 1024x1536
+
+young anime girl, long straight pastel blue hair reaching the waist with a shiny highlight band, jagged fringe, light blue eyes, soft blush, light blue sundress with thin shoulder straps, fitted bodice and flared skirt with a darker blue hem band, white socks, dark mary-jane shoes, knocked out, X X eyes, whole character in grey monochrome, flat mouth, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render

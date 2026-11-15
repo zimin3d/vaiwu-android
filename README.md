@@ -41,10 +41,12 @@ signed and published to GitHub Releases; untagged builds are debug-signed.
 
 ## Tests
 
-Run the native regression tests and the Android unit tests:
+Run the native regression tests, the art tooling tests and the Android unit
+tests:
 
 ```sh
 python3 app/src/test/cpp/run_host_tests.py
+python3 -m unittest discover -s tools/art -t tools/art
 ./gradlew :app:testDebugUnitTest
 ```
 
@@ -57,6 +59,21 @@ check to pass:
 
 The `Android APK` workflow runs both native and Android tests on every push and
 pull request.
+
+## Art generation
+
+`tools/art/` regenerates the character and monster art with an external
+OpenAI-compatible image model. The prompts mirror `firmware/docs/ART_PROMPTS.md`
+in the submodule, so the whole set keeps one art style:
+
+```sh
+export VAIWU_ART_API_KEY=sk-...
+python3 tools/art/gen_art.py              # prompt files + PNGs
+python3 tools/art/gen_art.py --no-generate  # prompt files only
+```
+
+See [tools/art/README.md](tools/art/README.md) for the flags, the prompt set and
+the API contract.
 
 ## Dependency integrity
 

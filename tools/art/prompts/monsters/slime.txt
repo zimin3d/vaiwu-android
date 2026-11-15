@@ -1,0 +1,6 @@
+# monster_slime (96x96, 1:1)
+# api size: 1024x1024
+
+cute green slime monster, gooey translucent dome with a lighter inner core and trapped bubbles, big glossy highlight, happy-evil grin, kawaii, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render

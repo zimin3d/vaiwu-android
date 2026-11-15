@@ -1,0 +1,120 @@
+# Vaiwu art generation
+
+Tooling for regenerating the character and monster art with an external,
+OpenAI-compatible image model.
+
+The prompts mirror `firmware/docs/ART_PROMPTS.md` in the
+[vaiwu](https://github.com/zimin3d/vaiwu) firmware repository
+(`external/vaiwu`). `art_prompts.py` is the machine-readable twin of that
+document; change one and change the other.
+
+## Files
+
+| file | role |
+| --- | --- |
+| `art_prompts.py` | style anchor, negative prompt, emotion modifiers, character and monster base prompts, target sizes |
+| `gen_art.py` | CLI: writes the prompt files and calls the images API |
+| `test_art_prompts.py` | regression tests, no network and no third-party dependency |
+| `prompts/` | generated prompt files (checked in) |
+
+## Prompt set
+
+Every character asset is
+
+```
+<character base prompt>, <emotion modifier>, <style anchor>
+```
+
+and every monster asset is `<monster base prompt>, <style anchor>`, so the whole
+set shares one style and only the emotion tag changes between sprites.
+
+| class | count | firmware size | aspect | API size |
+| --- | --- | --- | --- | --- |
+| character sprites | 7 x 7 = 49 | 96x128 | 3:4 | 1024x1536 (2:3) |
+| battle monsters | 6 | 96x96 | 1:1 | 1024x1024 |
+
+No API offers 3:4 or 16:7 exactly, so `--size` picks the closest supported box;
+the crop to the firmware size happens on conversion, not here.
+
+## Usage
+
+By default the tool writes the prompt files **and** generates the PNGs into
+`external/vaiwu/firmware/assets/`, skipping files that already exist:
+
+```sh
+export VAIWU_ART_API_KEY=sk-...
+python3 tools/art/gen_art.py
+```
+
+Common variations:
+
+```sh
+python3 tools/art/gen_art.py --list                 # what would be built
+python3 tools/art/gen_art.py --no-generate          # prompt files only, no network
+python3 tools/art/gen_art.py --characters aoi       # one character (monsters are skipped if present)
+python3 tools/art/gen_art.py --characters aoi --emotions idle --monsters slime
+python3 tools/art/gen_art.py --force                # overwrite existing PNGs
+python3 tools/art/gen_art.py --size 1024x1024       # override the API box
+```
+
+`--characters`, `--emotions` and `--monsters` are independent filters; an
+omitted filter means "all". Because existing files are skipped, regenerating
+one character does not re-request the rest of the set.
+
+The tool exits non-zero if any asset fails, and prints the failing file names.
+
+## Configuration
+
+Flags win over environment variables.
+
+| flag | environment | default |
+| --- | --- | --- |
+| `--base-url` | `VAIWU_ART_BASE_URL`, `OPENAI_BASE_URL` | `https://api.openai.com` |
+| `--api-key` | `VAIWU_ART_API_KEY`, `OPENAI_API_KEY` | *(none)* |
+| `--model` | `VAIWU_ART_MODEL`, `OPENAI_IMAGE_MODEL` | `gpt-image-1` |
+| `--response-format` | - | `b64_json` |
+| `--out-dir` | - | `external/vaiwu/firmware/assets` |
+| `--prompts-out` | - | `tools/art/prompts` |
+
+The request is `POST <base-url>/v1/images/generations` with
+`{"model", "prompt", "n": 1, "size"}`. Both `b64_json` and `url` responses are
+understood. If the server rejects `response_format` (as `gpt-image-1` does),
+the tool retries once without that field.
+
+## Generated prompt files
+
+```sh
+python3 tools/art/gen_art.py --no-generate
+```
+
+writes:
+
+- `prompts/prompts.json` - every asset with its prompt, target size and aspect
+- `prompts/prompts.md` - the same, formatted for reading
+- `prompts/characters/<character>.txt` - all 7 emotions of one character
+- `prompts/monsters/<monster>.txt` - one monster
+
+These files are committed, so the prompt set is reviewable without running the
+tool.
+
+## Tests
+
+```sh
+python3 tools/art/test_art_prompts.py
+python3 -m unittest discover -s tools/art -t tools/art
+```
+
+The suite covers prompt composition (style anchor on every asset, exactly one
+emotion modifier per sprite, no leftover `<EMOTION>` placeholder), the target
+sizes, the prompt-file writer, and the API layer with `urlopen` stubbed out.
+It also asserts that the character, emotion and monster order matches
+`gen_sprites.py` in the firmware submodule, because the firmware indexes its
+sprite table by that order. That check is skipped when the submodule is not
+checked out.
+
+## Known gap
+
+`gen_sprites.py` draws the firmware C arrays procedurally and does not read
+PNGs, so the generated files land in `firmware/assets/` as previews. Cropping
+to 96x128 / 96x96 and emitting `sprites.c` from generated art is still to be
+written; `ART_PROMPTS.md` describes that as the intended follow-up.
