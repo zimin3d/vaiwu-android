@@ -51,7 +51,7 @@ class AssistantClient {
     }
 
     fun weather(latitude: Double, longitude: Double): String {
-        val coordinates = "latitude=${Locale.US.format("%.5f", latitude)}&longitude=${Locale.US.format("%.5f", longitude)}"
+        val coordinates = "latitude=${String.format(Locale.US, "%.5f", latitude)}&longitude=${String.format(Locale.US, "%.5f", longitude)}"
         val url = "https://api.open-meteo.com/v1/forecast?$coordinates&current=temperature_2m,apparent_temperature,weather_code&timezone=auto"
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = false
