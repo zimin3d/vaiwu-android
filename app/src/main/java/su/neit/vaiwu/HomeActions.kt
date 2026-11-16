@@ -45,6 +45,8 @@ fun homeOffers(pet: PetSnapshot): List<HomeOffer> = when (pet.lifeState) {
         }
     }
     LifeState.Awake -> CareKind.entries.map { HomeOffer.Care(it) }
+    // Unknown native state: keep the care grid available rather than freezing the UI.
+    else -> CareKind.entries.map { HomeOffer.Care(it) }
 }
 
 /** Native action ids behind the care kinds. */
