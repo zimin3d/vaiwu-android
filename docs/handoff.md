@@ -1,8 +1,9 @@
 # Handoff: редизайн интерфейса Vaiwu
 
 > Для продолжения работы в новой сессии. Состояние на 16 ноября 2026,
-> `main = 7b92105`, релиз `v0.1.3`. Рабочее дерево чистое; этап 1 закоммичен
-> и прошёл зелёный CI (см. разделы 1–2 и 13).
+> `main = 31ef960`, релиз `v0.1.3`. Рабочее дерево чистое; этап 1 закоммичен
+> и прошёл зелёный CI (см. разделы 1–2 и 13). Полная история ревью и всех
+> исправлений — в разделе 13.
 
 ## 1. Где остановились
 
@@ -13,8 +14,9 @@
 
 **Этап 1 (каркас, навигация, дом, остальные экраны) закоммичен** в
 `bee5a1d`, после чего последовали исправления по кодревью и ошибкам CI
-(`38ee515`, `1a5513a`, `d6dba72`, `7b92105`). Матрица в `ui-spec.md` §12
-обновлена: этап 1 — «готово».
+(`38ee515`, `1a5513a`, `d6dba72`, `7b92105`), а затем два коммита с финальной
+документацией (`a77117c`, `31ef960`). Матрица в `ui-spec.md` §12 обновлена:
+этап 1 — «готово».
 
 В рамках этапа 1 сделано:
 
@@ -30,16 +32,18 @@
 - JVM-тесты: `NavigationTest`, `HomeActionsTest`, `PluralRulesTest`,
   обновлённый `ActionFeedbackTest`; 5 `@Preview` дома (включая font scale 1.3).
 
-**Этап 1 закрыт:** UI-код закоммичен, `Android APK` и `CodeQL` на `7b92105`
-— зелёные. Все находки кодревью и ошибки компиляции, найденные CI, исправлены
-(раздел 13).
+**Этап 1 закрыт:** UI-код закоммичен, `Android APK` и `CodeQL` на `31ef960`
+— зелёные. Все находки кодревью другого агента и ошибки компиляции, найденные
+CI, исправлены и задокументированы (раздел 13).
 
 Механику не трогали: изменения только в UI-слое и ресурсах.
 
 ## 2. Состояние репозитория
 
 ```
-main = 7b92105  Fix FilterChip and exhaustive when flagged by CI
+main = 31ef960  Clarify review scope in handoff          <- текущий HEAD
+       a77117c  Record final review results and green CI in handoff docs
+       7b92105  Fix FilterChip and exhaustive when flagged by CI
        d6dba72  Fix more Compose API mismatches from CI
        1a5513a  Fix Compose API mismatches flagged by CI
        bee5a1d  Complete stage 1 UI redesign and address review findings
@@ -50,9 +54,10 @@ main = 7b92105  Fix FilterChip and exhaustive when flagged by CI
 - Релиз **v0.1.3** опубликован (тег `447e48a`): подписанный `vaiwu-android.apk`
   (~9.7 МБ) с новыми изображениями. ⚠️ Релиз собран **до** UI-редизайна —
   новый интерфейс этапа 1 в нём ещё нет; для него нужен следующий тег.
-- **CI на `7b92105` (текущий `main`): `Android APK` success, `CodeQL` success.**
-  Промежуточные коммиты `bee5a1d`, `1a5513a`, `d6dba72` падали на компиляции
-  Kotlin — все ошибки исправлены.
+- **CI на `31ef960` (текущий `main`): `Android APK` #49 success, `CodeQL` #41
+  success.** Промежуточные коммиты `bee5a1d` (#44), `1a5513a` (#45),
+  `d6dba72` (#46) падали на компиляции Kotlin — все ошибки исправлены;
+  `7b92105` (#47), `a77117c` (#48) и `31ef960` (#49) — зелёные.
 - Submodule `external/vaiwu` → `9a56022` (прозрачные AI-спрайты), чистое.
 - Рабочее дерево чистое. Локальные проверки: native-тесты PASSED,
   art-тесты 101/101 OK. Kotlin/Compose проверены только в CI.
@@ -269,7 +274,7 @@ curl -s "https://api.github.com/repos/zimin3d/vaiwu-android/actions/runs?head_sh
 
 ## 12. Чек-лист старта новой сессии
 
-1. `git status` — чистое; `git log -1` — `7b92105` или новее.
+1. `git status` — чистое; `git log -1` — `31ef960` или новее.
 2. Прочитать `docs/ui-spec.md`, разделы 3, 4, 6.2, 12, и раздел 13 этого файла
    (результаты кодревью).
 3. Этап 1 закрыт. Дальше — этап 2 (игры/бой) по §8, но только после снятия
@@ -278,10 +283,21 @@ curl -s "https://api.github.com/repos/zimin3d/vaiwu-android/actions/runs?head_sh
 5. Обновить матрицу в `docs/ui-spec.md`, раздел 12.
 6. Если нужен релиз с новым UI — создать тег `v0.1.4` (в v0.1.3 UI ещё старый).
 
-## 13. Кодревью последних изменений (16 ноября 2026)
+## 13. Полная история ревью и исправлений (16 ноября 2026)
 
-Проверены: коммит `447e48a` (арт-пайплайн) и UI-код этапа 1, который на
-момент ревью был ещё незакоммичен (позже зафиксирован в `bee5a1d`).
+### 13.0 Кто и что ревьюил
+
+- **Арт-пайплайн** (`447e48a`) ревьюился основным агентом.
+- **UI-код этапа 1** ревьюился **отдельным агентом (subagent `explore`)** с
+  инструкцией «very thorough, read-only». На момент ревью код был ещё
+  незакоммичен (позже зафиксирован в `bee5a1d`); локального JDK/SDK нет,
+  поэтому ревью было **статическим** — ни один Kotlin-файл не компилировался.
+- Все находки другого агента были проверены основным агентом по исходникам
+  и либо исправлены, либо (в одном случае) опровергнуты. Затем код прошёл
+  реальную компиляцию в GitHub Actions, где нашлись дополнительные ошибки.
+
+Итоговая схема: **ревью агента → проверка и исправления основным агентом →
+CI-прогон → исправление CI-ошибок → зелёный CI → фиксация в документации**.
 
 ### Арт-пайплайн (`447e48a`)
 
@@ -304,7 +320,11 @@ curl -s "https://api.github.com/repos/zimin3d/vaiwu-android/actions/runs?head_sh
    (строки 85–87 и 239–241): aapt2 уронил бы сборку. Дубликат удалён.
 3. `BorderStroke` импортировался как `androidx.compose.foundation.border.BorderStroke`
    в 4 файлах (`GameScreens`, `EconomyScreens`, `HomeScreen`, `OnboardingScreen`) —
-   неверный пакет. Заменено на `androidx.compose.ui.graphics.BorderStroke`.
+   неверный пакет. Агент предложил `androidx.compose.ui.graphics.BorderStroke`,
+   **но это тоже неверно** — правильный класс `androidx.compose.foundation.BorderStroke`.
+   Ложная рекомендация была обнаружена CI (`Unresolved reference 'BorderStroke'`)
+   и исправлена в `d6dba72`. Все 5 файлов (включая `Components.kt`) теперь
+   импортируют `androidx.compose.foundation.BorderStroke`.
 4. `NavigationTest.kt:16` — ожидал `AppScreen.Home` от `backTarget(Home, [])`,
    хотя функция возвращает `null`. Тест исправлен на `assertNull`.
 
@@ -353,5 +373,30 @@ curl -s "https://api.github.com/repos/zimin3d/vaiwu-android/actions/runs?head_sh
 - `HomeActions.kt` — `when (lifeState)` expression дополнился веткой `else`
   (`LifeState` — это `object` с Int-константами, не enum).
 
-Итог: `Android APK` и `CodeQL` на `7b92105` — **зелёные**. Локально Kotlin
-не компилируется (нет JDK/SDK), подтверждение — только CI.
+### 13.1 История прогонов CI (Android APK)
+
+| Run | Коммит | Результат | Что нашёл / сделал |
+|---|---|---|---|
+| #43 | `38ee515` | ✅ success | Арт-фикс (проверка числа строк PNG) |
+| #44 | `bee5a1d` | ❌ failure | Первый UI-коммит: `strokeCap`, nullable `bottomBar`, `surfaceElevated`, `selectedContentColor` |
+| #45 | `1a5513a` | ❌ failure | `BorderStroke` (ложная рекомендация агента), `surfaceElevated` в `HomeScreen`, `application` в ViewModel, `Image(painter, filterQuality)`, internal-типы |
+| #46 | `d6dba72` | ❌ failure | `AssistChip(selected=…)`, неисчерпывающий `when (lifeState)` |
+| #47 | `7b92105` | ✅ success | Все ошибки компиляции устранены |
+| #48 | `a77117c` | ✅ success | Документация (финальные результаты ревью) |
+| #49 | `31ef960` | ✅ success | Уточнение текста про ревью — текущий HEAD |
+
+`CodeQL` на `31ef960` — #41, тоже success. Run'ы #44–#46 падали **только** на
+`:app:compileDebugKotlin` / `:app:compileReleaseKotlin`; native-тесты, art-тесты
+и остальные шаги проходили.
+
+### 13.2 Итог
+
+- Все 12 находок другого агента рассмотрены; 11 исправлены, 1 (пакет
+  `BorderStroke`) уточнён после сообщения от CI.
+- Все 10+ ошибок компиляции, найденных CI, исправлены.
+- Текущий `main = 31ef960`: `Android APK` #49 ✅, `CodeQL` #41 ✅,
+  native-тесты ✅, art-тесты 101/101 ✅, `git status` чистый.
+- Локально Kotlin не компилируется (нет JDK/SDK) — подтверждение только CI.
+- Открытый вопрос: `PluralRulesTest` проверяет неиспользуемый в проде
+  `russianPluralForm`; реальный `pluralStringResource` тестами не покрыт
+  (нужны Compose-тесты, см. §11, вопрос 3).
