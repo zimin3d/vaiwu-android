@@ -2,9 +2,9 @@
 <resources>
     <style name="Theme.Vaiwu" parent="android:Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:windowBackground">#171421</item>
-        <item name="android:statusBarColor">#171421</item>
-        <item name="android:navigationBarColor">#171421</item>
+        <item name="android:windowBackground">#141021</item>
+        <item name="android:statusBarColor">#141021</item>
+        <item name="android:navigationBarColor">#141021</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -315,9 +314,9 @@ private fun PetHome(
             modifier = Modifier.size(144.dp, 192.dp),
         )
         if (pet.isSick) {
-            Text(
-                stringResource(R.string.pet_sick),
-                color = MaterialTheme.colorScheme.secondary,
+            StatusChip(
+                text = stringResource(R.string.pet_sick_short),
+                tone = StatTone.Warning,
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -328,30 +327,33 @@ private fun PetHome(
         Spacer(Modifier.height(12.dp))
 
         when (pet.lifeState) {
-            LifeState.Dead -> Button(onClick = onReset) { Text(stringResource(R.string.start_over)) }
+            LifeState.Dead -> VaiwuPrimaryButton(
+                text = stringResource(R.string.start_over),
+                onClick = onReset,
+            )
             LifeState.Sleeping -> {
-                Button(
+                VaiwuPrimaryButton(
+                    text = stringResource(R.string.wake_up),
                     onClick = { onAction(PetAction.Wake) },
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.wake_up))
-                }
+                )
                 // A sick pet may fall asleep before the player can treat her.
                 // cure() works while asleep, so keep the medicine reachable.
                 if (pet.isSick) {
                     Spacer(Modifier.height(6.dp))
-                    Button(
+                    VaiwuSecondaryButton(
+                        text = stringResource(R.string.give_medicine),
                         onClick = { onAction(PetAction.Medicine) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.give_medicine))
-                    }
+                    )
                 }
             }
             else -> {
-                Button(onClick = onShop, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.shop_with_coins, pet.coins))
-                }
+                VaiwuSecondaryButton(
+                    text = stringResource(R.string.shop_with_coins, pet.coins),
+                    onClick = onShop,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     TextButton(onClick = onChat, modifier = Modifier.weight(1f)) { Text("Чат") }
                     TextButton(onClick = onStats, modifier = Modifier.weight(1f)) { Text("Статы") }
@@ -381,12 +383,11 @@ private fun PetHome(
                     onAction,
                 )
                 if (pet.isSick) {
-                    Button(
+                    VaiwuSecondaryButton(
+                        text = stringResource(R.string.give_medicine),
                         onClick = { onAction(PetAction.Medicine) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.give_medicine))
-                    }
+                    )
                 }
             }
         }
@@ -409,33 +410,27 @@ private fun ActionRow(
             .padding(vertical = 3.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Button(onClick = { onAction(firstAction) }, modifier = Modifier.weight(1f)) {
-            Text(firstLabel, textAlign = TextAlign.Center)
-        }
-        Button(onClick = { onAction(secondAction) }, modifier = Modifier.weight(1f)) {
-            Text(secondLabel, textAlign = TextAlign.Center)
-        }
+        VaiwuPrimaryButton(
+            text = firstLabel,
+            onClick = { onAction(firstAction) },
+            modifier = Modifier.weight(1f),
+        )
+        VaiwuPrimaryButton(
+            text = secondLabel,
+            onClick = { onAction(secondAction) },
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
 @Composable
 private fun StatBar(label: String, value: Float) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.width(112.dp), style = MaterialTheme.typography.bodyMedium)
-        LinearProgressIndicator(
-            progress = { (value / 100f).coerceIn(0f, 1f) },
-            modifier = Modifier
-                .weight(1f)
-                .height(8.dp),
-        )
-        Text(
-            stringResource(R.string.percent, value.toInt()),
-            modifier = Modifier.width(44.dp),
-            textAlign = TextAlign.End,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-    Spacer(Modifier.height(7.dp))
+    StatMeter(
+        label = label,
+        value = value,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(VaiwuSpacing.small))
 }
 
 @Composable
