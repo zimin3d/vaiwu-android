@@ -33,7 +33,7 @@ internal object VaiwuIcons {
         path(
             stroke = SolidColor(Color.Black),
             strokeLineWidth = 1.6f,
-            strokeCap = StrokeCap.Round,
+            strokeLineCap = StrokeCap.Round,
         ) {
             moveTo(9f, 3f)
             curveTo(10.6f, 4.6f, 7.8f, 5.6f, 9.4f, 7f)

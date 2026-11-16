@@ -58,7 +58,7 @@ fun VaiwuScaffold(
     Scaffold(
         modifier = modifier,
         topBar = topBar,
-        bottomBar = bottomBar,
+        bottomBar = bottomBar ?: {},
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = contentWindowInsets,
@@ -108,7 +108,7 @@ fun VaiwuBottomBar(
 ) {
     NavigationBar(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surfaceElevated,
+        containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
     ) {
@@ -134,8 +134,6 @@ fun VaiwuBottomBar(
                         maxLines = 1,
                     )
                 },
-                selectedContentColor = MaterialTheme.colorScheme.primary,
-                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
