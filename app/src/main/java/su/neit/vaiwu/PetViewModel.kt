@@ -604,7 +604,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     fun sell(itemId: Int) {
         val gold = pet.sell(itemId)
         _systemMessage.value = if (gold > 0) {
-            SystemMessage(messageCounter++, text(R.plurals.sell, gold, gold))
+            SystemMessage(messageCounter++, quantity(R.plurals.sell, gold, gold))
         } else {
             SystemMessage(messageCounter++, text(R.string.sell_not_allowed))
         }
