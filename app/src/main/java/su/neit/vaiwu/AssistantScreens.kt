@@ -264,6 +264,12 @@ fun SettingsScreen(
         TextButton(onClick = onReset) {
             Text(stringResource(R.string.settings_reset))
         }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
