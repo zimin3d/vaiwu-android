@@ -28,6 +28,7 @@ import base64
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -51,7 +52,16 @@ MODEL_ENV = ("VAIWU_ART_MODEL", "OPENAI_IMAGE_MODEL")
 
 
 class ArtApiError(RuntimeError):
-    """Raised when the images API rejects a request or returns nothing usable."""
+    """Raised when the images API rejects a request or returns nothing usable.
+
+    ``transient`` marks the failures worth retrying: rate limits, server errors
+    and network hiccups. A rejected key or a wrong base URL is not transient.
+    """
+
+    def __init__(self, message: str, *, status: Optional[int] = None, transient: bool = False):
+        super().__init__(message)
+        self.status = status
+        self.transient = transient
 
 
 def env_first(names: Sequence[str]) -> Optional[str]:
@@ -185,6 +195,8 @@ class ApiConfig:
     response_format: str = DEFAULT_RESPONSE_FORMAT
     timeout: float = 120.0
     size_override: Optional[str] = None
+    retries: int = 2
+    retry_delay: float = 2.0
 
     @property
     def endpoint(self) -> str:
@@ -213,19 +225,40 @@ def post_json(url: str, payload: dict, api_key: str, timeout: float) -> dict:
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
+            content_type = response.headers.get("Content-Type", "")
+            raw = response.read()
     except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
+        # HTTPError is also a file-like response, so it must be closed; leaving
+        # it to the garbage collector leaks the connection and warns.
+        try:
+            detail = error.read().decode("utf-8", errors="replace")
+        finally:
+            error.close()
         try:
             parsed = json.loads(detail)
         except json.JSONDecodeError:
             parsed = {}
         message = parsed.get("error", {}).get("message") if isinstance(parsed, dict) else None
-        raise ArtApiError(f"HTTP {error.code}: {message or detail.strip()[:400]}") from error
+        raise ArtApiError(
+            f"HTTP {error.code}: {message or detail.strip()[:400]}",
+            status=error.code,
+            transient=error.code == 429 or error.code >= 500,
+        ) from error
     except urllib.error.URLError as error:
-        raise ArtApiError(f"connection failed: {error.reason}") from error
-    except json.JSONDecodeError as error:
-        raise ArtApiError(f"malformed JSON response: {error}") from error
+        raise ArtApiError(f"connection failed: {error.reason}", transient=True) from error
+
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        # A relay that serves its web UI on the apex domain answers every path
+        # with the same HTML page and a 200, which is otherwise baffling.
+        hint = ""
+        if "html" in content_type.lower() or raw.lstrip()[:1] == b"<":
+            hint = (
+                " - the response is HTML, so this host serves a web UI rather than"
+                " the API; check the base URL"
+            )
+        raise ArtApiError(f"malformed JSON response: {error}{hint}") from error
 
 
 def extract_image(data: dict, timeout: float) -> bytes:
@@ -244,12 +277,34 @@ def extract_image(data: dict, timeout: float) -> bytes:
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 return response.read()
-        except (urllib.error.HTTPError, urllib.error.URLError) as error:
-            raise ArtApiError(f"could not download image from {url}: {error}") from error
+        except urllib.error.HTTPError as error:
+            error.close()
+            raise ArtApiError(
+                f"could not download image from {url}: {error}", transient=True
+            ) from error
+        except urllib.error.URLError as error:
+            raise ArtApiError(
+                f"could not download image from {url}: {error}", transient=True
+            ) from error
     raise ArtApiError(f"image entry has neither b64_json nor url: {json.dumps(entry)[:400]}")
 
 
 def generate_image(config: ApiConfig, prompt: str, size: str) -> bytes:
+    """Generate one image, retrying the failures that are worth retrying."""
+    attempt = 0
+    while True:
+        try:
+            return _generate_once(config, prompt, size)
+        except ArtApiError as error:
+            if not error.transient or attempt >= config.retries:
+                raise
+            delay = config.retry_delay * (2 ** attempt)
+            attempt += 1
+            print(f"    transient failure ({error}), retry {attempt}/{config.retries} in {delay:.0f}s")
+            time.sleep(delay)
+
+
+def _generate_once(config: ApiConfig, prompt: str, size: str) -> bytes:
     payload = {"model": config.model, "prompt": prompt, "n": 1, "size": size}
     if config.response_format and config.response_format != "none":
         payload["response_format"] = config.response_format
@@ -305,6 +360,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="per-request timeout in seconds",
     )
     parser.add_argument(
+        "--retries",
+        type=int,
+        default=2,
+        help="extra attempts per asset after a rate limit, server error or "
+        "network failure",
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=2.0,
+        help="seconds before the first retry; the delay doubles after that",
+    )
+    parser.add_argument(
         "--out-dir",
         type=Path,
         default=DEFAULT_OUT_DIR,
@@ -335,6 +403,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="only these monsters (default: all)",
     )
     parser.add_argument(
+        "--assets",
+        nargs="+",
+        metavar="NAME",
+        help="only these asset names, e.g. sprite_aoi_idle monster_slime "
+        "(cannot be combined with the other selectors; see --list)",
+    )
+    parser.add_argument(
         "--no-prompts",
         action="store_true",
         help="do not write the prompt files",
@@ -357,15 +432,42 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def select_assets(args) -> List[art_prompts.Asset]:
+    """Resolve the CLI selectors into an asset list."""
+    others = {
+        "--characters": args.characters,
+        "--emotions": args.emotions,
+        "--monsters": args.monsters,
+    }
+    if args.assets:
+        clashing = [name for name, value in others.items() if value]
+        if clashing:
+            raise ValueError(
+                f"--assets cannot be combined with {', '.join(clashing)}"
+            )
+        assets = art_prompts.build_assets()
+        by_name = {asset.name: asset for asset in assets}
+        unknown = [name for name in args.assets if name not in by_name]
+        if unknown:
+            raise ValueError(
+                "unknown asset(s): "
+                + ", ".join(unknown)
+                + " - run with --list to see the names"
+            )
+        return [by_name[name] for name in args.assets]
+
+    return art_prompts.build_assets(
+        characters=args.characters,
+        emotions=args.emotions,
+        monsters=args.monsters,
+    )
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
 
     try:
-        assets = art_prompts.build_assets(
-            characters=args.characters,
-            emotions=args.emotions,
-            monsters=args.monsters,
-        )
+        assets = select_assets(args)
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -398,6 +500,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         response_format=args.response_format,
         timeout=args.timeout,
         size_override=args.size,
+        retries=args.retries,
+        retry_delay=args.retry_delay,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
 

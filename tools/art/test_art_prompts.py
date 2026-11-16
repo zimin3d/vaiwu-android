@@ -205,7 +205,30 @@ class PromptFileTests(unittest.TestCase):
             self.assertFalse((out_dir / "monsters" / "golem.txt").exists())
 
 
-class ApiTests(unittest.TestCase):
+class _HttpStub(unittest.TestCase):
+    """Shared helpers for stubbing the images API."""
+
+    def http_error(self, status: int, message: str = "boom") -> urllib.error.HTTPError:
+        # The real class doubles as a response object; a BytesIO body keeps it
+        # close to what urlopen produces on an HTTP error.
+        return urllib.error.HTTPError(
+            "https://example.test/v1/images/generations",
+            status,
+            "Error",
+            {},
+            io.BytesIO(json.dumps({"error": {"message": message}}).encode()),
+        )
+
+    def always(self, status: int, message: str = "boom"):
+        """A side_effect that fails every attempt with a new error."""
+
+        def factory(*args, **kwargs):
+            raise self.http_error(status, message)
+
+        return factory
+
+
+class ApiTests(_HttpStub):
     def setUp(self):
         self.asset = art_prompts.build_assets(characters=["aoi"], emotions=["idle"])[0]
         self.config = gen_art.ApiConfig(api_key="test-key", base_url="https://example.test")
@@ -261,13 +284,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(image, b"PNGDATA")
 
     def test_response_format_is_retried_without_on_rejection(self):
-        rejection = urllib.error.HTTPError(
-            "https://example.test/v1/images/generations",
-            400,
-            "Bad Request",
-            {},
-            io.BytesIO(json.dumps({"error": {"message": "unknown parameter: response_format"}}).encode()),
-        )
+        rejection = self.http_error(400, "unknown parameter: response_format")
         success = _Response(json.dumps({"data": [{"b64_json": "aGk="}]}).encode())
         with mock.patch("urllib.request.urlopen", side_effect=[rejection, success]) as urlopen:
             image = gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
@@ -276,13 +293,7 @@ class ApiTests(unittest.TestCase):
         self.assertNotIn("response_format", second_payload)
 
     def test_unrelated_http_error_is_not_retried(self):
-        error = urllib.error.HTTPError(
-            "https://example.test/v1/images/generations",
-            401,
-            "Unauthorized",
-            {},
-            io.BytesIO(json.dumps({"error": {"message": "invalid api key"}}).encode()),
-        )
+        error = self.http_error(401, "invalid api key")
         with mock.patch("urllib.request.urlopen", side_effect=error) as urlopen:
             with self.assertRaises(gen_art.ArtApiError) as caught:
                 gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
@@ -294,8 +305,85 @@ class ApiTests(unittest.TestCase):
             with self.assertRaises(gen_art.ArtApiError):
                 gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
 
+    def test_html_response_explains_the_base_url(self):
+        # Some relays answer every path on the apex domain with their web UI.
+        html = _Response(
+            b"<!DOCTYPE html>\n<html><head><title>app</title></head></html>",
+            content_type="text/html; charset=utf-8",
+        )
+        with mock.patch("urllib.request.urlopen", return_value=html):
+            with self.assertRaises(gen_art.ArtApiError) as caught:
+                gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
+        message = str(caught.exception)
+        self.assertIn("HTML", message)
+        self.assertIn("check the base URL", message)
 
-class CliTests(unittest.TestCase):
+    def test_json_response_without_a_content_type_still_parses(self):
+        body = json.dumps({"data": [{"b64_json": "aGk="}]}).encode()
+        with mock.patch(
+            "urllib.request.urlopen", return_value=_Response(body, content_type="")
+        ):
+            image = gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
+        self.assertEqual(image, b"hi")
+
+    def test_server_error_is_retried_then_succeeds(self):
+        success = _Response(json.dumps({"data": [{"b64_json": "aGk="}]}).encode())
+        with mock.patch(
+            "urllib.request.urlopen", side_effect=[self.http_error(503), success]
+        ) as urlopen, mock.patch("gen_art.time.sleep") as sleep:
+            image = gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
+        self.assertEqual(image, b"hi")
+        self.assertEqual(urlopen.call_count, 2)
+        sleep.assert_called_once()
+
+    def test_retries_are_capped(self):
+        with mock.patch(
+            "urllib.request.urlopen", side_effect=self.always(503)
+        ) as urlopen, mock.patch("gen_art.time.sleep"):
+            with self.assertRaises(gen_art.ArtApiError) as caught:
+                gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
+        self.assertEqual(urlopen.call_count, self.config.retries + 1)
+        self.assertTrue(caught.exception.transient)
+
+    def test_rate_limit_is_retried(self):
+        with mock.patch(
+            "urllib.request.urlopen", side_effect=self.always(429, "slow down")
+        ) as urlopen, mock.patch("gen_art.time.sleep"):
+            with self.assertRaises(gen_art.ArtApiError):
+                gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
+        self.assertEqual(urlopen.call_count, self.config.retries + 1)
+
+    def test_rejected_key_is_not_retried(self):
+        with mock.patch(
+            "urllib.request.urlopen", side_effect=self.always(401, "invalid api key")
+        ) as urlopen, mock.patch("gen_art.time.sleep") as sleep:
+            with self.assertRaises(gen_art.ArtApiError) as caught:
+                gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
+        self.assertEqual(urlopen.call_count, 1)
+        sleep.assert_not_called()
+        self.assertFalse(caught.exception.transient)
+
+    def test_wrong_base_url_is_not_retried(self):
+        html = _Response(b"<!DOCTYPE html><html></html>", content_type="text/html")
+        with mock.patch("urllib.request.urlopen", return_value=html) as urlopen, mock.patch(
+            "gen_art.time.sleep"
+        ):
+            with self.assertRaises(gen_art.ArtApiError):
+                gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_no_retries_means_a_single_attempt(self):
+        config = gen_art.ApiConfig(api_key="test-key", retries=0)
+        with mock.patch(
+            "urllib.request.urlopen", side_effect=self.always(500)
+        ) as urlopen, mock.patch("gen_art.time.sleep") as sleep:
+            with self.assertRaises(gen_art.ArtApiError):
+                gen_art.generate_image(config, self.asset.prompt, "1024x1536")
+        self.assertEqual(urlopen.call_count, 1)
+        sleep.assert_not_called()
+
+
+class CliTests(_HttpStub):
     """The CLI is exercised end to end with the network stubbed out."""
 
     @staticmethod
@@ -319,6 +407,41 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("sprite_aoi_idle.png", stdout)
         self.assertIn("2 assets", stdout)
+
+    def test_assets_selects_exactly_one_asset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out_dir = Path(directory) / "assets"
+            with mock.patch(
+                "urllib.request.urlopen", return_value=self.image_response(b"new")
+            ) as urlopen:
+                code, _, _ = self.run_cli(
+                    [
+                        "--api-key",
+                        "test-key",
+                        "--assets",
+                        "sprite_aoi_idle",
+                        "--out-dir",
+                        str(out_dir),
+                        "--prompts-out",
+                        str(Path(directory) / "prompts"),
+                    ]
+                )
+            self.assertEqual(code, 0)
+            self.assertEqual(urlopen.call_count, 1)
+            self.assertEqual(
+                sorted(p.name for p in out_dir.iterdir()), ["sprite_aoi_idle.png"]
+            )
+
+    def test_assets_rejects_unknown_names(self):
+        _, _, stderr = self.run_cli(["--assets", "sprite_nobody_idle", "--no-generate"])
+        self.assertIn("unknown asset(s): sprite_nobody_idle", stderr)
+
+    def test_assets_cannot_be_combined_with_the_other_selectors(self):
+        _, _, stderr = self.run_cli(
+            ["--assets", "sprite_aoi_idle", "--characters", "aoi", "--no-generate"]
+        )
+        self.assertIn("cannot be combined", stderr)
+        self.assertIn("--characters", stderr)
 
     def test_no_generate_writes_prompts_and_skips_the_network(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -432,15 +555,10 @@ class CliTests(unittest.TestCase):
             self.assertEqual((out_dir / "monster_slime.png").read_bytes(), b"new")
 
     def test_api_failure_returns_non_zero(self):
-        error = urllib.error.HTTPError(
-            "https://example.test/v1/images/generations",
-            500,
-            "Server Error",
-            {},
-            io.BytesIO(b"{}"),
-        )
         with tempfile.TemporaryDirectory() as directory:
-            with mock.patch("urllib.request.urlopen", side_effect=error):
+            with mock.patch(
+                "urllib.request.urlopen", side_effect=self.always(500)
+            ), mock.patch("gen_art.time.sleep"):
                 code, _, stderr = self.run_cli(
                     [
                         "--api-key",
@@ -465,8 +583,9 @@ class CliTests(unittest.TestCase):
 class _Response:
     """Minimal stand-in for the urlopen context manager."""
 
-    def __init__(self, body: bytes):
+    def __init__(self, body: bytes, content_type: str = "application/json"):
         self._body = body
+        self.headers = {"Content-Type": content_type}
 
     def read(self) -> bytes:
         return self._body

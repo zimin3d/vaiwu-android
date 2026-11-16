@@ -51,7 +51,8 @@ Common variations:
 ```sh
 python3 tools/art/gen_art.py --list                 # what would be built
 python3 tools/art/gen_art.py --no-generate          # prompt files only, no network
-python3 tools/art/gen_art.py --characters aoi       # one character (monsters are skipped if present)
+python3 tools/art/gen_art.py --assets sprite_aoi_idle   # exactly one image
+python3 tools/art/gen_art.py --characters aoi       # one character (existing files are skipped)
 python3 tools/art/gen_art.py --characters aoi --emotions idle --monsters slime
 python3 tools/art/gen_art.py --force                # overwrite existing PNGs
 python3 tools/art/gen_art.py --size 1024x1024       # override the API box
@@ -60,6 +61,10 @@ python3 tools/art/gen_art.py --size 1024x1024       # override the API box
 `--characters`, `--emotions` and `--monsters` are independent filters; an
 omitted filter means "all". Because existing files are skipped, regenerating
 one character does not re-request the rest of the set.
+
+`--assets` selects exact asset names instead, which is the way to pay for a
+single image, and to retry the files listed after a failed run. It cannot be
+combined with the other three selectors.
 
 The tool exits non-zero if any asset fails, and prints the failing file names.
 
@@ -73,6 +78,8 @@ Flags win over environment variables.
 | `--api-key` | `VAIWU_ART_API_KEY`, `OPENAI_API_KEY` | *(none)* |
 | `--model` | `VAIWU_ART_MODEL`, `OPENAI_IMAGE_MODEL` | `gpt-image-1` |
 | `--response-format` | - | `b64_json` |
+| `--retries` | - | `2` (extra attempts after a transient failure) |
+| `--retry-delay` | - | `2` seconds before the first retry, then doubling |
 | `--out-dir` | - | `external/vaiwu/firmware/assets` |
 | `--prompts-out` | - | `tools/art/prompts` |
 
@@ -108,14 +115,22 @@ python3 tools/art/gen_art.py
 Check the wiring before spending anything:
 
 ```sh
-python3 tools/art/gen_art.py --list                              # offline, no key
-python3 tools/art/gen_art.py --no-generate                       # no network
-python3 tools/art/gen_art.py --characters aoi --emotions idle    # one request
+python3 tools/art/gen_art.py --list                       # offline, no key
+python3 tools/art/gen_art.py --no-generate                # no network
+python3 tools/art/gen_art.py --assets sprite_aoi_idle     # exactly one request
 ```
 
 Requests go through `urllib`, so `HTTPS_PROXY` / `https_proxy` are honoured.
 A failed request prints the HTTP status and the provider's own message, for
 example `401: invalid api key` or `404: ...` when the base URL is wrong.
+
+Rate limits, server errors and network failures are retried a couple of times
+with a growing delay, because shared relays flap. A rejected key or a wrong
+base URL is not retried. Use `--retries 0` to fail fast.
+
+Some relays answer every path with their web UI, so a wrong base URL shows up
+as `200` plus HTML rather than a `404`. The tool detects that and says so
+instead of reporting a JSON parse error.
 
 The tool always sends `Authorization: Bearer <key>`. A provider that wants a
 different header needs a small change in `post_json`.
