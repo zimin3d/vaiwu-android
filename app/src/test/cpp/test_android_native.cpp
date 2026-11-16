@@ -2,6 +2,7 @@
 #include "Battle.hpp"
 #include "vaiwu/game/Assistant.hpp"
 #include "vaiwu/game/OfflinePhrases.hpp"
+#include "vaiwu/game/SoundSynth.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -296,6 +297,30 @@ void testPlayStartsWhenEnoughEnergyRemains()
     CHECK(pet.stats().energy == 16.0f);
 }
 
+void testSoundSynthCoversEveryEffect()
+{
+    constexpr std::uint32_t kRate = 22050;
+    constexpr int kCount = static_cast<int>(Sfx::Encounter) + 1;
+
+    for (int i = 0; i < kCount; ++i) {
+        const auto effect = static_cast<Sfx>(i);
+        const auto pcm = renderSfx(effect, kRate);
+        CHECK(!pcm.empty());
+        CHECK(pcm.size() % 2U == 0U); // whole PCM16 frames
+
+        // Every effect is a short UI blip, never a multi-second track.
+        const std::size_t durationMs = (pcm.size() / 2U) * 1000U / kRate;
+        CHECK(durationMs > 0U && durationMs < 2000U);
+
+        // The synthesizer is deterministic: the JNI bridge relies on it.
+        CHECK(pcm == renderSfx(effect, kRate));
+
+        // Buffers are expressed in samples, so half the rate shrinks the PCM.
+        const auto halfRate = renderSfx(effect, kRate / 2U);
+        CHECK(halfRate.size() < pcm.size());
+    }
+}
+
 } // namespace
 
 int main()
@@ -314,6 +339,7 @@ int main()
     testSickSleepingPetCanBeRescuedBeforeDeath();
     testPlayRefusesWhenItWouldPutPetToSleep();
     testPlayStartsWhenEnoughEnergyRemains();
+    testSoundSynthCoversEveryEffect();
 
     if (failures == 0) {
         std::printf("ALL ANDROID NATIVE TESTS PASSED\n");

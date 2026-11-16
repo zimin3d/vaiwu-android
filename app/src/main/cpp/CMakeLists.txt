@@ -19,7 +19,7 @@ target_include_directories(vaiwu_core PUBLIC "${VAIWU_GAME_DIR}/include")
 target_compile_features(vaiwu_core PUBLIC cxx_std_20)
 set_target_properties(vaiwu_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-add_library(vaiwu_native SHARED native-lib.cpp battle-lib.cpp info-lib.cpp)
+add_library(vaiwu_native SHARED native-lib.cpp battle-lib.cpp info-lib.cpp sound-lib.cpp)
 target_link_libraries(vaiwu_native PRIVATE vaiwu_core)
 target_compile_features(vaiwu_native PRIVATE cxx_std_20)
 

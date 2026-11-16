@@ -26,6 +26,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -81,6 +82,7 @@ fun MiniGameScreen(
     pet: PetSnapshot,
     state: MiniGameState,
     onChoice: (Int) -> Unit,
+    onNote: (Int) -> Unit,
     onAgain: () -> Unit,
     onHome: () -> Unit,
 ) {
@@ -112,7 +114,7 @@ fun MiniGameScreen(
         when (state.kind) {
             MiniGameKind.Guess -> GuessGame(pet, state, onChoice)
             MiniGameKind.Hearts -> HeartsGame(state, onChoice)
-            MiniGameKind.Melody -> MelodyGame(state, onChoice)
+            MiniGameKind.Melody -> MelodyGame(state, onChoice, onNote)
             MiniGameKind.Math -> MathGame(state, onChoice)
         }
     }
@@ -151,13 +153,30 @@ private fun HeartsGame(state: MiniGameState, onChoice: (Int) -> Unit) {
 }
 
 @Composable
-private fun MelodyGame(state: MiniGameState, onChoice: (Int) -> Unit) {
+private fun MelodyGame(
+    state: MiniGameState,
+    onChoice: (Int) -> Unit,
+    onNote: (Int) -> Unit,
+) {
     val colors = listOf(Color(0xFFFF7D9C), Color(0xFF72D9FF), Color(0xFFFFD166), Color(0xFF9F8CFF))
     if (state.melodyPhase == MelodyPhase.Watch) {
-        val note = ((state.sequence.size * 600 + 400 - state.watchMs) / 600)
-            .coerceIn(0, state.sequence.lastIndex)
+        val note = if (state.sequence.isEmpty()) {
+            0
+        } else {
+            ((state.sequence.size * 600 + 400 - state.watchMs) / 600)
+                .coerceIn(0, state.sequence.lastIndex)
+        }
+        // The ticker recomposes every 100 ms; keying on the visible note makes
+        // the sound fire exactly once per note instead of on every frame.
+        LaunchedEffect(state.sequence, note) {
+            state.sequence.getOrNull(note)?.let(onNote)
+        }
         Text("Запоминай…", style = MaterialTheme.typography.titleLarge)
-        Text("●", color = colors[state.sequence[note]], fontSize = 110.sp)
+        Text(
+            "●",
+            color = colors[state.sequence.getOrElse(note) { 0 }],
+            fontSize = 110.sp,
+        )
     } else {
         Text("Повтори: ${state.inputIndex}/${state.sequence.size}")
         Text("Осталось: ${(state.remainingMs + 999) / 1000} с")
@@ -166,7 +185,10 @@ private fun MelodyGame(state: MiniGameState, onChoice: (Int) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         colors.forEachIndexed { note, color ->
             Button(
-                onClick = { onChoice(note) },
+                onClick = {
+                    onNote(note)
+                    onChoice(note)
+                },
                 enabled = state.melodyPhase == MelodyPhase.Repeat,
                 modifier = Modifier.size(68.dp),
             ) { Text("${note + 1}", color = color, fontWeight = FontWeight.Bold) }

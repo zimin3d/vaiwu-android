@@ -64,6 +64,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
     val chatMessages by viewModel.chatMessages.collectAsStateWithLifecycle()
     val chatBusy by viewModel.chatBusy.collectAsStateWithLifecycle()
     val assistantSettings by viewModel.assistantSettings.collectAsStateWithLifecycle()
+    val soundEnabled by viewModel.soundEnabled.collectAsStateWithLifecycle()
     var confirmingReset by remember { mutableStateOf(false) }
 
     BackHandler(enabled = screen != AppScreen.Home) {
@@ -141,6 +142,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                                 pet = currentPet,
                                 state = game,
                                 onChoice = viewModel::chooseMiniGame,
+                                onNote = viewModel::playNote,
                                 onAgain = { viewModel.startMiniGame(game.kind, game.sequence.size) },
                                 onHome = viewModel::openHome,
                             )
@@ -170,7 +172,9 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                         )
                         AppScreen.Settings -> SettingsScreen(
                             settings = assistantSettings,
+                            soundEnabled = soundEnabled,
                             voice = voice,
+                            onSoundEnabled = viewModel::setSoundEnabled,
                             onSave = viewModel::saveAssistantSettings,
                             onUpdate = viewModel::checkForUpdates,
                             onReset = { confirmingReset = true },

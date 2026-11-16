@@ -40,6 +40,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val assistantClient = AssistantClient()
     private val reminders = ReminderScheduler(application)
     private val settingsStore = application.getSharedPreferences("settings", 0)
+    private val soundPlayer = SoundPlayer()
     private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val saveScope = CoroutineScope(SupervisorJob() + saveDispatcher)
     private var lastSaveAt = 0L
@@ -84,7 +85,11 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val _assistantSettings = MutableStateFlow(readAssistantSettings())
     val assistantSettings: StateFlow<AssistantSettings> = _assistantSettings.asStateFlow()
 
+    private val _soundEnabled = MutableStateFlow(settingsStore.getBoolean(SoundPreference, true))
+    val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
+
     init {
+        soundPlayer.enabled = _soundEnabled.value
         loadSavedPet()
         viewModelScope.launch {
             while (isActive) {
@@ -153,6 +158,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         pet.startNew(characterId, safeName, System.currentTimeMillis())
         refreshPet()
         _message.value = pet.phrase(PhraseContext.Greeting) ?: "Рада знакомству!"
+        playSfx(Sfx.Win)
         savePet()
     }
 
@@ -191,15 +197,18 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openGames() {
+        playSfx(Sfx.Tap)
         _screen.value = AppScreen.Games
     }
 
     fun openStats() {
+        playSfx(Sfx.Tap)
         _inventory.value = pet.inventory()
         _screen.value = AppScreen.Stats
     }
 
     fun openChat() {
+        playSfx(Sfx.Tap)
         if (_chatMessages.value.isEmpty()) {
             _chatMessages.value = listOf(ChatMessage(
                 pet.phrase(PhraseContext.Greeting) ?: "О чём поговорим?", true,
@@ -209,19 +218,23 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openSettings() {
+        playSfx(Sfx.Tap)
         _screen.value = AppScreen.Settings
     }
 
     fun openHelp() {
+        playSfx(Sfx.Tap)
         _screen.value = AppScreen.Help
     }
 
     fun openShop() {
+        playSfx(Sfx.Tap)
         refreshEconomy()
         _screen.value = AppScreen.Shop
     }
 
     fun openInventory() {
+        playSfx(Sfx.Tap)
         _inventory.value = pet.inventory()
         _screen.value = AppScreen.Inventory
     }
@@ -240,6 +253,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             _message.value = actionMessage(result)
         }
+        playSfx(if (result == ActionResult.Ok && awake) Sfx.PlayStart else Sfx.Tap)
         savePet()
     }
 
@@ -259,6 +273,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             RpsOutcome.Draw -> "Ничья"
             else -> "В этот раз не повезло"
         }
+        playSfx(sfxForOutcome(result.outcome))
         savePet()
     }
 
@@ -272,12 +287,14 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 actionMessage(result)
             }
+            playSfx(Sfx.Tap)
             savePet()
             return
         }
         _miniGame.value = miniGameEngine.start(kind, melodyLength)
         _screen.value = AppScreen.MiniGame
         _message.value = "Игра началась!"
+        playSfx(Sfx.PlayStart)
         savePet()
     }
 
@@ -285,6 +302,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         val current = _miniGame.value ?: return
         val next = miniGameEngine.choose(current, choice)
         _miniGame.value = next
+        if (current.kind == MiniGameKind.Hearts) playSfx(Sfx.Tap)
         settleMiniGame(current, next)
     }
 
@@ -301,6 +319,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             current.outcome < 0 -> "В этот раз не повезло"
             else -> "Ничья"
         }
+        playSfx(sfxForOutcome(current.outcome))
         savePet()
     }
 
@@ -314,20 +333,41 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 actionMessage(result)
             }
+            playSfx(Sfx.Tap)
         } else {
             _battle.value = pet.battleSnapshot()
             _screen.value = AppScreen.Battle
             _message.value = if (dungeon) "Данж начался" else "Приключение началось"
+            playSfx(Sfx.Encounter)
         }
         savePet()
     }
 
     fun battleAction(action: Int) {
         if (_screen.value != AppScreen.Battle) return
+        val before = _battle.value
         val result = pet.battleAction(action) ?: return
         _battle.value = result
         refreshPet()
         _inventory.value = pet.inventory()
+        playSfx(
+            if (before == null) {
+                Sfx.Encounter
+            } else {
+                sfxForBattleAction(
+                    action = action,
+                    previousFoeHp = before.foeHp,
+                    foeHp = result.foeHp,
+                    previousHp = before.hp,
+                    hp = result.hp,
+                    previousMp = before.mp,
+                    mp = result.mp,
+                    outcome = result.outcome,
+                    awaitingRest = result.awaitingRest,
+                    cleared = result.cleared,
+                )
+            },
+        )
         if (result.over && !result.awaitingRest) {
             _message.value = when (result.outcome) {
                 BattleOutcome.Victory -> pet.phrase(PhraseContext.Victory) ?: "Победа!"
@@ -342,6 +382,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         if (!pet.nextDungeonRoom()) return
         _battle.value = pet.battleSnapshot()
         refreshPet()
+        playSfx(Sfx.Encounter)
         savePet()
     }
 
@@ -370,7 +411,20 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             .apply()
         _assistantSettings.value = readAssistantSettings()
         _message.value = "Настройки сохранены"
+        playSfx(Sfx.Tap)
         return true
+    }
+
+    fun setSoundEnabled(enabled: Boolean) {
+        soundPlayer.enabled = enabled
+        _soundEnabled.value = enabled
+        settingsStore.edit().putBoolean(SoundPreference, enabled).apply()
+        // Confirm that turning sound back on actually works.
+        if (enabled) playSfx(Sfx.Tap)
+    }
+
+    fun playNote(note: Int) {
+        playSfx(sfxForNote(note))
     }
 
     fun submitChat(rawText: String) {
@@ -456,6 +510,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun answerChat(text: String) {
         _chatMessages.value = (_chatMessages.value + ChatMessage(text, true)).takeLast(50)
+        playSfx(Sfx.Talk)
     }
 
     fun buyItem(itemId: Int) {
@@ -466,6 +521,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             item.owned -> "Эта вещь уже куплена"
             else -> "Не хватает монет"
         }
+        playSfx(if (bought) Sfx.Feed else Sfx.Tap)
         refreshPet()
         refreshEconomy()
         savePet()
@@ -480,12 +536,14 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             itemId >= 0 -> "Снаряжение надето"
             else -> "Слот освобождён"
         }
+        playSfx(Sfx.Tap)
         savePet()
     }
 
     fun sell(itemId: Int) {
         val gold = pet.sell(itemId)
         _message.value = if (gold > 0) "Продано за $gold монет" else "Эту вещь нельзя продать"
+        playSfx(if (gold > 0) Sfx.Feed else Sfx.Tap)
         refreshPet()
         refreshEconomy()
         savePet()
@@ -521,6 +579,15 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             result == ActionResult.RefusedCaprice -> "Она капризничает"
             else -> actionMessage(result)
         }
+        playSfx(
+            sfxForCareAction(
+                action = action,
+                result = result,
+                wasSick = wasSick,
+                lifeState = petNow?.lifeState ?: LifeState.Dead,
+                isSick = petNow?.isSick == true,
+            ),
+        )
         savePet()
     }
 
@@ -655,7 +722,20 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun refreshPet() {
-        _snapshot.value = pet.snapshot()
+        val previous = _snapshot.value
+        val next = pet.snapshot()
+        _snapshot.value = next
+        if (previous == null) return
+        // Play state transitions once, not on every one-second tick.
+        if (next.lifeState == LifeState.Dead && previous.lifeState != LifeState.Dead) {
+            playSfx(Sfx.Death)
+        } else if (next.isSick && !previous.isSick) {
+            playSfx(Sfx.Sick)
+        }
+    }
+
+    private fun playSfx(effect: Int?) {
+        if (effect != null) soundPlayer.play(effect)
     }
 
     private fun refreshEconomy() {
@@ -686,6 +766,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         // Cancelling the scope here would drop the save.
         flushSave()
         saveDispatcher.close()
+        soundPlayer.close()
         pet.close()
         super.onCleared()
     }
@@ -693,5 +774,6 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         const val SaveHeader = "VAIWU-ANDROID-1"
         const val SaveIntervalMs = 15_000L
+        const val SoundPreference = "sound"
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
@@ -93,7 +94,9 @@ fun ChatScreen(
 @Composable
 fun SettingsScreen(
     settings: AssistantSettings,
+    soundEnabled: Boolean,
     voice: VoiceController?,
+    onSoundEnabled: (Boolean) -> Unit,
     onSave: (String, Boolean, Double, Double) -> Unit,
     onUpdate: () -> Unit,
     onReset: () -> Unit,
@@ -105,6 +108,18 @@ fun SettingsScreen(
     var longitude by remember { mutableStateOf(settings.longitude.toString()) }
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
         ScreenHeader("Настройки", onHome)
+        Text(stringResource(R.string.settings_sound_title), style = MaterialTheme.typography.titleLarge)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.settings_sound_label))
+                Text(
+                    stringResource(R.string.settings_sound_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = soundEnabled, onCheckedChange = onSoundEnabled)
+        }
+        Spacer(Modifier.height(20.dp))
         Text("Голос и ассистент", style = MaterialTheme.typography.titleLarge)
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {

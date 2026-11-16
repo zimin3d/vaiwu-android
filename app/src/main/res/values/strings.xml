@@ -26,6 +26,10 @@
     <string name="action_hug">Обнять</string>
     <string name="give_medicine">Дать лекарство</string>
 
+    <string name="settings_sound_title">Звуки</string>
+    <string name="settings_sound_label">Звуковые эффекты</string>
+    <string name="settings_sound_hint">Короткие сигналы действий, игр и боя</string>
+
     <string name="reset_title">Начать заново?</string>
     <string name="reset_text">Текущий питомец и весь прогресс будут удалены. Это действие нельзя отменить.</string>
 
