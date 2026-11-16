@@ -1,7 +1,7 @@
 package su.neit.vaiwu
 
 import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.BorderStroke
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -234,7 +234,7 @@ private fun SpeechBubble(text: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(VaiwuRadius.card),
-        color = MaterialTheme.colorScheme.surfaceElevated,
+        color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {

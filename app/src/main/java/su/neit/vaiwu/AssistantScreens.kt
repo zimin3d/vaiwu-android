@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 /**
@@ -217,7 +218,7 @@ fun SettingsScreen(
             value = apiKey,
             onValueChange = { apiKey = it.take(300) },
             label = { Text(stringResource(R.string.settings_api_label)) },
-            visualTransformation = androidx.compose.material3.PasswordVisualTransformation(),
+            visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(16.dp))

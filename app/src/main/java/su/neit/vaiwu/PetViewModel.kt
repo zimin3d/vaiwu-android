@@ -34,10 +34,10 @@ sealed interface UpdateUiState {
 }
 
 /** One system message shown through the snackbar. */
-internal data class SystemMessage(val id: Long, val text: String)
+data class SystemMessage(val id: Long, val text: String)
 
 /** One phrase of the pet shown in the speech bubble. */
-internal data class PetSpeech(val id: Long, val text: String)
+data class PetSpeech(val id: Long, val text: String)
 
 class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val pet = NativePet()
@@ -87,7 +87,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _speech.value = PetSpeech(messageCounter++, text)
     }
 
-    private fun text(id: Int, vararg formatArgs: Any): String = application.getString(id, *formatArgs)
+    private fun text(id: Int, vararg formatArgs: Any): String =
+        getApplication<Application>().getString(id, *formatArgs)
 
     private val _shopItems = MutableStateFlow<List<ShopItemSnapshot>>(emptyList())
     val shopItems: StateFlow<List<ShopItemSnapshot>> = _shopItems.asStateFlow()
@@ -842,7 +843,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun quantity(id: Int, quantity: Int, vararg formatArgs: Any): String =
-        application.resources.getQuantityString(id, quantity, *formatArgs)
+        getApplication<Application>().resources.getQuantityString(id, quantity, *formatArgs)
 
     override fun onCleared() {
         // Enqueue the final save, then let the executor drain queued writes.

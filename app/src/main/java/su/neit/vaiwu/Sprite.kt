@@ -18,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
@@ -101,7 +100,7 @@ fun AssetImage(
     val currentBitmap = bitmap.value
     if (currentBitmap != null) {
         Image(
-            painter = BitmapPainter(currentBitmap.asImageBitmap()),
+            bitmap = currentBitmap.asImageBitmap(),
             contentDescription = description,
             modifier = modifier,
             contentScale = contentScale,

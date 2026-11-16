@@ -11,6 +11,15 @@ enum class AppTab {
     Chat,
 }
 
+/** The screen owned by a tab; inverse of [AppScreen.tab]. */
+val AppTab.screen: AppScreen
+    get() = when (this) {
+        AppTab.Home -> AppScreen.Home
+        AppTab.Games -> AppScreen.Games
+        AppTab.Pet -> AppScreen.Pet
+        AppTab.Chat -> AppScreen.Chat
+    }
+
 /**
  * Navigation rules of `docs/ui-spec.md` (section 5).
  *
