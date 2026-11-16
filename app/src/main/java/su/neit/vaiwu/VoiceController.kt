@@ -29,12 +29,12 @@ class VoiceController(
     private val audioPermission = activity.registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) startRecognition() else onError("Нужно разрешение на микрофон")
+        if (granted) startRecognition() else onError(activity.getString(R.string.voice_need_microphone))
     }
     private val notificationPermission = activity.registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (!granted) onError("Без разрешения уведомления не появятся")
+        if (!granted) onError(activity.getString(R.string.voice_need_notifications))
     }
 
     init {
@@ -46,9 +46,9 @@ class VoiceController(
             override fun onResults(results: Bundle) {
                 results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull()?.takeIf { it.isNotBlank() }?.let(onText)
-                    ?: onError("Речь не распознана")
+                    ?: onError(activity.getString(R.string.voice_not_recognized))
             }
-            override fun onError(error: Int) = onError("Не удалось распознать речь")
+            override fun onError(error: Int) = onError(activity.getString(R.string.voice_recognition_failed))
             override fun onReadyForSpeech(params: Bundle?) = Unit
             override fun onBeginningOfSpeech() = Unit
             override fun onRmsChanged(rmsdB: Float) = Unit
@@ -61,7 +61,7 @@ class VoiceController(
 
     fun listen() {
         if (recognizer == null) {
-            onError("Распознавание речи недоступно на этом устройстве")
+            onError(activity.getString(R.string.voice_unavailable))
             return
         }
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) ==

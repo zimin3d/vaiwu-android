@@ -43,7 +43,7 @@ class GitHubUpdateManager(private val context: Context) {
             when (connection.responseCode) {
                 HttpURLConnection.HTTP_OK -> Unit
                 HttpURLConnection.HTTP_NOT_FOUND -> return null
-                else -> throw IOException("GitHub вернул HTTP ${connection.responseCode}")
+                else -> throw IOException(context.getString(R.string.update_http_error, connection.responseCode))
             }
             verifyFinalHost(connection)
             val body = connection.inputStream.bufferedReader().use { it.readText() }
@@ -56,7 +56,7 @@ class GitHubUpdateManager(private val context: Context) {
 
     fun download(release: ReleaseInfo, onProgress: (Long, Long) -> Unit = { _, _ -> }): File {
         if (release.sizeBytes > MaxApkBytes) {
-            throw IOException("APK превышает допустимый размер")
+            throw IOException(context.getString(R.string.update_apk_too_large))
         }
         // Cache storage is excluded from backups by the platform and is
         // reachable through FileProvider (unlike noBackupFilesDir).
@@ -70,7 +70,7 @@ class GitHubUpdateManager(private val context: Context) {
         val digest = MessageDigest.getInstance("SHA-256")
         try {
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                throw IOException("Загрузка APK: HTTP ${connection.responseCode}")
+                throw IOException(context.getString(R.string.update_download_http_error, connection.responseCode))
             }
             verifyFinalHost(connection)
             connection.inputStream.use { input ->
@@ -82,7 +82,7 @@ class GitHubUpdateManager(private val context: Context) {
                         if (count < 0) break
                         total += count
                         if (total > MaxApkBytes) {
-                            throw IOException("APK превышает допустимый размер")
+                            throw IOException(context.getString(R.string.update_apk_too_large))
                         }
                         digest.update(buffer, 0, count)
                         output.write(buffer, 0, count)
@@ -99,23 +99,23 @@ class GitHubUpdateManager(private val context: Context) {
 
         if (partial.length() == 0L || (release.sizeBytes > 0 && partial.length() != release.sizeBytes)) {
             partial.delete()
-            throw IOException("APK загружен не полностью")
+            throw IOException(context.getString(R.string.update_apk_incomplete))
         }
         val expectedDigest = release.sha256.hexToBytes()
         if (!MessageDigest.isEqual(digest.digest(), expectedDigest)) {
             partial.delete()
-            throw IOException("SHA-256 загруженного APK не совпадает с GitHub Releases")
+            throw IOException(context.getString(R.string.update_sha_mismatch))
         }
         try {
             ZipFile(partial).use { apk ->
                 if (apk.getEntry("AndroidManifest.xml") == null) {
-                    throw IOException("Загруженный файл не является APK")
+                    throw IOException(context.getString(R.string.update_not_an_apk))
                 }
             }
         } catch (error: Exception) {
             partial.delete()
             if (error is IOException) throw error
-            throw IOException("APK повреждён", error)
+            throw IOException(context.getString(R.string.update_apk_corrupt), error)
         }
 
         if (!partial.renameTo(target)) {
@@ -135,14 +135,14 @@ class GitHubUpdateManager(private val context: Context) {
         val archiveInfo = context.packageManager.getPackageArchiveInfo(apk.absolutePath, signatureFlags)
         if (archiveInfo?.packageName != context.packageName) {
             apk.delete()
-            throw IOException("APK принадлежит другому приложению")
+            throw IOException(context.getString(R.string.update_other_app))
         }
         val installedInfo = context.packageManager.getPackageInfo(context.packageName, signatureFlags)
         val installedCertificates = certificateHashes(installedInfo)
         val archiveCertificates = certificateHashes(archiveInfo)
         if (installedCertificates.isEmpty() || installedCertificates != archiveCertificates) {
             apk.delete()
-            throw IOException("Подпись APK не совпадает с установленным приложением")
+            throw IOException(context.getString(R.string.update_signature_mismatch))
         }
 
         if (!context.packageManager.canRequestPackageInstalls()) {
@@ -181,10 +181,10 @@ class GitHubUpdateManager(private val context: Context) {
         val parsed = try {
             URL(url)
         } catch (_: Exception) {
-            throw IOException("Некорректный адрес обновления")
+            throw IOException(context.getString(R.string.update_bad_url))
         }
         if (!isAllowedUpdateUrl(parsed)) {
-            throw IOException("Обновление разрешено только с GitHub по HTTPS")
+            throw IOException(context.getString(R.string.update_https_only))
         }
         val connection = parsed.openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = true
@@ -203,7 +203,7 @@ class GitHubUpdateManager(private val context: Context) {
     private fun verifyFinalHost(connection: HttpURLConnection) {
         val finalUrl = connection.url
         if (!isAllowedUpdateUrl(finalUrl)) {
-            throw IOException("GitHub перенаправил загрузку на недоверенный адрес")
+            throw IOException(context.getString(R.string.update_untrusted_redirect))
         }
     }
 
@@ -231,10 +231,10 @@ class GitHubUpdateManager(private val context: Context) {
                 break
             }
         }
-        val asset = apk ?: throw IOException("В релизе нет $APK_ASSET_NAME")
+        val asset = apk ?: throw IOException(context.getString(R.string.update_asset_missing, APK_ASSET_NAME))
         val sha256 = asset.optString("digest").removePrefix("sha256:")
         if (!sha256.matches(Regex("[0-9a-fA-F]{64}"))) {
-            throw IOException("GitHub не предоставил SHA-256 для APK")
+            throw IOException(context.getString(R.string.update_no_sha256))
         }
         return ReleaseInfo(
             version = json.getString("tag_name").removePrefix("v"),

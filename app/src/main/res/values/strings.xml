@@ -288,4 +288,49 @@
         <item>Бумага</item>
         <item>Ножницы</item>
     </string-array>
+
+    <string name="battle_terrain">Местность</string>
+    <string name="pomodoro_done">Помодоро завершён</string>
+    <string name="pet_talked_fallback">Я рядом и слушаю тебя</string>
+
+    <string name="reminder_default_text">Напоминание</string>
+    <string name="reminder_channel_name">Напоминания Vaiwu</string>
+    <string name="reminder_notification_title">Vaiwu напоминает</string>
+
+    <string name="voice_need_microphone">Нужно разрешение на микрофон</string>
+    <string name="voice_need_notifications">Без разрешения уведомления не появятся</string>
+    <string name="voice_not_recognized">Речь не распознана</string>
+    <string name="voice_recognition_failed">Не удалось распознать речь</string>
+    <string name="voice_unavailable">Распознавание речи недоступно на этом устройстве</string>
+
+    <string name="assistant_key_missing">Добавь ключ OpenRouter в настройках</string>
+    <string name="assistant_empty_reply">Пустой ответ OpenRouter</string>
+    <string name="assistant_http_error">OpenRouter: HTTP %1$d</string>
+    <string name="assistant_system_prompt">Ты %1$s, виртуальный питомец %2$s. Отвечай по-русски, коротко, дружелюбно и безопасно. Не притворяйся человеком.</string>
+
+    <string name="weather_http_error">Погода: HTTP %1$d</string>
+    <string name="weather_report">%1$s: %2$d°C, ощущается как %3$d°C. Местное время %4$s.</string>
+    <string name="weather_clear">Ясно</string>
+    <string name="weather_partly_cloudy">Переменная облачность</string>
+    <string name="weather_overcast">Пасмурно</string>
+    <string name="weather_fog">Туман</string>
+    <string name="weather_rain">Дождь</string>
+    <string name="weather_snow">Снег</string>
+    <string name="weather_thunder">Гроза</string>
+    <string name="weather_unknown">Погода</string>
+
+    <string name="update_http_error">GitHub вернул HTTP %1$d</string>
+    <string name="update_download_http_error">Загрузка APK: HTTP %1$d</string>
+    <string name="update_apk_too_large">APK превышает допустимый размер</string>
+    <string name="update_apk_incomplete">APK загружен не полностью</string>
+    <string name="update_sha_mismatch">SHA-256 загруженного APK не совпадает с GitHub Releases</string>
+    <string name="update_not_an_apk">Загруженный файл не является APK</string>
+    <string name="update_apk_corrupt">APK повреждён</string>
+    <string name="update_other_app">APK принадлежит другому приложению</string>
+    <string name="update_signature_mismatch">Подпись APK не совпадает с установленным приложением</string>
+    <string name="update_bad_url">Некорректный адрес обновления</string>
+    <string name="update_https_only">Обновление разрешено только с GitHub по HTTPS</string>
+    <string name="update_untrusted_redirect">GitHub перенаправил загрузку на недоверенный адрес</string>
+    <string name="update_asset_missing">В релизе нет %1$s</string>
+    <string name="update_no_sha256">GitHub не предоставил SHA-256 для APK</string>
 </resources>

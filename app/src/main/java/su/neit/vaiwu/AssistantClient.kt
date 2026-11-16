@@ -1,5 +1,6 @@
 package su.neit.vaiwu
 
+import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -10,9 +11,9 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-class AssistantClient {
+class AssistantClient(private val context: Context) {
     fun chat(apiKey: String, petName: String, characterName: String, messages: List<ChatMessage>): String {
-        if (apiKey.isBlank()) throw IOException("Добавь ключ OpenRouter в настройках")
+        if (apiKey.isBlank()) throw IOException(context.getString(R.string.assistant_key_missing))
         val history = JSONArray()
         messages.takeLast(12).forEach { message ->
             history.put(JSONObject()
@@ -21,7 +22,7 @@ class AssistantClient {
         }
         val requestMessages = JSONArray().put(JSONObject()
             .put("role", "system")
-            .put("content", "Ты $petName, виртуальный питомец $characterName. Отвечай по-русски, коротко, дружелюбно и безопасно. Не притворяйся человеком."))
+            .put("content", context.getString(R.string.assistant_system_prompt, petName, characterName)))
         for (index in 0 until history.length()) requestMessages.put(history.get(index))
         val body = JSONObject()
             .put("model", "openrouter/auto")
@@ -40,10 +41,10 @@ class AssistantClient {
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val response = stream.bufferedReader().use { it.readText() }
-            if (code !in 200..299) throw IOException("OpenRouter: HTTP $code")
+            if (code !in 200..299) throw IOException(context.getString(R.string.assistant_http_error, code))
             val content = JSONObject(response).getJSONArray("choices").getJSONObject(0)
                 .getJSONObject("message").getString("content").trim()
-            if (content.isEmpty()) throw IOException("Пустой ответ OpenRouter")
+            if (content.isEmpty()) throw IOException(context.getString(R.string.assistant_empty_reply))
             content.take(4_000)
         } finally {
             connection.disconnect()
@@ -59,7 +60,7 @@ class AssistantClient {
         connection.readTimeout = 15_000
         return try {
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                throw IOException("Погода: HTTP ${connection.responseCode}")
+                throw IOException(context.getString(R.string.weather_http_error, connection.responseCode))
             }
             val response = connection.inputStream.bufferedReader().use { it.readText() }
             val current = JSONObject(response).getJSONObject("current")
@@ -67,7 +68,7 @@ class AssistantClient {
             val feels = current.getDouble("apparent_temperature")
             val code = current.getInt("weather_code")
             val time = current.optString("time")
-            "${weatherDescription(code)}: ${temperature.roundToInt()}°C, ощущается как ${feels.roundToInt()}°C. Местное время $time."
+            context.getString(R.string.weather_report, weatherDescription(context, code), temperature.roundToInt(), feels.roundToInt(), time)
         } finally {
             connection.disconnect()
         }
@@ -90,13 +91,15 @@ fun nextAlarmAt(hour: Int, minute: Int, nowMs: Long): Long {
 fun formatReminderTime(timestamp: Long): String =
     SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()).format(Date(timestamp))
 
-private fun weatherDescription(code: Int): String = when (code) {
-    0 -> "Ясно"
-    1, 2 -> "Переменная облачность"
-    3 -> "Пасмурно"
-    45, 48 -> "Туман"
-    in 51..67, in 80..82 -> "Дождь"
-    in 71..77, 85, 86 -> "Снег"
-    in 95..99 -> "Гроза"
-    else -> "Погода"
-}
+private fun weatherDescription(context: Context, code: Int): String = context.getString(
+    when (code) {
+        0 -> R.string.weather_clear
+        1, 2 -> R.string.weather_partly_cloudy
+        3 -> R.string.weather_overcast
+        45, 48 -> R.string.weather_fog
+        in 51..67, in 80..82 -> R.string.weather_rain
+        in 71..77, 85, 86 -> R.string.weather_snow
+        in 95..99 -> R.string.weather_thunder
+        else -> R.string.weather_unknown
+    },
+)

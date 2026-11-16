@@ -225,6 +225,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                     AppScreen.Battle -> battle?.let { currentBattle ->
                         BattleScreen(
                             battle = currentBattle,
+                            hour = hour,
                             onAction = viewModel::battleAction,
                             onNextRoom = { viewModel.nextDungeonRoom() },
                             onExit = {

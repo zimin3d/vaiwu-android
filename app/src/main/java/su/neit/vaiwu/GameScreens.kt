@@ -36,7 +36,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.Calendar
 
 /**
  * Games tab (UI-GAME): the hub with the game cards, the energy banner and the
@@ -319,13 +318,13 @@ private fun MiniGameMath(state: MiniGameState, onChoice: (Int) -> Unit) {
 @Composable
 fun BattleScreen(
     battle: BattleSnapshot,
+    hour: Int,
     onAction: (Int) -> Unit,
     onNextRoom: () -> Unit,
     onExit: () -> Unit,
 ) {
-    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
     Box(modifier = Modifier.fillMaxSize()) {
-        AssetImage(battleBackgroundForHour(hour), "Местность", Modifier.fillMaxSize(), ContentScale.Crop)
+        AssetImage(battleBackgroundForHour(hour), stringResource(R.string.battle_terrain), Modifier.fillMaxSize(), ContentScale.Crop)
         Column(
             modifier = Modifier
                 .fillMaxSize()

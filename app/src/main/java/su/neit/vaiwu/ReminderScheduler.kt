@@ -36,11 +36,12 @@ class ReminderScheduler(private val context: Context) {
 
     fun restoreAfterBoot() {
         val now = System.currentTimeMillis()
+        val fallback = context.getString(R.string.reminder_default_text)
         preferences.all.filterKeys { it.startsWith("time_") }.forEach { (key, value) ->
             val id = key.removePrefix("time_").toIntOrNull() ?: return@forEach
             val timestamp = value as? Long ?: return@forEach
             if (timestamp > now) {
-                scheduleOne(id, timestamp, preferences.getString("text_$id", "Напоминание") ?: "Напоминание")
+                scheduleOne(id, timestamp, preferences.getString("text_$id", fallback) ?: fallback)
             } else {
                 preferences.edit().remove(key).remove("text_$id").apply()
             }
@@ -70,7 +71,7 @@ class ReminderReceiver : BroadcastReceiver() {
         }
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(
-            ChannelId, "Напоминания Vaiwu", NotificationManager.IMPORTANCE_DEFAULT,
+            ChannelId, context.getString(R.string.reminder_channel_name), NotificationManager.IMPORTANCE_DEFAULT,
         ))
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
                 context, android.Manifest.permission.POST_NOTIFICATIONS,
@@ -78,8 +79,8 @@ class ReminderReceiver : BroadcastReceiver() {
         ) return
         val notification = NotificationCompat.Builder(context, ChannelId)
             .setSmallIcon(R.drawable.ic_launcher)
-            .setContentTitle("Vaiwu напоминает")
-            .setContentText(intent.getStringExtra("text") ?: "Напоминание")
+            .setContentTitle(context.getString(R.string.reminder_notification_title))
+            .setContentText(intent.getStringExtra("text") ?: context.getString(R.string.reminder_default_text))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()

@@ -43,7 +43,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val pet = NativePet()
     private val saveStore = AtomicFile(File(application.filesDir, "pet.save"))
     private val updater = GitHubUpdateManager(application)
-    private val assistantClient = AssistantClient()
+    private val assistantClient = AssistantClient(application)
     private val reminders = ReminderScheduler(application)
     private val settingsStore = application.getSharedPreferences("settings", 0)
     private val soundPlayer = SoundPlayer()
@@ -494,7 +494,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _chatMessages.value = (_chatMessages.value + ChatMessage(text, false)).takeLast(50)
         val intent = pet.parseIntent(text)
         if (intent == null) {
-            answerChat(pet.phrase(PhraseContext.Talked) ?: "Я рядом и слушаю тебя")
+            answerChat(pet.phrase(PhraseContext.Talked) ?: text(R.string.pet_talked_fallback))
             return
         }
         when (intent.kind) {
@@ -510,7 +510,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             }
             AssistantKind.Pomodoro -> {
                 val at = System.currentTimeMillis() + 25 * 60_000L
-                reminders.schedule(at, "Помодоро завершён")
+                reminders.schedule(at, text(R.string.pomodoro_done))
                 answerChat(text(R.string.pomodoro_started))
             }
             AssistantKind.Cancel -> {
