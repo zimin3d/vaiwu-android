@@ -1,7 +1,8 @@
 # Vaiwu art generation
 
 Tooling for regenerating the character and monster art with an external,
-OpenAI-compatible image model.
+OpenAI-compatible image model, and for slicing the raw generations into the
+sprite sizes the app ships.
 
 The prompts mirror `firmware/docs/ART_PROMPTS.md` in the
 [vaiwu](https://github.com/zimin3d/vaiwu) firmware repository
@@ -14,8 +15,36 @@ document; change one and change the other.
 | --- | --- |
 | `art_prompts.py` | style anchor, negative prompt, emotion modifiers, character and monster base prompts, target sizes |
 | `gen_art.py` | CLI: writes the prompt files and calls the images API |
-| `test_art_prompts.py` | regression tests, no network and no third-party dependency |
+| `slice_art.py` | CLI: keys out the white background, crops, fits to the target size, rebuilds the contact sheets |
+| `pngio.py` | minimal PNG codec (stdlib only) used by the slicer |
+| `test_art_prompts.py` | regression tests for prompts and the API layer |
+| `test_slice_art.py` | regression tests for the slicer and the PNG codec |
 | `prompts/` | generated prompt files (checked in) |
+
+## Pipeline
+
+```sh
+export VAIWU_ART_API_KEY=sk-...
+python3 tools/art/gen_art.py     # 1. raw 1254x1254 PNGs -> tools/art/out/
+python3 tools/art/slice_art.py   # 2. 96x128 / 96x96 transparent -> external/vaiwu/firmware/assets/
+```
+
+`tools/art/out/` is git-ignored: the raw generations are large, keep the
+white studio background and are not what the app loads. `slice_art.py`
+produces the files that ship:
+
+1. flood-fills the flat white background from the image border, so white
+   parts of the drawing (socks, blouse, kimono) stay opaque while the studio
+   backdrop becomes transparent, and feathers the anti-aliased ring,
+2. crops to the remaining content with a small margin,
+3. scales it into the target box without distortion and centres it on a
+   transparent canvas,
+4. rebuilds `sprites_preview.png` and `monsters_preview.png` from the sliced
+   sprites, so the gallery contact sheets cannot drift from the files next to
+   them (a sheet is skipped with a note when a sprite is missing).
+
+Both steps are stdlib-only, so neither the tools nor the tests need Pillow or
+any other dependency in CI.
 
 ## Prompt set
 
@@ -38,8 +67,8 @@ the crop to the firmware size happens on conversion, not here.
 
 ## Usage
 
-By default the tool writes the prompt files **and** generates the PNGs into
-`external/vaiwu/firmware/assets/`, skipping files that already exist:
+By default the tool writes the prompt files **and** generates the raw PNGs
+into `tools/art/out/`, skipping files that already exist:
 
 ```sh
 export VAIWU_ART_API_KEY=sk-...
@@ -67,6 +96,32 @@ single image, and to retry the files listed after a failed run. It cannot be
 combined with the other three selectors.
 
 The tool exits non-zero if any asset fails, and prints the failing file names.
+The payload must be a real PNG: a provider that answers with WebP, JPEG or
+anything else is reported as a non-transient failure naming the format, and
+nothing is written to disk.
+
+### Slicing
+
+```sh
+python3 tools/art/slice_art.py              # everything found under tools/art/out/
+python3 tools/art/slice_art.py --list       # what would be built
+python3 tools/art/slice_art.py --dry-run    # slice, but write nothing
+python3 tools/art/slice_art.py --assets monster_shroom   # only these assets
+```
+
+| flag | default | meaning |
+| --- | --- | --- |
+| `--src` | `tools/art/out` | raw generations, searched recursively |
+| `--dest` | `external/vaiwu/firmware/assets` | where the sliced PNGs go |
+| `--assets` | *(all)* | subset of asset names |
+| `--white-threshold` | `248` | per-channel level at or above which a pixel is background |
+| `--feather` | `8` | levels below the threshold that are faded instead of cut; `0` disables |
+| `--margin` | `0.02` | margin around the content as a fraction of its shorter side |
+| `--no-previews` | off | skip rebuilding the contact sheets |
+| `--dry-run` | off | write nothing |
+
+It exits non-zero if any asset fails, and reports which. The contact sheets
+are only rebuilt on a run without failures.
 
 ## Configuration
 
@@ -80,13 +135,13 @@ Flags win over environment variables.
 | `--response-format` | - | `b64_json` |
 | `--retries` | - | `2` (extra attempts after a transient failure) |
 | `--retry-delay` | - | `2` seconds before the first retry, then doubling |
-| `--out-dir` | - | `external/vaiwu/firmware/assets` |
+| `--out-dir` | - | `tools/art/out` (raw generations) |
 | `--prompts-out` | - | `tools/art/prompts` |
 
 The request is `POST <base-url>/v1/images/generations` with
 `{"model", "prompt", "n": 1, "size"}`. Both `b64_json` and `url` responses are
-understood. If the server rejects `response_format` (as `gpt-image-1` does),
-the tool retries once without that field.
+understood and must decode to a PNG. If the server rejects `response_format`
+(as `gpt-image-1` does), the tool retries once without that field.
 
 ### Connecting a provider
 
@@ -155,20 +210,27 @@ tool.
 
 ```sh
 python3 tools/art/test_art_prompts.py
+python3 tools/art/test_slice_art.py
 python3 -m unittest discover -s tools/art -t tools/art
 ```
 
-The suite covers prompt composition (style anchor on every asset, exactly one
-emotion modifier per sprite, no leftover `<EMOTION>` placeholder), the target
-sizes, the prompt-file writer, and the API layer with `urlopen` stubbed out.
-It also asserts that the character, emotion and monster order matches
-`gen_sprites.py` in the firmware submodule, because the firmware indexes its
-sprite table by that order. That check is skipped when the submodule is not
-checked out.
+`test_art_prompts.py` covers prompt composition (style anchor on every asset,
+exactly one emotion modifier per sprite, no leftover `<EMOTION>` placeholder),
+the target sizes, the prompt-file writer, and the API layer with `urlopen`
+stubbed out — including the rejection of non-PNG payloads. It also asserts
+that the character, emotion and monster order matches `gen_sprites.py` in the
+firmware submodule, because the firmware indexes its sprite table by that
+order. That check is skipped when the submodule is not checked out.
+
+`test_slice_art.py` covers the PNG codec (every colour type and scanline
+filter, CRC and truncation errors), background removal (border flood fill,
+enclosed whites kept, feathering), cropping, scaling, the contact sheets and
+the CLI. Every fixture is built with `pngio`, so the suite also proves the
+codec round-trips.
 
 ## Known gap
 
 `gen_sprites.py` draws the firmware C arrays procedurally and does not read
-PNGs, so the generated files land in `firmware/assets/` as previews. Cropping
-to 96x128 / 96x96 and emitting `sprites.c` from generated art is still to be
-written; `ART_PROMPTS.md` describes that as the intended follow-up.
+PNGs, so the sliced files in `firmware/assets/` are previews; emitting
+`sprites.c` from the generated art is still to be written, and `ART_PROMPTS.md`
+describes that as the intended follow-up.

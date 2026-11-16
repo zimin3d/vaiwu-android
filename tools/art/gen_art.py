@@ -5,8 +5,12 @@ The prompts come from ``art_prompts.py`` (the machine-readable twin of
 ``firmware/docs/ART_PROMPTS.md``). By default the tool
 
 1. writes every prompt to ``tools/art/prompts/`` as copy-paste ready files, and
-2. generates the PNGs straight into the firmware preview folder
-   ``external/vaiwu/firmware/assets/``, skipping files that already exist.
+2. generates the raw PNGs into ``tools/art/out/`` (git-ignored), skipping
+   files that already exist.
+
+The raw images are large and still carry the white studio background, so the
+second step of the pipeline, ``slice_art.py``, turns them into the 96x128 /
+96x96 transparent sprites the app ships.
 
 The endpoint is ``POST <base-url>/v1/images/generations`` and is configured
 through flags or environment variables, so any OpenAI-compatible server works
@@ -33,18 +37,24 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import art_prompts  # noqa: E402  (needs the path tweak above)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUT_DIR = REPO_ROOT / "external" / "vaiwu" / "firmware" / "assets"
+#: Raw generations go next to the slicer's default ``--src``, never straight
+#: into the shipped asset folder: the app and the gallery expect the sliced
+#: 96x128 / 96x96 PNGs that ``slice_art.py`` writes there.
+DEFAULT_OUT_DIR = REPO_ROOT / "tools" / "art" / "out"
 DEFAULT_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 DEFAULT_BASE_URL = "https://api.openai.com"
 DEFAULT_MODEL = "gpt-image-1"
 DEFAULT_RESPONSE_FORMAT = "b64_json"
+
+#: Magic prefix of every PNG file, checked before anything is written to disk.
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 API_KEY_ENV = ("VAIWU_ART_API_KEY", "OPENAI_API_KEY")
 BASE_URL_ENV = ("VAIWU_ART_BASE_URL", "OPENAI_BASE_URL")
@@ -289,6 +299,41 @@ def extract_image(data: dict, timeout: float) -> bytes:
     raise ArtApiError(f"image entry has neither b64_json nor url: {json.dumps(entry)[:400]}")
 
 
+def sniff_format(image: bytes) -> str:
+    """Name the image format of *image* from its magic bytes."""
+    if image[:8] == PNG_SIGNATURE:
+        return "PNG"
+    if image[:4] == b"RIFF" and image[8:12] == b"WEBP":
+        return "WebP"
+    for name, magic in (
+        ("JPEG", b"\xff\xd8\xff"),
+        ("GIF", b"GIF8"),
+        ("BMP", b"BM"),
+        ("TIFF", b"II*\x00"),
+        ("TIFF", b"MM\x00*"),
+    ):
+        if image[: len(magic)] == magic:
+            return name
+    if image.lstrip()[:1] == b"<":
+        return "HTML"
+    return "unknown"
+
+
+def require_png(image: bytes) -> bytes:
+    """Return *image* when it really is a PNG, otherwise fail without retrying.
+
+    A relay answered one request with a WebP and it was written to a ``.png``
+    name, only blowing up later in the slicer; checking the format here keeps
+    the error next to the asset that produced it, and a provider that always
+    sends the wrong format is not transient, so it is not retried either.
+    """
+    if image[:8] != PNG_SIGNATURE:
+        raise ArtApiError(
+            f"image is {sniff_format(image)}, not PNG - refusing to write it as .png"
+        )
+    return image
+
+
 def generate_image(config: ApiConfig, prompt: str, size: str) -> bytes:
     """Generate one image, retrying the failures that are worth retrying."""
     attempt = 0
@@ -316,7 +361,7 @@ def _generate_once(config: ApiConfig, prompt: str, size: str) -> bytes:
             raise
         payload.pop("response_format")
         data = post_json(config.endpoint, payload, config.api_key, config.timeout)
-    return extract_image(data, config.timeout)
+    return require_png(extract_image(data, config.timeout))
 
 
 # --- CLI ---------------------------------------------------------------------

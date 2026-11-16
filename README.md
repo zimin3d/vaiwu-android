@@ -68,9 +68,15 @@ in the submodule, so the whole set keeps one art style:
 
 ```sh
 export VAIWU_ART_API_KEY=sk-...
-python3 tools/art/gen_art.py              # prompt files + PNGs
+python3 tools/art/gen_art.py              # 1. prompt files + raw PNGs -> tools/art/out/
+python3 tools/art/slice_art.py            # 2. transparent 96x128 / 96x96 -> external/vaiwu/
 python3 tools/art/gen_art.py --no-generate  # prompt files only
 ```
+
+Both steps are stdlib-only (no Pillow), and both have regression tests in
+`tools/art/test_slice_art.py` and `tools/art/test_art_prompts.py`. The
+sliced sprites, their contact sheets and the submodule pointer are what ship
+in the APK; the raw generations stay in the git-ignored `tools/art/out/`.
 
 See [tools/art/README.md](tools/art/README.md) for the flags, the prompt set and
 the API contract.

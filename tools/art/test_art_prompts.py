@@ -32,6 +32,9 @@ import gen_art  # noqa: E402
 
 GEN_SPRITES = REPO_ROOT / "external" / "vaiwu" / "firmware" / "tools" / "gen_sprites.py"
 
+#: ``generate_image`` now insists on a real PNG, so fixtures carry the prefix.
+PNG = gen_art.PNG_SIGNATURE
+
 
 def firmware_list(name: str):
     """Read a ``NAME = ["a", "b"]`` list straight out of the firmware tool."""
@@ -228,6 +231,37 @@ class _HttpStub(unittest.TestCase):
         return factory
 
 
+class FormatTests(unittest.TestCase):
+    """The bytes handed to the caller must really be a PNG."""
+
+    WEBP = b"RIFF\x10\x00\x00\x00WEBPVP8L" + b"\x0f" + b"payload"
+
+    def test_sniff_format_names_the_common_formats(self):
+        cases = [
+            (PNG + b"pixels", "PNG"),
+            (self.WEBP, "WebP"),
+            (b"\xff\xd8\xff\xe0rest", "JPEG"),
+            (b"GIF89arest", "GIF"),
+            (b"BMrest", "BMP"),
+            (b"<!DOCTYPE html><html></html>", "HTML"),
+            (b"\x00\x01\x02\x03", "unknown"),
+        ]
+        for payload, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(gen_art.sniff_format(payload), expected)
+
+    def test_require_png_passes_a_png_through(self):
+        image = PNG + b"pixels"
+        self.assertEqual(gen_art.require_png(image), image)
+
+    def test_require_png_rejects_everything_else_without_retrying(self):
+        for payload in (self.WEBP, b"\xff\xd8\xff", b"GIF89a", b"not an image", b""):
+            with self.subTest(payload=payload[:8]):
+                with self.assertRaises(gen_art.ArtApiError) as caught:
+                    gen_art.require_png(payload)
+                self.assertFalse(caught.exception.transient)
+
+
 class ApiTests(_HttpStub):
     def setUp(self):
         self.asset = art_prompts.build_assets(characters=["aoi"], emotions=["idle"])[0]
@@ -264,10 +298,13 @@ class ApiTests(_HttpStub):
         self.assertEqual(overridden.size_for(self.asset), "512x512")
 
     def test_base64_response_is_decoded(self):
-        body = json.dumps({"data": [{"b64_json": "aGVsbG8="}]}).encode()
+        payload = PNG + b"hello"
+        body = json.dumps(
+            {"data": [{"b64_json": base64.b64encode(payload).decode()}]}
+        ).encode()
         with mock.patch("urllib.request.urlopen", return_value=_Response(body)) as urlopen:
             image = gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
-        self.assertEqual(image, b"hello")
+        self.assertEqual(image, payload)
         request = urlopen.call_args.args[0]
         payload = json.loads(request.data.decode())
         self.assertEqual(payload["model"], gen_art.DEFAULT_MODEL)
@@ -276,19 +313,23 @@ class ApiTests(_HttpStub):
         self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
 
     def test_url_response_is_downloaded(self):
+        payload = PNG + b"image-bytes"
         body = json.dumps({"data": [{"url": "https://cdn.test/a.png"}]}).encode()
         with mock.patch(
-            "urllib.request.urlopen", side_effect=[_Response(body), _Response(b"PNGDATA")]
+            "urllib.request.urlopen", side_effect=[_Response(body), _Response(payload)]
         ):
             image = gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
-        self.assertEqual(image, b"PNGDATA")
+        self.assertEqual(image, payload)
 
     def test_response_format_is_retried_without_on_rejection(self):
+        payload = PNG + b"hi"
         rejection = self.http_error(400, "unknown parameter: response_format")
-        success = _Response(json.dumps({"data": [{"b64_json": "aGk="}]}).encode())
+        success = _Response(
+            json.dumps({"data": [{"b64_json": base64.b64encode(payload).decode()}]}).encode()
+        )
         with mock.patch("urllib.request.urlopen", side_effect=[rejection, success]) as urlopen:
             image = gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
-        self.assertEqual(image, b"hi")
+        self.assertEqual(image, payload)
         second_payload = json.loads(urlopen.call_args.args[0].data.decode())
         self.assertNotIn("response_format", second_payload)
 
@@ -319,22 +360,43 @@ class ApiTests(_HttpStub):
         self.assertIn("check the base URL", message)
 
     def test_json_response_without_a_content_type_still_parses(self):
-        body = json.dumps({"data": [{"b64_json": "aGk="}]}).encode()
+        payload = PNG + b"hi"
+        body = json.dumps(
+            {"data": [{"b64_json": base64.b64encode(payload).decode()}]}
+        ).encode()
         with mock.patch(
             "urllib.request.urlopen", return_value=_Response(body, content_type="")
         ):
             image = gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
-        self.assertEqual(image, b"hi")
+        self.assertEqual(image, payload)
 
     def test_server_error_is_retried_then_succeeds(self):
-        success = _Response(json.dumps({"data": [{"b64_json": "aGk="}]}).encode())
+        payload = PNG + b"hi"
+        success = _Response(
+            json.dumps({"data": [{"b64_json": base64.b64encode(payload).decode()}]}).encode()
+        )
         with mock.patch(
             "urllib.request.urlopen", side_effect=[self.http_error(503), success]
         ) as urlopen, mock.patch("gen_art.time.sleep") as sleep:
             image = gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
-        self.assertEqual(image, b"hi")
+        self.assertEqual(image, payload)
         self.assertEqual(urlopen.call_count, 2)
         sleep.assert_called_once()
+
+    def test_webp_payload_is_rejected_and_not_retried(self):
+        # Regression: a relay answered one request with a WebP and the bytes
+        # were written to a .png name, breaking the slicer later on.
+        body = json.dumps(
+            {"data": [{"b64_json": base64.b64encode(FormatTests.WEBP).decode()}]}
+        ).encode()
+        with mock.patch("urllib.request.urlopen", return_value=_Response(body)) as urlopen, \
+                mock.patch("gen_art.time.sleep") as sleep:
+            with self.assertRaises(gen_art.ArtApiError) as caught:
+                gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
+        self.assertIn("WebP", str(caught.exception))
+        self.assertFalse(caught.exception.transient)
+        self.assertEqual(urlopen.call_count, 1)
+        sleep.assert_not_called()
 
     def test_retries_are_capped(self):
         with mock.patch(
@@ -412,7 +474,7 @@ class CliTests(_HttpStub):
         with tempfile.TemporaryDirectory() as directory:
             out_dir = Path(directory) / "assets"
             with mock.patch(
-                "urllib.request.urlopen", return_value=self.image_response(b"new")
+                "urllib.request.urlopen", return_value=self.image_response(PNG + b"new")
             ) as urlopen:
                 code, _, _ = self.run_cli(
                     [
@@ -522,17 +584,19 @@ class CliTests(_HttpStub):
                 "slime",
             ]
             with mock.patch(
-                "urllib.request.urlopen", return_value=self.image_response(b"new")
+                "urllib.request.urlopen", return_value=self.image_response(PNG + b"new")
             ):
                 code, _, _ = self.run_cli(argv)
             self.assertEqual(code, 0)
-            self.assertEqual((out_dir / "sprite_aoi_idle.png").read_bytes(), b"new")
+            self.assertEqual(
+                (out_dir / "sprite_aoi_idle.png").read_bytes(), PNG + b"new"
+            )
 
     def test_generation_writes_the_png(self):
         with tempfile.TemporaryDirectory() as directory:
             out_dir = Path(directory) / "assets"
             with mock.patch(
-                "urllib.request.urlopen", return_value=self.image_response(b"new")
+                "urllib.request.urlopen", return_value=self.image_response(PNG + b"new")
             ):
                 code, _, _ = self.run_cli(
                     [
@@ -551,8 +615,12 @@ class CliTests(_HttpStub):
                     ]
                 )
             self.assertEqual(code, 0)
-            self.assertEqual((out_dir / "sprite_aoi_idle.png").read_bytes(), b"new")
-            self.assertEqual((out_dir / "monster_slime.png").read_bytes(), b"new")
+            self.assertEqual(
+                (out_dir / "sprite_aoi_idle.png").read_bytes(), PNG + b"new"
+            )
+            self.assertEqual(
+                (out_dir / "monster_slime.png").read_bytes(), PNG + b"new"
+            )
 
     def test_api_failure_returns_non_zero(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -578,6 +646,32 @@ class CliTests(_HttpStub):
             self.assertEqual(code, 1)
             self.assertIn("sprite_aoi_idle.png", stderr)
             self.assertIn("monster_slime.png", stderr)
+
+    def test_non_png_payload_is_reported_and_never_written(self):
+        # Regression: a WebP from the relay used to be written to a .png name.
+        with tempfile.TemporaryDirectory() as directory:
+            out_dir = Path(directory) / "assets"
+            with mock.patch(
+                "urllib.request.urlopen",
+                return_value=self.image_response(FormatTests.WEBP),
+            ) as urlopen, mock.patch("gen_art.time.sleep") as sleep:
+                code, _, stderr = self.run_cli(
+                    [
+                        "--api-key",
+                        "test-key",
+                        "--assets",
+                        "sprite_aoi_idle",
+                        "--out-dir",
+                        str(out_dir),
+                        "--prompts-out",
+                        str(Path(directory) / "prompts"),
+                    ]
+                )
+            self.assertEqual(code, 1)
+            self.assertIn("WebP", stderr)
+            self.assertFalse((out_dir / "sprite_aoi_idle.png").exists())
+            self.assertEqual(urlopen.call_count, 1)  # not transient, no retry
+            sleep.assert_not_called()
 
 
 class _Response:
