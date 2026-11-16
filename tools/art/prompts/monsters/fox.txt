@@ -1,6 +1,6 @@
 # monster_fox (96x96, 1:1)
 # api size: 1024x1024
 
-sly orange fox head monster, big ears with dark tips, cream muzzle, half-lidded amber eyes, fluffy curled tail with cream tip, kawaii, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+sly orange fox head monster, big ears with dark tips, cream muzzle, half-lidded amber eyes, fluffy curled tail with cream tip, kawaii, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
 
 # negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render

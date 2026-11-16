@@ -164,6 +164,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                         onShop = { viewModel.openFocus(AppScreen.Shop) },
                         onPet = viewModel::openPet,
                         onRestart = { confirmingReset = true },
+                        inventory = inventory,
                     )
                     AppScreen.Games -> GamesScreen(
                         pet = pet,

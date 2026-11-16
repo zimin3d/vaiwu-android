@@ -107,6 +107,9 @@ def build_png(
     return b"".join(parts)
 
 
+KEY = slice_art.KEY_COLOUR
+
+
 def solid(width, height, colour, alpha=255):
     """RGBA rows of a single colour."""
     pixel = bytes(colour) + bytes([alpha])
@@ -227,9 +230,10 @@ class PngCodecTests(unittest.TestCase):
 
 class BackgroundTests(unittest.TestCase):
     WIDTH = HEIGHT = 64
+    KEY = slice_art.KEY_COLOUR
 
     def test_border_background_is_transparent(self):
-        rows = box_image(self.WIDTH, self.HEIGHT, (255, 255, 255), (20, 20, 44, 44), (0, 0, 255))
+        rows = box_image(self.WIDTH, self.HEIGHT, KEY, (20, 20, 44, 44), (0, 0, 255))
         alpha = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT)
         self.assertEqual(alpha[0], 0)
         self.assertEqual(alpha[self.WIDTH * self.HEIGHT - 1], 0)
@@ -237,9 +241,9 @@ class BackgroundTests(unittest.TestCase):
         self.assertEqual(alpha[32 * self.WIDTH + 32], 255)
 
     def test_white_enclosed_by_the_shape_stays_opaque(self):
-        rows = box_image(self.WIDTH, self.HEIGHT, (255, 255, 255), (16, 16, 48, 48), (0, 0, 255))
-        # A white highlight in the middle of the blue square: not reachable
-        # from the border, so it must survive as opaque white.
+        rows = box_image(self.WIDTH, self.HEIGHT, KEY, (16, 16, 48, 48), (0, 0, 255))
+        # A white highlight in the middle of the blue square: white is not
+        # the key, so it survives as opaque white.
         for y in range(28, 36):
             for x in range(28, 36):
                 offset = x * 4
@@ -247,27 +251,39 @@ class BackgroundTests(unittest.TestCase):
         alpha = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT)
         self.assertEqual(alpha[32 * self.WIDTH + 32], 255)
 
-    def test_near_white_ring_is_feathered_not_cut(self):
+    def test_white_is_not_background_any_more(self):
+        # Socks, eye highlights and white outfit pieces must survive the cut.
         rows = solid(self.WIDTH, self.HEIGHT, (255, 255, 255))
-        # A halo just below the threshold, touching the background.
-        for y in range(30, 34):
-            for x in range(30, 34):
-                offset = x * 4
-                rows[y][offset : offset + 4] = bytes([244, 244, 244, 255])
-        alpha = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT)
-        feathered = alpha[30 * self.WIDTH + 30]  # outer edge of the halo
-        self.assertGreater(feathered, 0)
-        self.assertLess(feathered, 255)
-
-    def test_near_white_interior_is_kept(self):
-        rows = solid(self.WIDTH, self.HEIGHT, (244, 244, 244))
-        # Everything is near-white but nothing is reachable from a white
-        # border, so the whole canvas must stay opaque.
         alpha = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT)
         self.assertEqual(set(alpha), {255})
 
+    def test_fringe_between_tolerance_and_band_is_faded_not_cut(self):
+        rows = solid(self.WIDTH, self.HEIGHT, KEY)
+        # Colour roughly 98 away from the key: outside the tolerance (60) but
+        # inside the feather band (60 + 60), so it fades.
+        for y in range(30, 34):
+            for x in range(30, 34):
+                offset = x * 4
+                rows[y][offset : offset + 4] = bytes([200, 60, 200, 255])
+        alpha = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT)
+        feathered = alpha[30 * self.WIDTH + 30]
+        self.assertGreater(feathered, 0)
+        self.assertLess(feathered, 255)
+
+    def test_key_coloured_pixels_inside_tolerance_are_cut(self):
+        rows = solid(self.WIDTH, self.HEIGHT, KEY)
+        alpha = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT)
+        self.assertEqual(set(alpha), {0})
+
+    def test_tolerance_controls_how_close_a_colour_must_be(self):
+        rows = solid(self.WIDTH, self.HEIGHT, (250, 10, 250))
+        loose = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT, tolerance=60)
+        strict = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT, tolerance=2)
+        self.assertEqual(set(loose), {0})
+        self.assertEqual(set(strict), {255})
+
     def test_original_alpha_is_preserved_for_survivors(self):
-        rows = solid(self.WIDTH, self.HEIGHT, (255, 255, 255))
+        rows = solid(self.WIDTH, self.HEIGHT, KEY)
         offset = 32 * 4
         rows[32][offset : offset + 4] = bytes([10, 20, 30, 64])
         alpha = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT)
@@ -275,27 +291,31 @@ class BackgroundTests(unittest.TestCase):
         self.assertEqual(alpha[0], 0)
 
     def test_feather_can_be_disabled(self):
-        rows = solid(self.WIDTH, self.HEIGHT, (255, 255, 255))
+        rows = solid(self.WIDTH, self.HEIGHT, KEY)
         for y in range(30, 34):
             for x in range(30, 34):
                 offset = x * 4
-                rows[y][offset : offset + 4] = bytes([244, 244, 244, 255])
+                rows[y][offset : offset + 4] = bytes([200, 60, 200, 255])
         alpha = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT, feather=0)
         self.assertEqual(alpha[31 * self.WIDTH + 31], 255)
 
-    def test_flood_cannot_cross_an_outline(self):
-        # A closed black outline keeps the white pocket inside it away from
-        # the white border, so the pocket must stay opaque.
-        rows = solid(self.WIDTH, self.HEIGHT, (255, 255, 255))
-        for y in range(20, 44):
-            for x in range(20, 44):
-                if y in (20, 43) or x in (20, 43):
-                    offset = x * 4
-                    rows[y][offset : offset + 4] = b"\x00\x00\x00\xff"
+    def test_enclosed_key_pixels_are_cut_too(self):
+        # A key-coloured gap inside an outline (between a hand and the body)
+        # is background as well: no character uses the key colour.
+        rows = box_image(self.WIDTH, self.HEIGHT, KEY, (10, 10, 54, 54), (0, 0, 255))
+        for y in range(24, 40):
+            for x in range(24, 40):
+                offset = x * 4
+                rows[y][offset : offset + 4] = bytes(KEY) + b"\xff"
         alpha = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT)
-        self.assertEqual(alpha[0], 0)  # outside the outline
-        self.assertEqual(alpha[32 * self.WIDTH + 32], 255)  # enclosed pocket
-        self.assertEqual(alpha[32 * self.WIDTH + 10], 0)  # just outside it
+        self.assertEqual(alpha[32 * self.WIDTH + 32], 0)
+        self.assertEqual(alpha[32 * self.WIDTH + 20], 255)
+
+    def test_pastel_pink_is_not_treated_as_key(self):
+        # Pastel pink (hair, ribbons, blush) is far from the magenta key.
+        rows = solid(self.WIDTH, self.HEIGHT, (255, 182, 193))
+        alpha = slice_art.remove_background(rows, self.WIDTH, self.HEIGHT)
+        self.assertEqual(set(alpha), {255})
 
 
 class ContentBoxTests(unittest.TestCase):
@@ -371,7 +391,7 @@ class ResizeTests(unittest.TestCase):
 
 class ConvertTests(unittest.TestCase):
     def test_convert_produces_the_target_box_with_transparent_corners(self):
-        rows = box_image(100, 100, (255, 255, 255), (30, 10, 70, 90), (0, 0, 255))
+        rows = box_image(100, 100, KEY, (30, 10, 70, 90), (0, 0, 255))
         out = slice_art.convert_rgba(rows, 100, 100, (96, 128))
         self.assertEqual(len(out), 128)
         self.assertEqual(len(out[0]), 96 * 4)
@@ -382,12 +402,12 @@ class ConvertTests(unittest.TestCase):
         self.assertGreater(centre[2], 200)
 
     def test_convert_reports_an_empty_image(self):
-        rows = solid(20, 20, (255, 255, 255))
+        rows = solid(20, 20, KEY)
         with self.assertRaises(slice_art.SliceError):
             slice_art.convert_rgba(rows, 20, 20, (96, 128))
 
     def test_convert_keeps_monsters_square(self):
-        rows = box_image(100, 100, (255, 255, 255), (20, 20, 80, 80), (0, 200, 0))
+        rows = box_image(100, 100, KEY, (20, 20, 80, 80), (0, 200, 0))
         out = slice_art.convert_rgba(rows, 100, 100, (96, 96))
         self.assertEqual((len(out), len(out[0]) // 4), (96, 96))
 
@@ -496,13 +516,13 @@ class CliTests(unittest.TestCase):
             self.src / "sprite_aoi_idle.png",
             40,
             40,
-            box_image(40, 40, (255, 255, 255), (10, 5, 30, 35), (0, 0, 255)),
+            box_image(40, 40, KEY, (10, 5, 30, 35), (0, 0, 255)),
         )
         pngio.write_png(
             self.src / "monster_slime.png",
             40,
             40,
-            box_image(40, 40, (255, 255, 255), (8, 8, 32, 32), (0, 200, 0)),
+            box_image(40, 40, KEY, (8, 8, 32, 32), (0, 200, 0)),
         )
 
     def _run(self, *args):

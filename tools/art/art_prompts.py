@@ -27,7 +27,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 #: Appended to every prompt so the whole set shares one art style.
 STYLE_ANCHOR = (
     "full body character sprite, front view, standing pose, centered "
-    "composition, simple solid white background, detailed anime illustration, "
+    "composition, flat solid bright magenta background (#FF00FF) with no gradient "
+    "and no shadow on it, detailed anime illustration, "
     "soft cel shading, large expressive eyes, pastel color palette, clean "
     "lineart, high quality"
 )
@@ -59,40 +60,40 @@ EMOTION_MODIFIERS: Dict[str, str] = {
 #: Order matches gen_sprites.py CHARS (the firmware sprite table order).
 CHARACTERS: Dict[str, str] = {
     "aoi": (
-        "young anime girl, long straight pastel blue hair reaching the waist "
+        "adult anime woman, 30+ years old, mature face, long straight pastel blue hair reaching the waist "
         "with a shiny highlight band, jagged fringe, light blue eyes, soft "
         "blush, light blue sundress with thin shoulder straps, fitted bodice "
         "and flared skirt with a darker blue hem band, white socks, dark "
         "mary-jane shoes"
     ),
     "hina": (
-        "young anime girl, warm peachy-orange high twintails tied with small "
+        "adult anime woman, 30+ years old, mature face, warm peachy-orange high twintails tied with small "
         "cream bows, jagged fringe, amber eyes, soft blush, oversized cream "
         "hoodie with a kangaroo pocket, drawstrings and ribbed cuffs and hem, "
         "white socks, dark mary-jane shoes"
     ),
     "rin": (
-        "young anime girl, pastel pink bob haircut curled inward with a small "
+        "adult anime woman, 30+ years old, mature face, pastel pink bob haircut curled inward with a small "
         "white triangular hairpin, pink eyes, soft blush, japanese sailor "
         "school uniform: white-pink blouse with a dark purple sailor collar "
         "with white stripes, pink neckerchief with a knot, pleated purple "
         "skirt, white socks, dark mary-jane shoes"
     ),
     "yuki": (
-        "young anime girl, long lavender hime-cut hair with blunt straight "
+        "adult anime woman, 30+ years old, mature face, long lavender hime-cut hair with blunt straight "
         "bangs, blunt side locks and a small white flower hair clip, violet "
         "eyes, soft blush, pale lavender kimono with wide hanging sleeves, "
         "wrapped collar and a purple obi belt with a front knot, white socks, "
         "dark shoes"
     ),
     "akane": (
-        "young anime fox girl, caramel orange hair with an ahoge, large fox "
+        "adult anime fox woman, 30+ years old, mature face, caramel orange hair with an ahoge, large fox "
         "ears with dark tips and cream fluff inside, big fluffy fox tail with "
         "a cream tip, amber eyes, soft blush, light orange hoodie with a paw "
         "print on the kangaroo pocket and drawstrings, white socks, dark shoes"
     ),
     "unicorn": (
-        "young anime unicorn girl, long flowing wavy lilac mane with lighter "
+        "adult anime unicorn woman, 30+ years old, mature face, long flowing wavy lilac mane with lighter "
         "pastel streaks, golden spiral horn on the forehead with a sparkle, "
         "violet eyes, soft blush, pale lilac sundress with shoulder straps and "
         "a flared skirt, white socks, dark shoes"

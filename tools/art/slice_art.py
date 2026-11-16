@@ -12,8 +12,9 @@ raw generations into those files::
 
 For every asset it
 
-1. drops the flat white studio background, keeping only the part that is
-   connected to the image border (so white socks and eye highlights survive),
+1. cuts the flat magenta key background (#FF00FF), keeping only the part that
+   is connected to the image border (so a key-coloured pocket inside the
+   character survives),
    and softens the anti-aliased ring that touches it,
 2. crops to that content with a small margin,
 3. scales it to fit the target box without distortion and centres it on a
@@ -31,6 +32,7 @@ Python 3.9+ does - see ``pngio.py`` for the PNG half of that promise.
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from collections import deque
 from pathlib import Path
@@ -45,14 +47,18 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "tools" / "art" / "out"
 DEFAULT_DEST = REPO_ROOT / "external" / "vaiwu" / "firmware" / "assets"
 
-#: Background pixels sit at 252-255 per channel on every generated image, so
-#: this leaves a wide margin while still stopping at the lineart.
-WHITE_THRESHOLD = 248
+#: Flat colour the generator paints behind every sprite (chroma key). Pure
+#: magenta is far from any colour used in the art, so it never matches a
+#: character pixel by accident.
+KEY_COLOUR = (255, 0, 255)
 
-#: Near-white pixels within this many levels below the threshold form the
-#: anti-aliased halo; they are faded out instead of cut, which keeps the
-#: down-scaled edge from showing a white fringe. 0 disables the feather.
-FEATHER_WIDTH = 8
+#: Pixels whose RGB distance to the key is at or below this are background.
+KEY_TOLERANCE = 60
+
+#: Distance band above the tolerance that is faded instead of cut. The
+#: anti-aliased edge of a character fades out, so no hard pink fringe remains
+#: after down-scaling. 0 disables the feather.
+FEATHER_WIDTH = 60
 
 #: Breathing room around the content, as a fraction of its shorter side.
 MARGIN_RATIO = 0.02
@@ -68,83 +74,53 @@ class SliceError(RuntimeError):
 # --- Background removal ------------------------------------------------------
 
 
-def _scan_whiteness(
-    rows: Sequence[bytearray], width: int, height: int, threshold: int, floor: int
+def _scan_key(
+    rows: Sequence[bytearray], width: int, height: int, tolerance: int, band: int
 ) -> Tuple[bytearray, List[int]]:
-    """Split pixels into a background-candidate plane and a feathering list.
+    """Split pixels by their distance to :data:`KEY_COLOUR`.
 
-    ``white`` marks every pixel at or above *threshold*; the returned indices
-    are the near-white pixels below it, i.e. the ones a feather may touch.
+    ``core`` marks every pixel within *tolerance*; the returned indices are the
+    pixels inside the feather band just outside it, i.e. the ones a fade may
+    touch.
     """
-    white = bytearray(width * height)
+    key_r, key_g, key_b = KEY_COLOUR
+    core_limit = tolerance * tolerance
+    band_limit = (tolerance + band) * (tolerance + band)
+    core = bytearray(width * height)
     candidates: List[int] = []
     for y in range(height):
         row = rows[y]
         base = y * width
         for x in range(width):
             offset = x * 4
-            red = row[offset]
-            green = row[offset + 1]
-            blue = row[offset + 2]
-            low = red if red < green else green
-            if blue < low:
-                low = blue
-            if low >= threshold:
-                white[base + x] = 1
-            elif low >= floor:
+            dr = row[offset] - key_r
+            dg = row[offset + 1] - key_g
+            db = row[offset + 2] - key_b
+            distance = dr * dr + dg * dg + db * db
+            if distance <= core_limit:
+                core[base + x] = 1
+            elif distance <= band_limit:
                 candidates.append(base + x)
-    return white, candidates
-
-
-def flood_from_border(white: bytearray, width: int, height: int) -> bytearray:
-    """Mark every white pixel reachable from the border (4-connected)."""
-    background = bytearray(width * height)
-    queue: deque = deque()
-
-    def push(index: int) -> None:
-        if white[index] and not background[index]:
-            background[index] = 1
-            queue.append(index)
-
-    last_row = (height - 1) * width
-    for x in range(width):
-        push(x)
-        push(last_row + x)
-    for y in range(height):
-        base = y * width
-        push(base)
-        push(base + width - 1)
-
-    while queue:
-        index = queue.popleft()
-        y, x = divmod(index, width)
-        if x:
-            push(index - 1)
-        if x + 1 < width:
-            push(index + 1)
-        if y:
-            push(index - width)
-        if y + 1 < height:
-            push(index + width)
-    return background
+    return core, candidates
 
 
 def remove_background(
     rows: Sequence[bytearray],
     width: int,
     height: int,
-    threshold: int = WHITE_THRESHOLD,
+    tolerance: int = KEY_TOLERANCE,
     feather: int = FEATHER_WIDTH,
     cutoff: int = ALPHA_CUTOFF,
 ) -> bytearray:
-    """Return the alpha plane with the border-connected white background cut.
+    """Return the alpha plane with every key-coloured pixel cut out.
 
-    The original per-pixel alpha is preserved for everything that survives;
-    only background pixels are forced to zero.
+    The key colour is not used by any character, so a key-coloured gap enclosed
+    by the outline (between a hand and the body, say) is background too. The
+    feather fades the anti-aliased pixels next to the cut. The original alpha is
+    kept for everything that is not background.
     """
-    floor = threshold - feather if feather > 0 else threshold
-    white, candidates = _scan_whiteness(rows, width, height, threshold, floor)
-    background = flood_from_border(white, width, height)
+    core, candidates = _scan_key(rows, width, height, tolerance, feather)
+    background = core
 
     alpha = bytearray(width * height)
     for y, row in enumerate(rows):
@@ -182,9 +158,13 @@ def remove_background(
             continue
         offset = x * 4
         row = rows[y]
-        low = min(row[offset], row[offset + 1], row[offset + 2])
-        value = (threshold - low) * 255 // feather
-        alpha[index] = 255 if value > 255 else value
+        dr = row[offset] - KEY_COLOUR[0]
+        dg = row[offset + 1] - KEY_COLOUR[1]
+        db = row[offset + 2] - KEY_COLOUR[2]
+        distance = math.isqrt(dr * dr + dg * dg + db * db)
+        value = (distance - tolerance) * 255 // feather
+        value = 0 if value < 0 else min(255, value)
+        alpha[index] = min(alpha[index], value)
     return alpha
 
 
@@ -308,13 +288,13 @@ def convert_rgba(
     height: int,
     target: Tuple[int, int],
     *,
-    threshold: int = WHITE_THRESHOLD,
+    tolerance: int = KEY_TOLERANCE,
     feather: int = FEATHER_WIDTH,
     margin_ratio: float = MARGIN_RATIO,
     cutoff: int = ALPHA_CUTOFF,
 ) -> List[bytearray]:
     """Cut the background out of *rows* and slice them into *target*."""
-    alpha = remove_background(rows, width, height, threshold, feather, cutoff)
+    alpha = remove_background(rows, width, height, tolerance, feather, cutoff)
     apply_alpha(rows, width, alpha)
     box = content_box(alpha, width, height, cutoff)
     if box is None:
@@ -526,16 +506,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="only these asset names, e.g. sprite_aoi_idle monster_slime",
     )
     parser.add_argument(
-        "--white-threshold",
+        "--key-tolerance",
         type=int,
-        default=WHITE_THRESHOLD,
-        help="per-channel level at or above which a pixel counts as background",
+        default=KEY_TOLERANCE,
+        help="RGB distance to the key colour at or below which a pixel counts as background",
     )
     parser.add_argument(
         "--feather",
         type=int,
         default=FEATHER_WIDTH,
-        help="levels below the threshold that are faded instead of cut; 0 disables",
+        help="RGB distance band above the key tolerance that is faded instead of cut; 0 disables",
     )
     parser.add_argument(
         "--margin",
@@ -607,7 +587,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 width,
                 height,
                 (target.width, target.height),
-                threshold=args.white_threshold,
+                tolerance=args.key_tolerance,
                 feather=args.feather,
                 margin_ratio=args.margin,
             )

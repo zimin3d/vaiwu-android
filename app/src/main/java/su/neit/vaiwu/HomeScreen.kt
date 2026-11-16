@@ -60,6 +60,7 @@ fun HomeScreen(
     onShop: () -> Unit,
     onPet: () -> Unit,
     onRestart: () -> Unit,
+    inventory: InventorySnapshot? = null,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -69,40 +70,38 @@ fun HomeScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
-            PetStage(
-                pet = pet,
-                speech = speech,
-                backgroundAsset = homeBackgroundForHour(hour),
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(stageHeight),
-            )
+            ) {
+                PetStage(
+                    pet = pet,
+                    speech = speech,
+                    backgroundAsset = homeBackgroundForHour(hour),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                )
+                SideStatPanel(
+                    pet = pet,
+                    inventory = inventory,
+                    modifier = Modifier
+                        .width(132.dp)
+                        .fillMaxHeight()
+                        .padding(
+                            top = VaiwuSpacing.small,
+                            end = VaiwuSpacing.small,
+                            bottom = VaiwuSpacing.small,
+                        ),
+                )
+            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = VaiwuSpacing.screenPadding),
                 verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.medium),
             ) {
-                StatMeter(
-                    label = stringResource(R.string.stat_hunger),
-                    value = pet.hunger,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                StatMeter(
-                    label = stringResource(R.string.stat_happiness),
-                    value = pet.happiness,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                StatMeter(
-                    label = stringResource(R.string.stat_energy),
-                    value = pet.energy,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                StatMeter(
-                    label = stringResource(R.string.stat_discipline),
-                    value = pet.discipline,
-                    modifier = Modifier.fillMaxWidth(),
-                )
                 if (pet.isSick && pet.lifeState == LifeState.Awake) {
                     SicknessBanner(
                         onMedicine = { onAction(PetAction.Medicine) },
@@ -142,6 +141,72 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Pet needs and battle bars, shown beside the pet instead of under it. The
+ * battle bars (HP, MP, XP) come from the same snapshot the battle screen uses.
+ */
+@Composable
+private fun SideStatPanel(
+    pet: PetSnapshot,
+    inventory: InventorySnapshot?,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(VaiwuSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+        ) {
+            StatMeter(
+                label = stringResource(R.string.stat_hunger),
+                value = pet.hunger,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            StatMeter(
+                label = stringResource(R.string.stat_happiness),
+                value = pet.happiness,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            StatMeter(
+                label = stringResource(R.string.stat_energy),
+                value = pet.energy,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            StatMeter(
+                label = stringResource(R.string.stat_discipline),
+                value = pet.discipline,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (inventory != null) {
+                Spacer(Modifier.height(VaiwuSpacing.small))
+                StatMeter(
+                    label = stringResource(R.string.battle_hp),
+                    value = inventory.hp.toFloat(),
+                    max = inventory.hpMax.coerceAtLeast(1).toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                StatMeter(
+                    label = stringResource(R.string.battle_mp),
+                    value = inventory.mp.toFloat(),
+                    max = inventory.mpMax.coerceAtLeast(1).toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                StatMeter(
+                    label = stringResource(R.string.stat_xp),
+                    value = inventory.xp.toFloat(),
+                    max = inventory.xpNext.coerceAtLeast(1).toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

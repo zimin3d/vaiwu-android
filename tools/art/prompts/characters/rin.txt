@@ -1,48 +1,48 @@
 # sprite_rin_idle (96x128, 3:4)
 # api size: 1024x1536
 
-young anime girl, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, gentle calm smile, relaxed pose, arms at sides, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+adult anime woman, 30+ years old, mature face, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, gentle calm smile, relaxed pose, arms at sides, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
 
 # negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
 
 # sprite_rin_happy (96x128, 3:4)
 # api size: 1024x1536
 
-young anime girl, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, joyful laughing, closed ^ ^ eyes, open mouth smile, small sparkles around, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+adult anime woman, 30+ years old, mature face, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, joyful laughing, closed ^ ^ eyes, open mouth smile, small sparkles around, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
 
 # negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
 
 # sprite_rin_sad (96x128, 3:4)
 # api size: 1024x1536
 
-young anime girl, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, sad drooping eyebrows, watery teary eyes, single tear drop, small frown, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+adult anime woman, 30+ years old, mature face, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, sad drooping eyebrows, watery teary eyes, single tear drop, small frown, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
 
 # negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
 
 # sprite_rin_angry (96x128, 3:4)
 # api size: 1024x1536
 
-young anime girl, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, angry furrowed brows, pouting frown, red anger vein mark on head, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+adult anime woman, 30+ years old, mature face, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, angry furrowed brows, pouting frown, red anger vein mark on head, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
 
 # negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
 
 # sprite_rin_sleepy (96x128, 3:4)
 # api size: 1024x1536
 
-young anime girl, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, sleepy closed eyes, small yawn, "Zzz" letters floating above head, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+adult anime woman, 30+ years old, mature face, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, sleepy closed eyes, small yawn, "Zzz" letters floating above head, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
 
 # negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
 
 # sprite_rin_sick (96x128, 3:4)
 # api size: 1024x1536
 
-young anime girl, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, dizzy spiral eyes, pale sickly greenish face, big sweat drop on temple, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+adult anime woman, 30+ years old, mature face, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, dizzy spiral eyes, pale sickly greenish face, big sweat drop on temple, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
 
 # negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
 
 # sprite_rin_dead (96x128, 3:4)
 # api size: 1024x1536
 
-young anime girl, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, knocked out, X X eyes, whole character in grey monochrome, flat mouth, full body character sprite, front view, standing pose, centered composition, simple solid white background, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+adult anime woman, 30+ years old, mature face, pastel pink bob haircut curled inward with a small white triangular hairpin, pink eyes, soft blush, japanese sailor school uniform: white-pink blouse with a dark purple sailor collar with white stripes, pink neckerchief with a knot, pleated purple skirt, white socks, dark mary-jane shoes, knocked out, X X eyes, whole character in grey monochrome, flat mouth, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
 
 # negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render

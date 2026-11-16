@@ -8,7 +8,7 @@ The prompts come from ``art_prompts.py`` (the machine-readable twin of
 2. generates the raw PNGs into ``tools/art/out/`` (git-ignored), skipping
    files that already exist.
 
-The raw images are large and still carry the white studio background, so the
+The raw images are large and still carry the flat magenta key background, so the
 second step of the pipeline, ``slice_art.py``, turns them into the 96x128 /
 96x96 transparent sprites the app ships.
 
