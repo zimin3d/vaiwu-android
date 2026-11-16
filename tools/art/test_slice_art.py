@@ -215,6 +215,12 @@ class PngCodecTests(unittest.TestCase):
         with self.assertRaises(pngio.PngError):
             pngio.encode_png(0, 4, [])
 
+    def test_encode_validates_the_row_count(self):
+        # A short row list used to produce a PNG whose IHDR promises more
+        # scanlines than IDAT holds, which decoders reject later.
+        with self.assertRaisesRegex(pngio.PngError, "expected 2 rows, got 1"):
+            pngio.encode_png(2, 2, [bytearray(8)])
+
 
 # --- background removal ------------------------------------------------------
 

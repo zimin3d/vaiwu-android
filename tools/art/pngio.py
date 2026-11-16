@@ -47,6 +47,9 @@ def encode_png(width: int, height: int, rows) -> bytes:
     """
     if width <= 0 or height <= 0:
         raise PngError(f"bad image size {width}x{height}")
+    rows = list(rows)
+    if len(rows) != height:
+        raise PngError(f"expected {height} rows, got {len(rows)}")
     raw = bytearray()
     for index, row in enumerate(rows):
         expected = width * 4
