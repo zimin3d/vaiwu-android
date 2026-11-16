@@ -206,6 +206,96 @@ void testAcceptedEquipmentReturnsTrue()
     CHECK(progress.equipped[0] == -1);
 }
 
+// A hungry, exhausted pet falls asleep and becomes sick. This is the exact
+// state the "medicine is unreachable" report starts from.
+void makeSickAndSleepy(VaiwuPet& pet)
+{
+    pet.startNew(CharacterId::Aoi, "", 1000);
+    pet.applyGift(-95.0f, 0.0f, -100.0f, 0.0f); // hunger 5, energy 0
+    pet.tick(2000);                              // one tick -> forced sleep
+    CHECK(pet.life() == LifeState::Sleeping);
+    CHECK(pet.isSick());
+}
+
+void testSickSleepingPetCanBeCured()
+{
+    VaiwuPet pet;
+    makeSickAndSleepy(pet);
+
+    // cure() must stay usable while asleep: the app exposes medicine as a
+    // care action, and refusing it here would bring the death spiral back.
+    pet.cure();
+    CHECK(!pet.isSick());
+    CHECK(pet.life() != LifeState::Dead);
+}
+
+void testWakeKeepsPetAwakeLongEnoughToCare()
+{
+    VaiwuPet pet;
+    makeSickAndSleepy(pet);
+
+    CHECK(pet.wake());
+    CHECK(pet.life() == LifeState::Awake);
+
+    // The next tick used to force her straight back to sleep because her
+    // energy was still below the threshold.
+    pet.tick(3000);
+    CHECK(pet.life() == LifeState::Awake);
+    CHECK(pet.stats().energy <= 15.0f);
+
+    // Both rescue actions are reachable inside the grace window.
+    CHECK(pet.feed() == ActionResult::Ok);
+    CHECK(!pet.isSick());
+}
+
+void testWakeGraceExpiresAndPetSleepsAgain()
+{
+    VaiwuPet pet;
+    makeSickAndSleepy(pet);
+    CHECK(pet.wake());
+
+    // After the grace window she dozes off again on her own.
+    pet.tick(2000 + 3 * 60 * 1000);
+    CHECK(pet.life() == LifeState::Sleeping);
+}
+
+void testSickSleepingPetCanBeRescuedBeforeDeath()
+{
+    VaiwuPet pet;
+    makeSickAndSleepy(pet);
+
+    // Three minutes of sleep at 0.25 hunger/min leaves her alive.
+    pet.tick(2000 + 3 * 60 * 1000);
+    CHECK(pet.life() != LifeState::Dead);
+
+    pet.cure();
+    CHECK(!pet.isSick());
+    CHECK(pet.life() != LifeState::Dead);
+}
+
+void testPlayRefusesWhenItWouldPutPetToSleep()
+{
+    VaiwuPet pet;
+    pet.startNew(CharacterId::Aoi, "", 1000);
+    pet.applyGift(0.0f, 0.0f, -78.0f, 0.0f); // energy 22
+
+    const float before = pet.stats().energy;
+    CHECK(pet.startPlay() == ActionResult::TooTired);
+    CHECK(pet.stats().energy == before); // a refused round costs nothing
+    CHECK(pet.life() == LifeState::Awake);
+}
+
+void testPlayStartsWhenEnoughEnergyRemains()
+{
+    VaiwuPet pet;
+    pet.startNew(CharacterId::Aoi, "", 1000);
+    pet.applyGift(0.0f, 0.0f, -76.0f, 0.0f); // energy 24
+
+    CHECK(pet.startPlay() == ActionResult::Ok);
+    CHECK(pet.life() == LifeState::Awake);
+    CHECK(pet.stats().energy == 16.0f);
+}
+
 } // namespace
 
 int main()
@@ -218,6 +308,12 @@ int main()
     testDungeonRestBossChestAndEarlyExit();
     testStatAllocationValidation();
     testAssistantAndOfflinePhrasesRemainAvailable();
+    testSickSleepingPetCanBeCured();
+    testWakeKeepsPetAwakeLongEnoughToCare();
+    testWakeGraceExpiresAndPetSleepsAgain();
+    testSickSleepingPetCanBeRescuedBeforeDeath();
+    testPlayRefusesWhenItWouldPutPetToSleep();
+    testPlayStartsWhenEnoughEnergyRemains();
 
     if (failures == 0) {
         std::printf("ALL ANDROID NATIVE TESTS PASSED\n");

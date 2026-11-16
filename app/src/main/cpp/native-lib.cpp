@@ -148,8 +148,8 @@ Java_su_neit_vaiwu_NativePet_nativeAction(JNIEnv*, jobject, jlong handle, jint a
     case 4:
         return static_cast<jint>(p->talk());
     case 5:
-        p->wake();
-        return 0;
+        return static_cast<jint>(p->wake() ? vaiwu::game::ActionResult::Ok
+                                           : vaiwu::game::ActionResult::RefusedSleeping);
     case 6:
         p->cure();
         return 0;

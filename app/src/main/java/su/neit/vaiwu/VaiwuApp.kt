@@ -325,8 +325,24 @@ private fun PetHome(
 
         when (pet.lifeState) {
             LifeState.Dead -> Button(onClick = onReset) { Text(stringResource(R.string.start_over)) }
-            LifeState.Sleeping -> Button(onClick = { onAction(PetAction.Wake) }) {
-                Text(stringResource(R.string.wake_up))
+            LifeState.Sleeping -> {
+                Button(
+                    onClick = { onAction(PetAction.Wake) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.wake_up))
+                }
+                // A sick pet may fall asleep before the player can treat her.
+                // cure() works while asleep, so keep the medicine reachable.
+                if (pet.isSick) {
+                    Spacer(Modifier.height(6.dp))
+                    Button(
+                        onClick = { onAction(PetAction.Medicine) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.give_medicine))
+                    }
+                }
             }
             else -> {
                 Button(onClick = onShop, modifier = Modifier.fillMaxWidth()) {

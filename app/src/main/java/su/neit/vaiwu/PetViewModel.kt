@@ -492,11 +492,19 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun performAction(action: Int) {
+        val wasSick = _snapshot.value?.isSick == true
         val result = pet.action(action)
         refreshPet()
-        _message.value = when {
-            action == PetAction.Wake && result == ActionResult.Ok -> "Пора вставать!"
-            action == PetAction.Medicine -> "Лекарство принято"
+        val petNow = _snapshot.value
+        // Wake and Medicine have no detailed native result, so their feedback
+        // is derived from the actual state after the call.
+        val careMessage = careFeedback(
+            action = action,
+            wasSick = wasSick,
+            lifeState = petNow?.lifeState ?: LifeState.Dead,
+            isSick = petNow?.isSick == true,
+        )
+        _message.value = careMessage ?: when {
             result == ActionResult.Ok -> {
                 val context = when (action) {
                     PetAction.Feed -> PhraseContext.Fed
