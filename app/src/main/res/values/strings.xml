@@ -6,31 +6,81 @@
     <string name="home">Домой</string>
     <string name="cancel">Отмена</string>
 
-    <string name="choose_pet">Кто поселится в твоём телефоне?</string>
-    <string name="pet_summary">День %1$d · %2$d монет · %3$s</string>
-    <string name="weight_kg">%1$.1f кг</string>
-    <string name="pet_sick">Она заболела — нужно лекарство</string>
-    <string name="pet_sick_short">Болеет</string>
-    <string name="stat_hunger">Сытость</string>
-    <string name="stat_happiness">Счастье</string>
-    <string name="stat_energy">Энергия</string>
-    <string name="stat_discipline">Дисциплина</string>
-    <string name="stat_a11y">%1$s: %2$d из 100</string>
-    <string name="percent">%1$d%%</string>
-    <string name="start_over">Начать заново</string>
-    <string name="wake_up">Разбудить</string>
-    <string name="shop_with_coins">Магазин · %1$d монет</string>
+    <string name="action_back">Назад</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_settings">Настройки</string>
+    <string name="action_medicine">Дать лекарство</string>
+    <string name="action_wake">Разбудить</string>
     <string name="action_feed">Покормить</string>
     <string name="action_play">Поиграть</string>
     <string name="action_wash">Помыть</string>
     <string name="action_talk">Поговорить</string>
     <string name="action_clean">Убрать</string>
     <string name="action_hug">Обнять</string>
-    <string name="give_medicine">Дать лекарство</string>
+    <string name="action_games">Играть</string>
+    <string name="action_still_sleeping">Она спит</string>
+    <string name="action_caprice">Она капризничает</string>
+    <string name="action_already_full">Я уже сыт</string>
+    <string name="action_low_energy">Слишком мало энергии</string>
+    <string name="action_unavailable">Это действие сейчас недоступно</string>
 
-    <string name="settings_sound_title">Звуки</string>
-    <string name="settings_sound_label">Звуковые эффекты</string>
-    <string name="settings_sound_hint">Короткие сигналы действий, игр и боя</string>
+    <string name="nav_home">Дом</string>
+    <string name="nav_games">Игры</string>
+    <string name="nav_pet">Питомец</string>
+    <string name="nav_chat">Чат</string>
+
+    <plurals name="pet_day">
+        <item quantity="one">%d день</item>
+        <item quantity="few">%d дня</item>
+        <item quantity="many">%d дней</item>
+    </plurals>
+    <plurals name="rps_win">
+        <item quantity="one">Победа! +%1$d монета</item>
+        <item quantity="few">Победа! +%1$d монеты</item>
+        <item quantity="many">Победа! +%1$d монет</item>
+    </plurals>
+    <plurals name="sell">
+        <item quantity="one">Продано за %1$d монету</item>
+        <item quantity="few">Продано за %1$d монеты</item>
+        <item quantity="many">Продано за %1$d монет</item>
+    </plurals>
+
+    <string name="pet_greeting">Привет! Я — твоя Vaiwu</string>
+    <string name="pet_welcome_back">С возвращением!</string>
+    <string name="pet_left">Она ушла...</string>
+    <string name="pet_woken">Она проснулась</string>
+    <string name="pet_still_sleeping">Она всё ещё спит</string>
+    <string name="medicine_taken">Лекарство принято</string>
+    <string name="medicine_not_needed">Лекарство сейчас не нужно</string>
+    <string name="pet_tab_label">Питомец</string>
+    <string name="pet_sick">Она заболела — нужно лекарство</string>
+    <string name="pet_sick_short">Болеет</string>
+    <string name="sick_title">Она заболела</string>
+    <string name="sick_text">Нужно дать лекарство.</string>
+    <string name="status_sleeping">Спит</string>
+    <string name="status_sick">Болеет</string>
+    <string name="dead_title">Она больше не с нами</string>
+    <string name="dead_text">Твоя Vaiwu больше не с тобой. Но приключения подождут.</string>
+
+    <string name="stat_hunger">Сытость</string>
+    <string name="stat_happiness">Счастье</string>
+    <string name="stat_energy">Энергия</string>
+    <string name="stat_discipline">Дисциплина</string>
+    <string name="stat_strength">СИЛ</string>
+    <string name="stat_vitality">ЖИВ</string>
+    <string name="stat_agility">ЛОВ</string>
+    <string name="stat_magic">МАГ</string>
+    <string name="stat_luck">УДЧ</string>
+    <string name="stat_points_free">Свободные очки</string>
+    <string name="stat_allocate">+1 %1$s</string>
+    <string name="stat_a11y">%1$s: %2$d из 100</string>
+    <string name="percent">%1$d%%</string>
+    <string name="weight_kg">%1$.1f кг</string>
+
+    <string name="start_over">Начать заново</string>
+    <string name="wake_up">Разбудить</string>
+    <string name="shop_with_coins">Магазин · %1$d монет</string>
+    <string name="give_medicine">Дать лекарство</string>
 
     <string name="reset_title">Начать заново?</string>
     <string name="reset_text">Текущий питомец и весь прогресс будут удалены. Это действие нельзя отменить.</string>
@@ -43,12 +93,92 @@
     <string name="update_download">Скачать</string>
     <string name="update_later">Позже</string>
     <string name="update_close">Закрыть</string>
+    <string name="update_none">Новых версий нет</string>
+    <string name="update_failed">Не удалось проверить обновления</string>
+    <string name="update_confirm_install">Подтверди установку в системном окне</string>
+    <string name="update_unknown_source">Разреши установку из этого источника в настройках, затем повтори загрузку</string>
+
+    <string name="save_failed">Не удалось сохранить игру</string>
+    <string name="save_corrupted">Сохранение повреждено, можно начать заново</string>
+
+    <string name="games_energy">Игры тратят энергию. Победы приносят монеты и улучшают настроение.</string>
+
+    <string name="minigame_started">Мини-игра началась</string>
+    <string name="mini_title">Мини-игра</string>
+    <string name="mini_guess_title">Угадай эмоцию</string>
+    <string name="mini_guess_reward">2 монеты</string>
+    <string name="mini_guess_radiance">Радость</string>
+    <string name="mini_guess_sadness">Грусть</string>
+    <string name="mini_guess_anger">Злость</string>
+    <string name="mini_guess_sleepiness">Сонливость</string>
+    <string name="mini_hearts_title">Поймай сердца</string>
+    <string name="mini_hearts_reward">2 монеты</string>
+    <string name="mini_hearts_caught">Поймано %1$d из 5</string>
+    <string name="mini_math_title">Быстрая математика</string>
+    <string name="mini_math_reward">3 монеты</string>
+    <string name="mini_melody_title">Повтори мелодию</string>
+    <string name="mini_melody_reward">2 монеты</string>
+    <string name="mini_won">Победа! +%1$d монеты</string>
+    <string name="mini_lost">Попробуй ещё раз</string>
+    <string name="mini_time_left">Осталось: %1$d сек</string>
+    <string name="mini_repeat">Повтори: %1$d/%2$d</string>
+    <string name="mini_watch">Смотри и запоминай</string>
+
+    <string name="not_enough_energy">Слишком мало энергии для этого действия</string>
+    <string name="not_enough_energy_adventure">Питомец слишком устал для приключения</string>
+
+    <string name="round_finished">Раунд завершён</string>
+
+    <string name="rps_title">Камень · Ножницы · Бумага</string>
+    <string name="rps_win_hint">Победа принесёт 2 монеты</string>
+    <string name="rps_pet_choice">У %1$s: %2$s</string>
+    <string name="rps_draw">Ничья</string>
+    <string name="rps_loss">Ты проиграл</string>
+    <string name="rps_win">Ты выиграл! +%1$d монеты</string>
+    <string name="rps_lose">Ты проиграл</string>
+    <string name="rps_again">Играть ещё</string>
+    <string name="rps_prompt">Выбери камень, бумагу или ножницы</string>
+    <string name="rps_unavailable">Раунд уже завершён или питомец недоступен</string>
+
+    <string name="battle_started_adventure">Приключение началось</string>
+    <string name="battle_started_dungeon">Данж начался</string>
+    <string name="battle_adventure">Приключение</string>
+    <string name="battle_adventure_reward">Один бой</string>
+    <string name="battle_dungeon">Данж %1$d/%2$d</string>
+    <string name="battle_dungeon_reward">3–5 комнат и босс</string>
+    <string name="battle_boss">БОСС</string>
+    <string name="battle_monster_level">%1$s · ур. %2$d</string>
+    <string name="battle_level_xp">Уровень %1$d · XP %2$d/%3$d</string>
+    <string name="battle_foe_hp">HP противника</string>
+    <string name="battle_hp">HP</string>
+    <string name="battle_mp">MP</string>
+    <string name="battle_potions">Зелья: HP %1$d · MP %2$d</string>
+    <string name="battle_cleared">Данж пройден! Сундук: +%1$d монет</string>
+    <string name="battle_rest">Комната пройдена. Короткий отдых восстановит HP и MP.</string>
+    <string name="battle_rest_next">Отдохнуть и идти дальше</string>
+    <string name="battle_exit_loot">Выйти с добычей</string>
+    <string name="battle_back_home">Вернуться домой</string>
+    <string name="battle_action_attack">Атака</string>
+    <string name="battle_action_hp_potion">HP-зелье</string>
+    <string name="battle_action_mp_potion">MP-зелье</string>
+    <string name="battle_action_run">Бежать</string>
+    <string name="battle_victory">Победа!</string>
+    <string name="battle_fainted">Она вернулась домой</string>
+    <string name="battle_loot_saved">Добыча сохранена</string>
+    <string name="battle_claim">Забрать добычу домой</string>
 
     <string name="shop_title">Магазин</string>
+    <string name="shop_bought">Куплено: %1$s</string>
+    <string name="shop_already_bought">Эта вещь уже куплена</string>
+    <string name="shop_not_enough">Не хватает монет</string>
+    <string name="shop_link_label">Магазин</string>
+    <string name="shop_balance_note">монет</string>
+    <string name="shop_empty">В этой категории пока нет товаров</string>
+    <string name="buy_with_price">%1$d · Купить</string>
     <string name="coins">Монеты: %1$d</string>
+
     <string name="equipment">Снаряжение</string>
     <string name="bought">Куплено</string>
-    <string name="buy_with_price">%1$d · Купить</string>
     <string name="no_data">Нет данных</string>
     <string name="inventory_level">Уровень %1$d · Опыт %2$d/%3$d</string>
     <string name="inventory_hp_mp">HP %1$d/%2$d · MP %3$d/%4$d</string>
@@ -61,14 +191,72 @@
     <string name="sell_title">Продать %1$s?</string>
     <string name="sell_text">Будет возвращено %1$d монет.</string>
     <string name="sell">Продать</string>
+    <string name="sell_not_allowed">Эту вещь продать нельзя</string>
+    <string name="equip_done">Снаряжение надето</string>
+    <string name="equip_failed">Не удалось изменить снаряжение</string>
+    <string name="slot_freed">Слот освобождён</string>
 
-    <string name="rps_title">Камень · Ножницы · Бумага</string>
-    <string name="rps_win_hint">Победа принесёт 2 монеты</string>
-    <string name="rps_pet_choice">У %1$s: %2$s</string>
-    <string name="rps_win">Ты выиграл! +%1$d монеты</string>
-    <string name="rps_draw">Ничья</string>
-    <string name="rps_loss">Ты проиграл</string>
-    <string name="rps_again">Играть ещё</string>
+    <string name="chat_idle">Я рядом и слушаю тебя</string>
+    <string name="chat_offline">Связь недоступна, поэтому отвечаю офлайн. %1$s</string>
+    <string name="chat_offline_fallback">Связь недоступна, но я всё равно рядом</string>
+    <string name="chat_input_label">Сообщение</string>
+    <string name="chat_send">Отправить</string>
+    <string name="chat_voice_button">Говорить</string>
+
+    <string name="onboarding_title">Кто поселится в твоём телефоне?</string>
+    <string name="onboarding_name_label">Имя питомца</string>
+    <string name="onboarding_name_hint">Имя необязательно, до 24 символов</string>
+    <string name="onboarding_settle">Поселить</string>
+    <string name="onboarding_stats">СИЛ %1$d · ЖИВ %2$d · ЛОВ %3$d · МАГ %4$d · УДЧ %5$d</string>
+    <string name="onboarding_food">Любимая еда: %1$s</string>
+
+    <string name="pomodoro_started">Помодоро запущен: 25 минут концентрации</string>
+    <string name="reminder_heard">Напомню в %1$s</string>
+    <string name="reminder_set">Напоминание установлено на %1$s</string>
+    <string name="reminders_cancelled">Все напоминания отменены</string>
+    <string name="time_missing">Уточни время, например: напомни в 18:30</string>
+    <string name="time_now">Сейчас %1$s</string>
+    <string name="weather_failed">Не удалось получить погоду. Проверь подключение к интернету.</string>
+    <string name="weather_need_settings">Сначала укажи координаты в настройках</string>
+
+    <string name="help_title">Справка</string>
+    <string name="help_care">Уход</string>
+    <string name="help_care_text">Кормление, мытьё, уборка и объятия — всё доступно с главного экрана в один тап.</string>
+    <string name="help_games">Игры</string>
+    <string name="help_games_text">Игры тратят энергию. Победы приносят монеты и улучшают настроение.</string>
+    <string name="help_rpg">Приключения</string>
+    <string name="help_rpg_text">Бои дают опыт и добычу. В джунглях после боя ждёт комната с боссом.</string>
+    <string name="help_progress">Прогрессия</string>
+    <string name="help_progress_text">Свободные очки характеристик можно распределить на экране питомца.</string>
+    <string name="help_assistant">Ассистент</string>
+    <string name="help_assistant_text">Чат умеет ставить напоминания, рассказывать время и анекдоты.</string>
+
+    <string name="settings_title">Настройки</string>
+    <string name="settings_sound_title">Звуки</string>
+    <string name="settings_sound_label">Звуковые эффекты</string>
+    <string name="settings_sound_hint">Короткие сигналы действий, игр и боя</string>
+    <string name="settings_voice_title">Голос</string>
+    <string name="settings_voice_label">Голос питомца</string>
+    <string name="settings_voice_hint">Озвучка фраз и ответов</string>
+    <string name="settings_voice_notify">Сказать мне о напоминаниях</string>
+    <string name="settings_api_title">Ассистент</string>
+    <string name="settings_api_key_saved">Ключ сохранён</string>
+    <string name="settings_api_key_missing">Ключ не задан</string>
+    <string name="settings_api_label">API-ключ</string>
+    <string name="settings_location_title">Геолокация</string>
+    <string name="settings_latitude_label">Широта</string>
+    <string name="settings_longitude_label">Долгота</string>
+    <string name="settings_location_note">Координаты для напоминаний и прогноза погоды</string>
+    <string name="settings_save">Сохранить</string>
+    <string name="settings_update_check">Проверить обновления</string>
+    <string name="settings_help">Справка</string>
+    <string name="settings_reset">Удалить питомца</string>
+    <string name="settings_invalid_coordinates">Проверь координаты</string>
+    <string name="settings_saved">Настройки сохранены</string>
+
+    <string name="exit_title">Выйти?</string>
+    <string name="exit_message">Награда за текущий раунд не будет начислена.</string>
+    <string name="exit_confirm">Выйти</string>
 
     <string-array name="character_names">
         <item>Aoi</item>

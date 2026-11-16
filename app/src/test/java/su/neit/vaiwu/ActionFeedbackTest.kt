@@ -9,23 +9,23 @@ class ActionFeedbackTest {
 
     @Test
     fun wakeReportsTheActualState() {
-        assertEquals("Пора вставать!", careFeedback(PetAction.Wake, false, LifeState.Awake, false))
+        assertEquals(CareFeedback.Woken, careFeedback(PetAction.Wake, false, LifeState.Awake, false))
         // A low-energy pet can fall back asleep on the next tick; the message
         // must not claim success in that case.
-        assertEquals("Она ещё спит", careFeedback(PetAction.Wake, false, LifeState.Sleeping, false))
+        assertEquals(CareFeedback.StillSleeping, careFeedback(PetAction.Wake, false, LifeState.Sleeping, false))
     }
 
     @Test
     fun medicineReportsWhetherThePetWasCured() {
-        assertEquals("Лекарство принято", careFeedback(PetAction.Medicine, true, LifeState.Sleeping, false))
-        assertEquals("Лекарство сейчас не нужно", careFeedback(PetAction.Medicine, true, LifeState.Awake, true))
-        assertEquals("Лекарство сейчас не нужно", careFeedback(PetAction.Medicine, false, LifeState.Awake, false))
+        assertEquals(CareFeedback.MedicineTaken, careFeedback(PetAction.Medicine, true, LifeState.Sleeping, false))
+        assertEquals(CareFeedback.MedicineNotNeeded, careFeedback(PetAction.Medicine, true, LifeState.Awake, true))
+        assertEquals(CareFeedback.MedicineNotNeeded, careFeedback(PetAction.Medicine, false, LifeState.Awake, false))
     }
 
     @Test
-    fun deadPetAlwaysGetsTheSameMessage() {
-        assertEquals("Питомец ушёл...", careFeedback(PetAction.Medicine, true, LifeState.Dead, false))
-        assertEquals("Питомец ушёл...", careFeedback(PetAction.Feed, false, LifeState.Dead, false))
+    fun deadPetAlwaysGetsTheSameFeedback() {
+        assertEquals(CareFeedback.Dead, careFeedback(PetAction.Medicine, true, LifeState.Dead, false))
+        assertEquals(CareFeedback.Dead, careFeedback(PetAction.Feed, false, LifeState.Dead, false))
     }
 
     @Test

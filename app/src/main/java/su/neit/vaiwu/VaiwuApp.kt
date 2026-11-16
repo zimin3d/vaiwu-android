@@ -2,12 +2,16 @@ package su.neit.vaiwu
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,44 +19,61 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+/**
+ * Root composable of the redone UI: it owns the navigation state machine,
+ * the snackbar host and the global top bar / bottom bar frame.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
-    val message by viewModel.message.collectAsStateWithLifecycle()
+    val systemMessage by viewModel.systemMessage.collectAsStateWithLifecycle()
+    val speech by viewModel.speech.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val screen by viewModel.screen.collectAsStateWithLifecycle()
     val shopItems by viewModel.shopItems.collectAsStateWithLifecycle()
@@ -64,373 +85,244 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
     val chatBusy by viewModel.chatBusy.collectAsStateWithLifecycle()
     val assistantSettings by viewModel.assistantSettings.collectAsStateWithLifecycle()
     val soundEnabled by viewModel.soundEnabled.collectAsStateWithLifecycle()
+    val shopCategory by viewModel.shopCategory.collectAsStateWithLifecycle()
+
     var confirmingReset by remember { mutableStateOf(false) }
+    var confirmingExit by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val hour = remember { currentHour() }
+    val pet = snapshot
+    val currentTab = screen.tab
+    val roundActive = isRoundActive(screen, rpsResult, miniGame, battle)
+
+    LaunchedEffect(systemMessage?.id) {
+        val message = systemMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message.text)
+        viewModel.consumeSystemMessage()
+    }
 
     BackHandler(enabled = screen != AppScreen.Home) {
-        viewModel.openHome()
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.title_version, BuildConfig.VERSION_NAME)) },
-                actions = {
-                    TextButton(onClick = viewModel::checkForUpdates) {
-                        Text(stringResource(R.string.update))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
-            Box(modifier = Modifier.weight(1f)) {
-                val currentPet = snapshot
-                if (currentPet == null) {
-                    CharacterSelection(
-                        onSelect = { id, name -> viewModel.createPet(id, name) },
-                        profile = viewModel::characterProfile,
-                    )
-                } else {
-                    when (screen) {
-                        AppScreen.Home -> PetHome(
-                            pet = currentPet,
-                            onAction = viewModel::performAction,
-                            onReset = { confirmingReset = true },
-                            onPlay = viewModel::openGames,
-                            onShop = viewModel::openShop,
-                            onChat = viewModel::openChat,
-                            onStats = viewModel::openStats,
-                            onSettings = viewModel::openSettings,
-                            onHelp = viewModel::openHelp,
-                        )
-                        AppScreen.Shop -> ShopScreen(
-                            items = shopItems,
-                            coins = currentPet.coins,
-                            onBuy = viewModel::buyItem,
-                            onInventory = viewModel::openInventory,
-                            onHome = viewModel::openHome,
-                        )
-                        AppScreen.Inventory -> InventoryScreen(
-                            inventory = inventory,
-                            onEquip = viewModel::equip,
-                            onSell = viewModel::sell,
-                            onHome = viewModel::openHome,
-                        )
-                        AppScreen.Rps -> RpsScreen(
-                            pet = currentPet,
-                            result = rpsResult,
-                            onChoice = viewModel::playRps,
-                            onAgain = viewModel::startRps,
-                            onHome = viewModel::openHome,
-                        )
-                        AppScreen.Games -> GamesScreen(
-                            onRps = viewModel::startRps,
-                            onMiniGame = viewModel::startMiniGame,
-                            onBattle = viewModel::startBattle,
-                            onHome = viewModel::openHome,
-                        )
-                        AppScreen.MiniGame -> miniGame?.let { game ->
-                            MiniGameScreen(
-                                pet = currentPet,
-                                state = game,
-                                onChoice = viewModel::chooseMiniGame,
-                                onNote = viewModel::playNote,
-                                onAgain = { viewModel.startMiniGame(game.kind, game.sequence.size) },
-                                onHome = viewModel::openHome,
-                            )
-                        }
-                        AppScreen.Battle -> battle?.let { currentBattle ->
-                            BattleScreen(
-                                battle = currentBattle,
-                                onAction = viewModel::battleAction,
-                                onNextRoom = viewModel::nextDungeonRoom,
-                                onAllocate = viewModel::allocateStat,
-                                onHome = viewModel::openHome,
-                            )
-                        }
-                        AppScreen.Stats -> StatsScreen(
-                            inventory = inventory,
-                            onAllocate = viewModel::allocateStat,
-                            onEquipment = viewModel::openInventory,
-                            onHome = viewModel::openHome,
-                        )
-                        AppScreen.Chat -> ChatScreen(
-                            messages = chatMessages,
-                            busy = chatBusy,
-                            speechEnabled = assistantSettings.speechEnabled,
-                            voice = voice,
-                            onSend = viewModel::submitChat,
-                            onHome = viewModel::openHome,
-                        )
-                        AppScreen.Settings -> SettingsScreen(
-                            settings = assistantSettings,
-                            soundEnabled = soundEnabled,
-                            voice = voice,
-                            onSoundEnabled = viewModel::setSoundEnabled,
-                            onSave = viewModel::saveAssistantSettings,
-                            onUpdate = viewModel::checkForUpdates,
-                            onReset = { confirmingReset = true },
-                            onHome = viewModel::openHome,
-                        )
-                        AppScreen.Help -> HelpScreen(onHome = viewModel::openHome)
-                    }
-                }
-            }
-            Text(
-                text = message,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.secondary,
-            )
+        if (roundActive) {
+            confirmingExit = true
+        } else {
+            viewModel.goBack()
         }
     }
+
+    if (pet == null) {
+        OnboardingScreen(
+            profile = viewModel::characterProfile,
+            onSettle = { characterId, name -> viewModel.createPet(characterId, name) },
+        )
+    } else {
+        VaiwuScaffold(
+            topBar = {
+                VaiwuTopBar(
+                    title = { AppTopBarTitle(screen = screen, pet = pet, battle = battle) },
+                    onBack = if (screen.isFocusScreen) {
+                        {
+                            // Same guard as BackHandler: leaving a live round
+                            // forfeits the reward, so ask first (UI-NAV-04).
+                            if (roundActive) {
+                                confirmingExit = true
+                            } else {
+                                viewModel.goBack()
+                            }
+                        }
+                    } else null,
+                    actions = {
+                        if (screen == AppScreen.Home) {
+                            CoinChip(coins = pet.coins)
+                        }
+                        IconButton(onClick = viewModel::openSettings) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = stringResource(R.string.action_settings),
+                            )
+                        }
+                    },
+                )
+            },
+            bottomBar = {
+                currentTab?.let { tab ->
+                    VaiwuBottomBar(
+                        selected = tab,
+                        onSelect = viewModel::openTab,
+                    )
+                }
+            },
+            snackbarHostState = snackbarHostState,
+        ) { padding ->
+            Box(modifier = Modifier.padding(padding)) {
+                when (screen) {
+                    AppScreen.Home -> HomeScreen(
+                        pet = pet,
+                        speech = speech?.text,
+                        hour = hour,
+                        onAction = viewModel::performAction,
+                        onGames = { viewModel.openTab(AppTab.Games) },
+                        onShop = { viewModel.openFocus(AppScreen.Shop) },
+                        onPet = viewModel::openPet,
+                        onRestart = { confirmingReset = true },
+                    )
+                    AppScreen.Games -> GamesScreen(
+                        pet = pet,
+                        onRps = viewModel::startRps,
+                        onMiniGame = { kind, melodyLength -> viewModel.startMiniGame(kind, melodyLength) },
+                        onBattle = viewModel::startBattle,
+                    )
+                    AppScreen.Pet -> PetScreen(
+                        pet = pet,
+                        inventory = inventory,
+                        onAllocate = viewModel::allocateStat,
+                        onEquip = { slot, itemId -> viewModel.equip(slot, itemId) },
+                        onSell = { itemId -> viewModel.sell(itemId) },
+                    )
+                    AppScreen.Chat -> ChatScreen(
+                        messages = chatMessages,
+                        busy = chatBusy,
+                        speechEnabled = assistantSettings.speechEnabled,
+                        voice = voice,
+                        onSend = viewModel::submitChat,
+                    )
+                    AppScreen.Shop -> ShopScreen(
+                        items = shopItems,
+                        category = shopCategory,
+                        coins = pet.coins,
+                        onBuy = viewModel::buyItem,
+                        onInventory = viewModel::openPet,
+                        onCategoryChange = viewModel::selectShopCategory,
+                    )
+                    AppScreen.Rps -> RpsScreen(
+                        pet = pet,
+                        result = rpsResult,
+                        onChoice = viewModel::playRps,
+                        onAgain = { viewModel.startRps() },
+                        onExit = {
+                            if (isRoundActive(AppScreen.Rps, rpsResult, miniGame, battle)) {
+                                confirmingExit = true
+                            } else {
+                                viewModel.openHome()
+                            }
+                        },
+                    )
+                    AppScreen.MiniGame -> miniGame?.let { game ->
+                        MiniGameScreen(
+                            pet = pet,
+                            state = game,
+                            onChoice = viewModel::chooseMiniGame,
+                            onNote = viewModel::playNote,
+                            onAgain = { viewModel.startMiniGame(game.kind, game.sequence.size) },
+                            onExit = {
+                                if (isRoundActive(AppScreen.MiniGame, rpsResult, miniGame, battle)) {
+                                    confirmingExit = true
+                                } else {
+                                    viewModel.openHome()
+                                }
+                            },
+                        )
+                    }
+                    AppScreen.Battle -> battle?.let { currentBattle ->
+                        BattleScreen(
+                            battle = currentBattle,
+                            onAction = viewModel::battleAction,
+                            onNextRoom = { viewModel.nextDungeonRoom() },
+                            onExit = {
+                                if (isRoundActive(AppScreen.Battle, rpsResult, miniGame, battle)) {
+                                    confirmingExit = true
+                                } else {
+                                    viewModel.openHome()
+                                }
+                            },
+                        )
+                    }
+                    AppScreen.Settings -> SettingsScreen(
+                        settings = assistantSettings,
+                        soundEnabled = soundEnabled,
+                        voice = voice,
+                        onSoundEnabled = viewModel::setSoundEnabled,
+                        onSave = { apiKey, speech, lat, lon -> viewModel.saveAssistantSettings(apiKey, speech, lat, lon) },
+                        onUpdate = viewModel::checkForUpdates,
+                        onHelp = viewModel::openHelp,
+                        onReset = { confirmingReset = true },                    )
+                    AppScreen.Help -> HelpScreen()
+                }
+            }
+        }
+    }
+
     UpdateDialog(
         state = updateState,
         onDownload = viewModel::downloadUpdate,
         onDismiss = viewModel::dismissUpdate,
     )
     if (confirmingReset) {
-        AlertDialog(
-            onDismissRequest = { confirmingReset = false },
-            title = { Text(stringResource(R.string.reset_title)) },
-            text = { Text(stringResource(R.string.reset_text)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmingReset = false
-                        viewModel.resetPet()
-                    },
-                ) {
-                    Text(stringResource(R.string.start_over))
-                }
+        ConfirmDialog(
+            title = stringResource(R.string.reset_title),
+            message = stringResource(R.string.reset_text),
+            confirmLabel = stringResource(R.string.start_over),
+            onConfirm = {
+                confirmingReset = false
+                viewModel.resetPet()
             },
-            dismissButton = {
-                TextButton(onClick = { confirmingReset = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
+            onDismiss = { confirmingReset = false },
+        )
+    }
+    if (confirmingExit) {
+        ConfirmDialog(
+            title = stringResource(R.string.exit_title),
+            message = stringResource(R.string.exit_message),
+            confirmLabel = stringResource(R.string.exit_confirm),
+            onConfirm = {
+                confirmingExit = false
+                viewModel.openHome()
             },
+            onDismiss = { confirmingExit = false },
         )
     }
 }
 
 @Composable
-private fun CharacterSelection(onSelect: (Int, String) -> Unit, profile: (Int) -> CharacterProfile?) {
-    val characterNames = stringArrayResource(R.array.character_names)
-    var petName by remember { mutableStateOf("") }
-    Column(modifier = Modifier.fillMaxSize()) {
+private fun AppTopBarTitle(
+    screen: AppScreen,
+    pet: PetSnapshot,
+    battle: BattleSnapshot?,
+) {
+    if (screen == AppScreen.Home) {
+        Column {
+            Text(
+                text = pet.petName,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            val day = pet.ageSeconds / 86_400 + 1
+            Text(
+                text = pluralStringResource(R.plurals.pet_day, day, day),
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+    } else {
+        val title = when (screen) {
+            AppScreen.Rps -> stringResource(R.string.rps_title)
+            AppScreen.MiniGame -> stringResource(R.string.mini_title)
+            AppScreen.Battle -> battle?.let { b ->
+                if (b.dungeon) {
+                    stringResource(R.string.battle_dungeon, b.room, b.rooms)
+                } else {
+                    stringResource(R.string.battle_adventure)
+                }
+            } ?: stringResource(R.string.battle_adventure)
+            AppScreen.Shop -> stringResource(R.string.shop_title)
+            AppScreen.Settings -> stringResource(R.string.settings_title)
+            AppScreen.Help -> stringResource(R.string.help_title)
+            else -> stringResource(R.string.nav_home)
+        }
         Text(
-            stringResource(R.string.choose_pet),
-            modifier = Modifier.padding(20.dp, 20.dp, 20.dp, 4.dp),
+            text = title,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
         )
-        OutlinedTextField(
-            value = petName,
-            onValueChange = { petName = it.take(24) },
-            label = { Text("Имя питомца (необязательно)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-        )
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            itemsIndexed(characterNames) { index, name ->
-                val stats = remember(index) { profile(index) }
-                Card(onClick = { onSelect(index, petName) }) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        PetSprite(index, 0, name, Modifier.size(96.dp, 128.dp))
-                        Text(name, style = MaterialTheme.typography.titleMedium)
-                        stats?.let {
-                            Text(
-                                "СИЛ ${it.strength} · ЖИВ ${it.vitality}\nЛОВ ${it.agility} · МАГ ${it.magic} · УДЧ ${it.luck}",
-                                style = MaterialTheme.typography.bodySmall,
-                                textAlign = TextAlign.Center,
-                            )
-                            Text("Любимая еда: ${it.favoriteFood}", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
-        }
     }
-}
-
-@Composable
-private fun PetHome(
-    pet: PetSnapshot,
-    onAction: (Int) -> Unit,
-    onReset: () -> Unit,
-    onPlay: () -> Unit,
-    onShop: () -> Unit,
-    onChat: () -> Unit,
-    onStats: () -> Unit,
-    onSettings: () -> Unit,
-    onHelp: () -> Unit,
-) {
-    val weight = stringResource(R.string.weight_kg, pet.weightKg)
-    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-    Box(modifier = Modifier.fillMaxSize()) {
-        AssetImage(homeBackgroundForHour(hour), "Дом", Modifier.fillMaxSize(), ContentScale.Crop)
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xB318122B))
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-        Text(
-            pet.petName,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            stringResource(R.string.pet_summary, pet.ageSeconds / 86_400 + 1, pet.coins, weight),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(8.dp))
-        PetSprite(
-            characterId = pet.characterId,
-            emotionId = pet.emotionId,
-            description = pet.petName,
-            modifier = Modifier.size(144.dp, 192.dp),
-        )
-        if (pet.isSick) {
-            StatusChip(
-                text = stringResource(R.string.pet_sick_short),
-                tone = StatTone.Warning,
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-        StatBar(stringResource(R.string.stat_hunger), pet.hunger)
-        StatBar(stringResource(R.string.stat_happiness), pet.happiness)
-        StatBar(stringResource(R.string.stat_energy), pet.energy)
-        StatBar(stringResource(R.string.stat_discipline), pet.discipline)
-        Spacer(Modifier.height(12.dp))
-
-        when (pet.lifeState) {
-            LifeState.Dead -> VaiwuPrimaryButton(
-                text = stringResource(R.string.start_over),
-                onClick = onReset,
-            )
-            LifeState.Sleeping -> {
-                VaiwuPrimaryButton(
-                    text = stringResource(R.string.wake_up),
-                    onClick = { onAction(PetAction.Wake) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                // A sick pet may fall asleep before the player can treat her.
-                // cure() works while asleep, so keep the medicine reachable.
-                if (pet.isSick) {
-                    Spacer(Modifier.height(6.dp))
-                    VaiwuSecondaryButton(
-                        text = stringResource(R.string.give_medicine),
-                        onClick = { onAction(PetAction.Medicine) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-            else -> {
-                VaiwuSecondaryButton(
-                    text = stringResource(R.string.shop_with_coins, pet.coins),
-                    onClick = onShop,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TextButton(onClick = onChat, modifier = Modifier.weight(1f)) { Text("Чат") }
-                    TextButton(onClick = onStats, modifier = Modifier.weight(1f)) { Text("Статы") }
-                    TextButton(onClick = onHelp, modifier = Modifier.weight(1f)) { Text("Помощь") }
-                    TextButton(onClick = onSettings, modifier = Modifier.weight(1f)) { Text("Настройки") }
-                }
-                ActionRow(
-                    stringResource(R.string.action_feed),
-                    PetAction.Feed,
-                    stringResource(R.string.action_play),
-                    PetAction.Play,
-                ) { action ->
-                    if (action == PetAction.Play) onPlay() else onAction(action)
-                }
-                ActionRow(
-                    stringResource(R.string.action_wash),
-                    PetAction.Wash,
-                    stringResource(R.string.action_talk),
-                    PetAction.Talk,
-                    onAction,
-                )
-                ActionRow(
-                    stringResource(R.string.action_clean),
-                    PetAction.Clean,
-                    stringResource(R.string.action_hug),
-                    PetAction.Hug,
-                    onAction,
-                )
-                if (pet.isSick) {
-                    VaiwuSecondaryButton(
-                        text = stringResource(R.string.give_medicine),
-                        onClick = { onAction(PetAction.Medicine) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        }
-    }
-}
-
-@Composable
-private fun ActionRow(
-    firstLabel: String,
-    firstAction: Int,
-    secondLabel: String,
-    secondAction: Int,
-    onAction: (Int) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        VaiwuPrimaryButton(
-            text = firstLabel,
-            onClick = { onAction(firstAction) },
-            modifier = Modifier.weight(1f),
-        )
-        VaiwuPrimaryButton(
-            text = secondLabel,
-            onClick = { onAction(secondAction) },
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun StatBar(label: String, value: Float) {
-    StatMeter(
-        label = label,
-        value = value,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Spacer(Modifier.height(VaiwuSpacing.small))
 }
 
 @Composable
@@ -459,7 +351,10 @@ private fun UpdateDialog(state: UpdateUiState, onDownload: () -> Unit, onDismiss
                     Text(stringResource(R.string.update_available, state.release.version))
                     if (state.release.notes.isNotBlank()) {
                         Spacer(Modifier.height(8.dp))
-                        Text(state.release.notes, modifier = Modifier.heightIn(max = 240.dp))
+                        Text(
+                            state.release.notes,
+                            modifier = Modifier.heightIn(max = 240.dp),
+                        )
                     }
                 }
             },
@@ -509,5 +404,6 @@ private fun ProgressDialog(text: String, fraction: Float? = null) {
             }
         },
         confirmButton = {},
+        dismissButton = {},
     )
 }

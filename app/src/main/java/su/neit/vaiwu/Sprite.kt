@@ -5,7 +5,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -14,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
@@ -85,9 +88,10 @@ fun SpriteImage(animation: SpriteAnimation, description: String, modifier: Modif
 @Composable
 fun AssetImage(
     assetName: String,
-    description: String,
+    description: String?,
     modifier: Modifier,
     contentScale: ContentScale = ContentScale.Fit,
+    filterQuality: FilterQuality = FilterQuality.Low,
 ) {
     val context = LocalContext.current.applicationContext
     val bitmap = remember(assetName) { mutableStateOf(SpriteBitmapCache.get(assetName)) }
@@ -101,9 +105,11 @@ fun AssetImage(
             contentDescription = description,
             modifier = modifier,
             contentScale = contentScale,
+            filterQuality = filterQuality,
         )
     } else {
-        Box(modifier)
+        // Placeholder keeps the layout stable while the sprite is loading.
+        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant))
     }
 }
 

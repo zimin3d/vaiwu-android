@@ -1,5 +1,7 @@
 package su.neit.vaiwu
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,13 +15,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.ScrollableTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,145 +38,211 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+/**
+ * Shop focus screen (UI-ECO-01…03). Categories are horizontal chips, the balance
+ * is visible without scrolling and the purchase button refuses coins that are
+ * not enough.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShopScreen(
     items: List<ShopItemSnapshot>,
+    category: Int,
     coins: Int,
     onBuy: (Int) -> Unit,
     onInventory: () -> Unit,
-    onHome: () -> Unit,
+    onCategoryChange: (Int) -> Unit,
 ) {
-    val shopCategoryNames = stringArrayResource(R.array.shop_categories)
-    var category by remember { mutableIntStateOf(0) }
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        ScreenHeader(stringResource(R.string.shop_title), onHome)
+    val categories = stringArrayResource(R.array.shop_categories)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(VaiwuSpacing.screenPadding),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
         ) {
+            CoinChip(coins = coins)
             Text(
-                stringResource(R.string.coins, coins),
-                style = MaterialTheme.typography.titleMedium,
+                text = stringResource(R.string.shop_balance_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onInventory) { Text(stringResource(R.string.equipment)) }
+            TextButton(onClick = onInventory) {
+                Text(stringResource(R.string.equipment))
+            }
         }
-        ScrollableTabRow(selectedTabIndex = category, edgePadding = 0.dp) {
-            shopCategoryNames.forEachIndexed { index, name ->
-                Tab(
+        Spacer(Modifier.height(VaiwuSpacing.medium))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+        ) {
+            categories.forEachIndexed { index, name ->
+                AssistChip(
                     selected = category == index,
-                    onClick = { category = index },
-                    text = { Text(name) },
+                    onClick = { onCategoryChange(index) },
+                    label = { Text(name) },
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(VaiwuSpacing.medium))
         LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
         ) {
             items(items.filter { it.categoryId == category }, key = { it.id }) { item ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(item.name, fontWeight = FontWeight.Bold)
-                            if (item.effect.isNotBlank()) {
-                                Text(
-                                    item.effect,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        if (item.owned) {
-                            Text(
-                                stringResource(R.string.bought),
-                                color = MaterialTheme.colorScheme.secondary,
-                            )
-                        } else {
-                            Button(onClick = { onBuy(item.id) }) {
-                                Text(stringResource(R.string.buy_with_price, item.price))
-                            }
-                        }
-                    }
+                ShopItemCard(
+                    item = item,
+                    coins = coins,
+                    onBuy = onBuy,
+                )
+            }
+            if (items.none { it.categoryId == category }) {
+                item {
+                    EmptyState(
+                        title = stringResource(R.string.shop_empty),
+                        actionLabel = null,
+                        onAction = null,
+                    )
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
     }
 }
 
 @Composable
-fun InventoryScreen(
+private fun ShopItemCard(
+    item: ShopItemSnapshot,
+    coins: Int,
+    onBuy: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Column(
+            modifier = Modifier.padding(VaiwuSpacing.medium),
+            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+        ) {
+            Text(item.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            if (item.effect.isNotBlank()) {
+                Text(
+                    item.effect,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (item.owned) {
+                Text(
+                    text = stringResource(R.string.bought),
+                    color = MaterialTheme.colorScheme.secondary,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            } else {
+                Button(
+                    onClick = { onBuy(item.id) },
+                    enabled = item.price <= coins,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = stringResource(R.string.buy_with_price, item.price))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Pet screen: stats, equipment and the bag live on one screen (I-5,
+ * UI-ECO-05…07).
+ */
+@Composable
+fun PetScreen(
+    pet: PetSnapshot,
     inventory: InventorySnapshot?,
+    onAllocate: (Int) -> Unit,
     onEquip: (Int, Int) -> Unit,
     onSell: (Int) -> Unit,
-    onHome: () -> Unit,
 ) {
-    val equipmentSlotNames = stringArrayResource(R.array.equipment_slots)
     var pendingSale by remember { mutableStateOf<EquipmentSnapshot?>(null) }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
+            .padding(VaiwuSpacing.screenPadding),
     ) {
-        ScreenHeader(stringResource(R.string.equipment), onHome)
-        if (inventory == null) {
-            Text(stringResource(R.string.no_data))
-            return@Column
+        Text(
+            text = pet.petName,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        inventory?.let { stats ->
+            StatMeter(
+                label = stringResource(R.string.stat_strength),
+                value = stats.strength.toFloat(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            StatMeter(
+                label = stringResource(R.string.stat_vitality),
+                value = stats.vitality.toFloat(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            StatMeter(
+                label = stringResource(R.string.stat_agility),
+                value = stats.agility.toFloat(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            StatMeter(
+                label = stringResource(R.string.stat_magic),
+                value = stats.magic.toFloat(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            StatMeter(
+                label = stringResource(R.string.stat_luck),
+                value = stats.luck.toFloat(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (stats.statPoints > 0) {
+                StatAllocation(points = stats.statPoints, onAllocate = onAllocate)
+            }
         }
+        Spacer(Modifier.height(VaiwuSpacing.sectionGap))
         Text(
-            stringResource(R.string.inventory_level, inventory.level, inventory.xp, inventory.xpNext),
-            style = MaterialTheme.typography.titleMedium,
+            text = stringResource(R.string.equipment),
+            style = MaterialTheme.typography.titleLarge,
         )
-        Text(
-            stringResource(
-                R.string.inventory_hp_mp,
-                inventory.hp,
-                inventory.hpMax,
-                inventory.mp,
-                inventory.mpMax,
-            ),
-        )
-        Text(
-            stringResource(
-                R.string.inventory_potions,
-                inventory.potions,
-                inventory.mpPotions,
-            ),
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            stringResource(
-                R.string.inventory_stats,
-                inventory.strength,
-                inventory.vitality,
-                inventory.agility,
-                inventory.magic,
-                inventory.luck,
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(12.dp))
-        equipmentSlotNames.forEachIndexed { slot, slotName ->
+        val slots = stringArrayResource(R.array.equipment_slots)
+        slots.forEachIndexed { slot, slotName ->
             Text(slotName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            val owned = inventory.equipment.filter { it.slot == slot && it.owned }
+            val owned: List<EquipmentSnapshot> = inventory?.equipment?.filter { it.slot == slot && it.owned } ?: emptyList()
             if (owned.isEmpty()) {
                 Text(
-                    stringResource(R.string.slot_empty),
+                    text = stringResource(R.string.slot_empty),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             owned.forEach { item ->
-                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                ) {
+                    Column(modifier = Modifier.padding(VaiwuSpacing.medium)) {
                         Text(item.name, fontWeight = FontWeight.Bold)
                         Text(item.bonuses, style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small)) {
                             if (item.equipped) {
                                 OutlinedButton(onClick = { onEquip(slot, -1) }) {
                                     Text(stringResource(R.string.unequip))
@@ -191,43 +259,72 @@ fun InventoryScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(VaiwuSpacing.small))
         }
     }
     pendingSale?.let { item ->
-        AlertDialog(
-            onDismissRequest = { pendingSale = null },
-            title = { Text(stringResource(R.string.sell_title, item.name)) },
-            text = { Text(stringResource(R.string.sell_text, item.sellPrice)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    onSell(item.id)
-                    pendingSale = null
-                }) { Text(stringResource(R.string.sell)) }
+        ConfirmDialog(
+            title = stringResource(R.string.sell_title, item.name),
+            message = stringResource(R.string.sell_text, item.sellPrice),
+            confirmLabel = stringResource(R.string.sell),
+            onConfirm = {
+                onSell(item.id)
+                pendingSale = null
             },
-            dismissButton = {
-                TextButton(onClick = { pendingSale = null }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+            onDismiss = { pendingSale = null },
         )
     }
 }
 
+@Composable
+private fun StatAllocation(points: Int, onAllocate: (Int) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(VaiwuSpacing.medium),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+        ) {
+            Text(
+                text = stringResource(R.string.stat_points_free, points),
+                fontWeight = FontWeight.Bold,
+            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                listOf(
+                    stringResource(R.string.stat_strength) to 0,
+                    stringResource(R.string.stat_vitality) to 1,
+                    stringResource(R.string.stat_agility) to 2,
+                    stringResource(R.string.stat_magic) to 3,
+                    stringResource(R.string.stat_luck) to 4,
+                ).forEach { (label, index) ->
+                    OutlinedButton(onClick = { onAllocate(index) }) {
+                        Text(stringResource(R.string.stat_allocate, label))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * RPS focus screen (UI-GAME-04/05). The pet choice is visualised before the
+ * result is shown; the exit from an unfinished round is confirmed by the app.
+ */
 @Composable
 fun RpsScreen(
     pet: PetSnapshot,
     result: RpsResult?,
     onChoice: (Int) -> Unit,
     onAgain: () -> Unit,
-    onHome: () -> Unit,
+    onExit: () -> Unit,
 ) {
-    val rpsChoiceNames = stringArrayResource(R.array.rps_choices)
+    val choices = stringArrayResource(R.array.rps_choices)
     Column(
-        modifier = Modifier.fillMaxSize().padding(20.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(VaiwuSpacing.screenPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        ScreenHeader(stringResource(R.string.rps_title), onHome)
         PetSprite(
             characterId = pet.characterId,
             emotionId = pet.emotionId,
@@ -236,59 +333,42 @@ fun RpsScreen(
         )
         if (result == null) {
             Text(
-                stringResource(R.string.rps_win_hint),
-                modifier = Modifier.padding(vertical = 12.dp),
+                text = stringResource(R.string.rps_win_hint),
+                modifier = Modifier.padding(vertical = VaiwuSpacing.small),
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
             ) {
-                rpsChoiceNames.forEachIndexed { choice, name ->
-                    Button(onClick = { onChoice(choice) }, modifier = Modifier.weight(1f)) {
+                choices.forEachIndexed { index, name ->
+                    Button(
+                        onClick = { onChoice(index) },
+                        enabled = result == null,
+                        modifier = Modifier.weight(1f),
+                    ) {
                         Text(name, textAlign = TextAlign.Center)
                     }
                 }
             }
         } else {
             Text(
-                stringResource(
-                    R.string.rps_pet_choice,
-                    pet.petName,
-                    rpsChoiceNames[result.petChoice],
-                ),
+                text = stringResource(R.string.rps_pet_choice, pet.petName, choices[result.petChoice]),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
             )
             Text(
-                when (result.outcome) {
+                text = when (result.outcome) {
                     RpsOutcome.Win -> stringResource(R.string.rps_win, result.reward)
                     RpsOutcome.Draw -> stringResource(R.string.rps_draw)
                     else -> stringResource(R.string.rps_loss)
                 },
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(VaiwuSpacing.small),
                 color = MaterialTheme.colorScheme.secondary,
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
             )
             Button(onClick = onAgain) { Text(stringResource(R.string.rps_again)) }
         }
-    }
-}
-
-@Composable
-fun ScreenHeader(title: String, onHome: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TextButton(onClick = onHome) { Text(stringResource(R.string.home)) }
-        Text(
-            title,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.size(72.dp))
+        OutlinedButton(onClick = onExit) { Text(stringResource(R.string.home)) }
     }
 }

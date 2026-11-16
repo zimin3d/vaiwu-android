@@ -33,6 +33,12 @@ sealed interface UpdateUiState {
     data class Error(val message: String) : UpdateUiState
 }
 
+/** One system message shown through the snackbar. */
+internal data class SystemMessage(val id: Long, val text: String)
+
+/** One phrase of the pet shown in the speech bubble. */
+internal data class PetSpeech(val id: Long, val text: String)
+
 class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val pet = NativePet()
     private val saveStore = AtomicFile(File(application.filesDir, "pet.save"))
@@ -51,14 +57,37 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val _snapshot = MutableStateFlow<PetSnapshot?>(null)
     val snapshot: StateFlow<PetSnapshot?> = _snapshot.asStateFlow()
 
-    private val _message = MutableStateFlow("Выбери свою Vaiwu")
-    val message: StateFlow<String> = _message.asStateFlow()
+    private val _systemMessage = MutableStateFlow<SystemMessage?>(null)
+    val systemMessage: StateFlow<SystemMessage?> = _systemMessage.asStateFlow()
+
+    private val _speech = MutableStateFlow<PetSpeech?>(null)
+    val speech: StateFlow<PetSpeech?> = _speech.asStateFlow()
 
     private val _updateState = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
     val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
 
     private val _screen = MutableStateFlow(AppScreen.Home)
     val screen: StateFlow<AppScreen> = _screen.asStateFlow()
+
+    private val _shopCategory = MutableStateFlow(0)
+    val shopCategory: StateFlow<Int> = _shopCategory.asStateFlow()
+
+    private val history = mutableListOf<AppScreen>()
+    private var messageCounter = 0L
+
+    fun consumeSystemMessage() {
+        _systemMessage.value = null
+    }
+
+    private fun postSystemMessage(text: String) {
+        _systemMessage.value = SystemMessage(messageCounter++, text)
+    }
+
+    private fun postSpeech(text: String) {
+        _speech.value = PetSpeech(messageCounter++, text)
+    }
+
+    private fun text(id: Int, vararg formatArgs: Any): String = application.getString(id, *formatArgs)
 
     private val _shopItems = MutableStateFlow<List<ShopItemSnapshot>>(emptyList())
     val shopItems: StateFlow<List<ShopItemSnapshot>> = _shopItems.asStateFlow()
@@ -154,10 +183,12 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createPet(characterId: Int, name: String = "") {
+        val profile = pet.characterProfile(characterId)
         val safeName = name.filter { it != '\n' && it != '\r' }.take(24).trim()
-        pet.startNew(characterId, safeName, System.currentTimeMillis())
+        val petName = safeName.ifBlank { profile?.name.orEmpty() }
+        pet.startNew(characterId, petName, System.currentTimeMillis())
         refreshPet()
-        _message.value = pet.phrase(PhraseContext.Greeting) ?: "Рада знакомству!"
+        postSpeech(pet.phrase(PhraseContext.Greeting) ?: text(R.string.pet_greeting))
         playSfx(Sfx.Win)
         savePet()
     }
@@ -176,13 +207,72 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _miniGame.value = null
         _battle.value = null
         _chatMessages.value = emptyList()
-        _message.value = "Выбери свою Vaiwu"
+        _speech.value = null
+        _systemMessage.value = null
         // Queued on the same single-thread dispatcher, so pending saves land
         // before the files are removed.
         saveScope.launch { saveStore.delete() }
     }
 
+    fun openTab(tab: AppTab) {
+        playSfx(Sfx.Tap)
+        leaveRoundIfNeeded()
+        history.clear()
+        _screen.value = tab.screen
+    }
+
     fun openHome() {
+        leaveRoundIfNeeded()
+        history.clear()
+        _screen.value = AppScreen.Home
+    }
+
+    fun openFocus(screen: AppScreen) {
+        if (_screen.value == screen) return
+        history += _screen.value
+        _screen.value = screen
+    }
+
+    fun openShop() {
+        playSfx(Sfx.Tap)
+        openFocus(AppScreen.Shop)
+    }
+
+    fun openSettings() {
+        playSfx(Sfx.Tap)
+        openFocus(AppScreen.Settings)
+    }
+
+    fun openHelp() {
+        playSfx(Sfx.Tap)
+        openFocus(AppScreen.Help)
+    }
+
+    fun goBack() {
+        val current = _screen.value
+        val target = backTarget(current, history.toList()) ?: return
+        leaveRoundIfNeeded()
+        if (target.tab != null) {
+            history.clear()
+        } else {
+            val index = history.lastIndexOf(target)
+            if (index >= 0) {
+                history.subList(index, history.size).clear()
+            }
+        }
+        _screen.value = target
+    }
+
+    fun openPet() {
+        playSfx(Sfx.Tap)
+        openTab(AppTab.Pet)
+    }
+
+    fun selectShopCategory(index: Int) {
+        _shopCategory.value = index
+    }
+
+    private fun leaveRoundIfNeeded() {
         if (_screen.value == AppScreen.Rps || _screen.value == AppScreen.MiniGame) {
             pet.cancelPlay()
         }
@@ -191,52 +281,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             _battle.value = null
             savePet()
         }
-        _screen.value = AppScreen.Home
         _rpsResult.value = null
         _miniGame.value = null
-    }
-
-    fun openGames() {
-        playSfx(Sfx.Tap)
-        _screen.value = AppScreen.Games
-    }
-
-    fun openStats() {
-        playSfx(Sfx.Tap)
-        _inventory.value = pet.inventory()
-        _screen.value = AppScreen.Stats
-    }
-
-    fun openChat() {
-        playSfx(Sfx.Tap)
-        if (_chatMessages.value.isEmpty()) {
-            _chatMessages.value = listOf(ChatMessage(
-                pet.phrase(PhraseContext.Greeting) ?: "О чём поговорим?", true,
-            ))
-        }
-        _screen.value = AppScreen.Chat
-    }
-
-    fun openSettings() {
-        playSfx(Sfx.Tap)
-        _screen.value = AppScreen.Settings
-    }
-
-    fun openHelp() {
-        playSfx(Sfx.Tap)
-        _screen.value = AppScreen.Help
-    }
-
-    fun openShop() {
-        playSfx(Sfx.Tap)
-        refreshEconomy()
-        _screen.value = AppScreen.Shop
-    }
-
-    fun openInventory() {
-        playSfx(Sfx.Tap)
-        _inventory.value = pet.inventory()
-        _screen.value = AppScreen.Inventory
     }
 
     fun startRps() {
@@ -245,13 +291,13 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         val awake = _snapshot.value?.lifeState == LifeState.Awake
         if (result == ActionResult.Ok && awake) {
             _rpsResult.value = null
-            _screen.value = AppScreen.Rps
-            _message.value = "Выбери камень, бумагу или ножницы"
-        } else if (result == ActionResult.Ok) {
-            pet.cancelPlay()
-            _message.value = "Она слишком устала для игры"
+            openFocus(AppScreen.Rps)
+            postSystemMessage(text(R.string.rps_prompt))
         } else {
-            _message.value = actionMessage(result)
+            if (result == ActionResult.Ok) {
+                pet.cancelPlay()
+            }
+            postSystemMessage(actionMessage(result))
         }
         playSfx(if (result == ActionResult.Ok && awake) Sfx.PlayStart else Sfx.Tap)
         savePet()
@@ -261,18 +307,20 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         if (_screen.value != AppScreen.Rps || _rpsResult.value != null) return
         val result = pet.playRps(choice)
         if (result == null) {
-            _screen.value = AppScreen.Home
-            _message.value = "Раунд уже завершён или питомец недоступен"
+            openHome()
+            postSystemMessage(text(R.string.rps_unavailable))
             return
         }
         _rpsResult.value = result
         refreshPet()
         refreshEconomy()
-        _message.value = when (result.outcome) {
-            RpsOutcome.Win -> "Победа! +${result.reward} монеты"
-            RpsOutcome.Draw -> "Ничья"
-            else -> "В этот раз не повезло"
-        }
+        postSystemMessage(
+            if (result.outcome == RpsOutcome.Win) {
+                quantity(R.plurals.rps_win, result.reward, result.reward)
+            } else {
+                text(if (result.outcome == RpsOutcome.Draw) R.string.rps_draw else R.string.rps_lose)
+            },
+        )
         playSfx(sfxForOutcome(result.outcome))
         savePet()
     }
@@ -282,18 +330,20 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         refreshPet()
         if (result != ActionResult.Ok || _snapshot.value?.lifeState != LifeState.Awake) {
             pet.cancelPlay()
-            _message.value = if (_snapshot.value?.lifeState == LifeState.Sleeping) {
-                "Она слишком устала для игры"
-            } else {
-                actionMessage(result)
-            }
+            postSystemMessage(
+                if (_snapshot.value?.lifeState == LifeState.Sleeping) {
+                    text(R.string.not_enough_energy)
+                } else {
+                    actionMessage(result)
+                },
+            )
             playSfx(Sfx.Tap)
             savePet()
             return
         }
         _miniGame.value = miniGameEngine.start(kind, melodyLength)
-        _screen.value = AppScreen.MiniGame
-        _message.value = "Игра началась!"
+        openFocus(AppScreen.MiniGame)
+        postSystemMessage(text(R.string.minigame_started))
         playSfx(Sfx.PlayStart)
         savePet()
     }
@@ -309,16 +359,18 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private fun settleMiniGame(previous: MiniGameState, current: MiniGameState) {
         if (previous.finished || !current.finished) return
         if (!pet.finishGame(current.outcome, current.reward)) {
-            _message.value = "Раунд уже завершён"
+            postSystemMessage(text(R.string.round_finished))
             return
         }
         refreshPet()
         refreshEconomy()
-        _message.value = when {
-            current.outcome > 0 -> "Победа! +${current.reward} монеты"
-            current.outcome < 0 -> "В этот раз не повезло"
-            else -> "Ничья"
-        }
+        postSystemMessage(
+            when {
+                current.outcome > 0 -> quantity(R.plurals.rps_win, current.reward, current.reward)
+                current.outcome < 0 -> text(R.string.rps_lose)
+                else -> text(R.string.rps_draw)
+            },
+        )
         playSfx(sfxForOutcome(current.outcome))
         savePet()
     }
@@ -328,16 +380,20 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         refreshPet()
         if (result != ActionResult.Ok || _snapshot.value?.lifeState != LifeState.Awake) {
             pet.leaveBattle()
-            _message.value = if (_snapshot.value?.lifeState == LifeState.Sleeping) {
-                "Она слишком устала для приключения"
-            } else {
-                actionMessage(result)
-            }
+            postSystemMessage(
+                if (_snapshot.value?.lifeState == LifeState.Sleeping) {
+                    text(R.string.not_enough_energy_adventure)
+                } else {
+                    actionMessage(result)
+                },
+            )
             playSfx(Sfx.Tap)
         } else {
             _battle.value = pet.battleSnapshot()
-            _screen.value = AppScreen.Battle
-            _message.value = if (dungeon) "Данж начался" else "Приключение началось"
+            openFocus(AppScreen.Battle)
+            postSystemMessage(
+                text(if (dungeon) R.string.battle_started_dungeon else R.string.battle_started_adventure),
+            )
             playSfx(Sfx.Encounter)
         }
         savePet()
@@ -369,10 +425,14 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             },
         )
         if (result.over && !result.awaitingRest) {
-            _message.value = when (result.outcome) {
-                BattleOutcome.Victory -> pet.phrase(PhraseContext.Victory) ?: "Победа!"
-                BattleOutcome.Defeat -> pet.phrase(PhraseContext.Fainted) ?: "Она вернулась домой"
-                else -> "Добыча сохранена"
+            when (result.outcome) {
+                BattleOutcome.Victory -> {
+                    postSpeech(pet.phrase(PhraseContext.Victory) ?: text(R.string.battle_victory))
+                }
+                BattleOutcome.Defeat -> {
+                    postSpeech(pet.phrase(PhraseContext.Fainted) ?: text(R.string.battle_fainted))
+                }
+                else -> postSystemMessage(text(R.string.battle_loot_saved))
             }
         }
         savePet()
@@ -399,7 +459,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         if (!latitude.isFinite() || !longitude.isFinite() ||
             latitude !in -90.0..90.0 || longitude !in -180.0..180.0
         ) {
-            _message.value = "Проверь координаты"
+            postSystemMessage(text(R.string.settings_invalid_coordinates))
             return false
         }
         settingsStore.edit()
@@ -410,7 +470,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             .putBoolean("location_configured", true)
             .apply()
         _assistantSettings.value = readAssistantSettings()
-        _message.value = "Настройки сохранены"
+        postSystemMessage(text(R.string.settings_saved))
         playSfx(Sfx.Tap)
         return true
     }
@@ -440,25 +500,25 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             AssistantKind.SetAlarm -> {
                 val at = nextAlarmAt(intent.hour, intent.minute, System.currentTimeMillis())
                 reminders.schedule(at, text)
-                answerChat("Напоминание установлено на ${formatReminderTime(at)}")
+                answerChat(text(R.string.reminder_set, formatReminderTime(at)))
             }
             AssistantKind.Reminder -> {
                 val at = System.currentTimeMillis() + intent.afterMinutes.coerceIn(1, 1_440) * 60_000L
                 reminders.schedule(at, text)
-                answerChat("Напомню ${formatReminderTime(at)}")
+                answerChat(text(R.string.reminder_heard, formatReminderTime(at)))
             }
             AssistantKind.Pomodoro -> {
                 val at = System.currentTimeMillis() + 25 * 60_000L
                 reminders.schedule(at, "Помодоро завершён")
-                answerChat("Засекаю 25 минут. Время сосредоточиться!")
+                answerChat(text(R.string.pomodoro_started))
             }
             AssistantKind.Cancel -> {
                 reminders.cancelAll()
-                answerChat("Все напоминания отменены")
+                answerChat(text(R.string.reminders_cancelled))
             }
-            AssistantKind.MissingTime -> answerChat("Уточни время, например: «напомни в 18:30»")
+            AssistantKind.MissingTime -> answerChat(text(R.string.time_missing))
             AssistantKind.Joke -> answerChat(pet.joke())
-            AssistantKind.Time -> answerChat("Сейчас ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())}")
+            AssistantKind.Time -> answerChat(text(R.string.time_now, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())))
             AssistantKind.Convert -> answerChat(intent.conversion)
             AssistantKind.Weather -> loadWeather()
             else -> loadChatAnswer()
@@ -468,7 +528,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadWeather() {
         val settings = _assistantSettings.value
         if (!settings.locationConfigured) {
-            answerChat("Укажи координаты в настройках, чтобы я могла узнать погоду")
+            answerChat(text(R.string.weather_need_settings))
             return
         }
         _chatBusy.value = true
@@ -478,7 +538,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                     assistantClient.weather(settings.latitude, settings.longitude)
                 }
             } catch (_: Exception) {
-                "Не удалось получить погоду. Проверь подключение к интернету."
+                text(R.string.weather_failed)
             }
             _chatBusy.value = false
             answerChat(answer)
@@ -489,7 +549,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         val settings = _assistantSettings.value
         val key = settingsStore.getString("openrouter_key", "").orEmpty()
         if (key.isBlank()) {
-            answerChat(pet.phrase(PhraseContext.Talked) ?: "Я рядом и слушаю тебя")
+            answerChat(pet.phrase(PhraseContext.Talked) ?: text(R.string.chat_idle))
             return
         }
         val current = _snapshot.value ?: return
@@ -500,8 +560,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                     assistantClient.chat(key, current.petName, current.characterName, _chatMessages.value)
                 }
             } catch (_: Exception) {
-                pet.phrase(PhraseContext.Talked)?.let { "Связь недоступна, поэтому отвечаю офлайн. $it" }
-                    ?: "Связь недоступна, но я всё равно рядом"
+                pet.phrase(PhraseContext.Talked)?.let { text(R.string.chat_offline, it) }
+                    ?: text(R.string.chat_offline_fallback)
             }
             _chatBusy.value = false
             answerChat(answer)
@@ -516,10 +576,10 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     fun buyItem(itemId: Int) {
         val item = _shopItems.value.firstOrNull { it.id == itemId } ?: return
         val bought = pet.buy(itemId)
-        _message.value = when {
-            bought -> "Куплено: ${item.name}"
-            item.owned -> "Эта вещь уже куплена"
-            else -> "Не хватает монет"
+        _systemMessage.value = when {
+            bought -> SystemMessage(messageCounter++, text(R.string.shop_bought, item.name))
+            item.owned -> SystemMessage(messageCounter++, text(R.string.shop_already_bought))
+            else -> SystemMessage(messageCounter++, text(R.string.shop_not_enough))
         }
         playSfx(if (bought) Sfx.Feed else Sfx.Tap)
         refreshPet()
@@ -531,10 +591,10 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         val changed = pet.equip(slot, itemId)
         _inventory.value = pet.inventory()
         _shopItems.value = pet.shop().toList()
-        _message.value = when {
-            !changed -> "Не удалось изменить снаряжение"
-            itemId >= 0 -> "Снаряжение надето"
-            else -> "Слот освобождён"
+        _systemMessage.value = when {
+            !changed -> SystemMessage(messageCounter++, text(R.string.equip_failed))
+            itemId >= 0 -> SystemMessage(messageCounter++, text(R.string.equip_done))
+            else -> SystemMessage(messageCounter++, text(R.string.slot_freed))
         }
         playSfx(Sfx.Tap)
         savePet()
@@ -542,7 +602,11 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sell(itemId: Int) {
         val gold = pet.sell(itemId)
-        _message.value = if (gold > 0) "Продано за $gold монет" else "Эту вещь нельзя продать"
+        _systemMessage.value = if (gold > 0) {
+            SystemMessage(messageCounter++, text(R.plurals.sell, gold, gold))
+        } else {
+            SystemMessage(messageCounter++, text(R.string.sell_not_allowed))
+        }
         playSfx(if (gold > 0) Sfx.Feed else Sfx.Tap)
         refreshPet()
         refreshEconomy()
@@ -556,28 +620,44 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         val petNow = _snapshot.value
         // Wake and Medicine have no detailed native result, so their feedback
         // is derived from the actual state after the call.
-        val careMessage = careFeedback(
+        val feedback = careFeedback(
             action = action,
             wasSick = wasSick,
             lifeState = petNow?.lifeState ?: LifeState.Dead,
             isSick = petNow?.isSick == true,
         )
-        _message.value = careMessage ?: when {
-            result == ActionResult.Ok -> {
-                val context = when (action) {
-                    PetAction.Feed -> PhraseContext.Fed
-                    PetAction.Wash -> PhraseContext.Washed
-                    PetAction.Clean -> PhraseContext.Toilet
-                    PetAction.Talk -> PhraseContext.Talked
-                    PetAction.Hug -> PhraseContext.Hugged
-                    else -> null
-                }
-                context?.let(pet::phrase) ?: ""
+        val message: String? = when (feedback) {
+            CareFeedback.Dead -> text(R.string.pet_left)
+            CareFeedback.Woken -> text(R.string.pet_woken)
+            CareFeedback.StillSleeping -> text(R.string.pet_still_sleeping)
+            CareFeedback.MedicineTaken -> text(R.string.medicine_taken)
+            CareFeedback.MedicineNotNeeded -> text(R.string.medicine_not_needed)
+            null -> when (result) {
+                ActionResult.Ok -> null
+                ActionResult.RefusedDead -> text(R.string.pet_left)
+                ActionResult.RefusedSleeping -> text(R.string.action_still_sleeping)
+                ActionResult.RefusedCaprice -> text(R.string.action_caprice)
+                else -> actionMessage(result)
             }
-            result == ActionResult.RefusedDead -> "Питомец ушёл..."
-            result == ActionResult.RefusedSleeping -> "Тихо, она спит"
-            result == ActionResult.RefusedCaprice -> "Она капризничает"
-            else -> actionMessage(result)
+        }
+        val speechText: String? = if (feedback == null && result == ActionResult.Ok) {
+            val context = when (action) {
+                PetAction.Feed -> PhraseContext.Fed
+                PetAction.Wash -> PhraseContext.Washed
+                PetAction.Clean -> PhraseContext.Toilet
+                PetAction.Talk -> PhraseContext.Talked
+                PetAction.Hug -> PhraseContext.Hugged
+                else -> null
+            }
+            context?.let { pet.phrase(it) }
+        } else {
+            null
+        }
+        if (message != null) {
+            _systemMessage.value = SystemMessage(messageCounter++, message)
+        }
+        if (speechText != null) {
+            _speech.value = PetSpeech(messageCounter++, speechText)
         }
         playSfx(
             sfxForCareAction(
@@ -592,7 +672,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun reportError(text: String) {
-        _message.value = text
+        _systemMessage.value = SystemMessage(messageCounter++, text)
     }
 
     fun savePet() = enqueueSave()
@@ -612,13 +692,13 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 if (release == null) {
                     _updateState.value = UpdateUiState.Idle
-                    _message.value = "Новых версий нет"
+                    postSystemMessage(text(R.string.update_none))
                 } else {
                     _updateState.value = UpdateUiState.Available(release)
                 }
             } catch (error: Exception) {
                 _updateState.value = UpdateUiState.Error(
-                    error.message ?: "Не удалось проверить обновления",
+                    error.message ?: text(R.string.update_failed),
                 )
             }
         }
@@ -637,14 +717,14 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 updater.install(apk)
                 _updateState.value = UpdateUiState.Idle
-                _message.value = "Подтверди установку в системном окне"
+                postSystemMessage(text(R.string.update_confirm_install))
             } catch (_: UnknownAppSourcesRequiredException) {
                 _updateState.value = UpdateUiState.Error(
-                    "Разреши установку из этого источника в настройках, затем повтори загрузку",
+                    text(R.string.update_unknown_source),
                 )
             } catch (error: Exception) {
                 _updateState.value = UpdateUiState.Error(
-                    error.message ?: "Не удалось загрузить обновление",
+                    error.message ?: text(R.string.update_failed),
                 )
             }
         }
@@ -660,7 +740,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         saveScope.launch {
             if (!writeSave(data)) {
                 withContext(Dispatchers.Main) {
-                    _message.value = "Не удалось сохранить игру"
+                    postSystemMessage(text(R.string.save_failed))
                 }
             }
         }
@@ -696,7 +776,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             // AtomicFile restores the .bak copy before throwing, if one exists.
             return
         } catch (_: Exception) {
-            _message.value = "Сохранение повреждено, можно начать заново"
+            postSystemMessage(text(R.string.save_corrupted))
             return
         }
         val separator = data.indexOf('\n')
@@ -708,7 +788,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         }
         val coreSave = if (separator >= 0) data.substring(separator + 1) else data
         if (!pet.load(coreSave, savedAt)) {
-            _message.value = "Сохранение повреждено, можно начать заново"
+            postSystemMessage(text(R.string.save_corrupted))
             return
         }
         val now = System.currentTimeMillis()
@@ -718,7 +798,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         if (effectiveStart != savedAt && !pet.load(coreSave, effectiveStart)) return
         pet.tick(now)
         refreshPet()
-        _message.value = "С возвращением!"
+        postSystemMessage(text(R.string.pet_welcome_back))
     }
 
     private fun refreshPet() {
@@ -753,13 +833,16 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     private fun actionMessage(result: Int): String = when (result) {
-        ActionResult.RefusedDead -> "Питомец ушёл..."
-        ActionResult.RefusedSleeping -> "Тихо, она спит"
-        ActionResult.RefusedCaprice -> "Она капризничает"
-        ActionResult.NotHungry -> "Я уже сыта"
-        ActionResult.TooTired -> "Слишком мало энергии"
-        else -> "Действие недоступно"
+        ActionResult.RefusedDead -> text(R.string.pet_left)
+        ActionResult.RefusedSleeping -> text(R.string.action_still_sleeping)
+        ActionResult.RefusedCaprice -> text(R.string.action_caprice)
+        ActionResult.NotHungry -> text(R.string.action_already_full)
+        ActionResult.TooTired -> text(R.string.action_low_energy)
+        else -> text(R.string.action_unavailable)
     }
+
+    private fun quantity(id: Int, quantity: Int, vararg formatArgs: Any): String =
+        application.resources.getQuantityString(id, quantity, *formatArgs)
 
     override fun onCleared() {
         // Enqueue the final save, then let the executor drain queued writes.

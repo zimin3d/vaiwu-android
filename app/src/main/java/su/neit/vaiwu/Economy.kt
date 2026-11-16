@@ -45,16 +45,20 @@ data class RpsResult(
     val reward: Int,
 )
 
+/**
+ * Every screen of the app. The first four are the bottom bar tabs, the next
+ * four are focus screens reached from the tabs, the last two are the screens
+ * of the gear. The navigation rules live in `Navigation.kt`.
+ */
 enum class AppScreen {
     Home,
-    Shop,
-    Inventory,
     Games,
+    Pet,
+    Chat,
+    Shop,
     Rps,
     MiniGame,
     Battle,
-    Stats,
-    Chat,
     Settings,
     Help,
 }

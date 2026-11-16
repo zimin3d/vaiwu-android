@@ -1,24 +1,37 @@
 package su.neit.vaiwu
 
 /**
- * Feedback for care actions whose native side does not report a detailed
- * result (Wake and Medicine). The message must reflect the state *after* the
- * action: claiming success while the pet is still asleep is what hid the
- * "medicine is unreachable" defect.
+ * Feedback kinds for care actions whose native side does not report a detailed
+ * result (Wake and Medicine).
  *
- * Returns null when the action is an ordinary one and the caller should fall
- * back to the generic result handling.
+ * The kinds describe what the user has to be told after the action: waking a
+ * sleeping pet must not claim success while the pet is still asleep, medicine
+ * must be reported as taken or simply unnecessary. Which text belongs to
+ * which kind is a UI concern and lives in `strings.xml`.
+ */
+internal enum class CareFeedback {
+    Dead,
+    Woken,
+    StillSleeping,
+    MedicineTaken,
+    MedicineNotNeeded,
+}
+
+/**
+ * Returns the feedback kind for a care action, or `null` when the action has
+ * no detailed native result and the caller should fall back to the generic
+ * result handling.
  */
 internal fun careFeedback(
     action: Int,
     wasSick: Boolean,
     lifeState: Int,
     isSick: Boolean,
-): String? = when {
-    lifeState == LifeState.Dead -> "Питомец ушёл..."
-    action == PetAction.Wake && lifeState == LifeState.Awake -> "Пора вставать!"
-    action == PetAction.Wake -> "Она ещё спит"
-    action == PetAction.Medicine && wasSick && !isSick -> "Лекарство принято"
-    action == PetAction.Medicine -> "Лекарство сейчас не нужно"
+): CareFeedback? = when {
+    lifeState == LifeState.Dead -> CareFeedback.Dead
+    action == PetAction.Wake && lifeState == LifeState.Awake -> CareFeedback.Woken
+    action == PetAction.Wake -> CareFeedback.StillSleeping
+    action == PetAction.Medicine && wasSick && !isSick -> CareFeedback.MedicineTaken
+    action == PetAction.Medicine -> CareFeedback.MedicineNotNeeded
     else -> null
 }

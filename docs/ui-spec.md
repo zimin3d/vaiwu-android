@@ -501,7 +501,7 @@
 | Этап | Требования | Статус |
 |---|---|---|
 | 0. Фундамент | UI-TOK-01…13, UI-CMP-01…05, UI-TECH-06 | готово |
-| 1. Каркас и дом | I-1…I-6, UI-NAV-01…07, UI-HOME-01…07, UI-ONB-01…03, UI-CONTENT-01/02 | запланировано |
+| 1. Каркас и дом | I-1…I-6, UI-NAV-01…07, UI-HOME-01…07, UI-ONB-01…03, UI-CONTENT-01/02 | в работе |
 | 2. Игры и бой | UI-GAME-01…13 | запланировано |
 | 3. Магазин и питомец | UI-ECO-01…07 | запланировано |
 | 4. Чат, настройки, справка | UI-AST-01…10 | запланировано |
@@ -517,6 +517,30 @@
 - `DesignTokensTest.kt` — контраст всех текстовых пар, непрозрачность
   палитры, пороги статов, значения токенов;
 - `styles.xml` — фон окна совпадает с `background`.
+
+Этап 1 (каркас, навигация, дом, онбординг, тексты, а также экраны игр,
+магазина и чата) написан в **незакоммиченном UI-WIP**; статус в матрице
+остаётся «в работе», пока код не закоммичен и не прошёл `Android APK` в CI:
+
+- `VaiwuScaffold.kt` — `VaiwuScaffold`, `VaiwuTopBar`, `VaiwuBottomBar`
+  (4 вкладки, скрытие на фокусных экранах);
+- `Navigation.kt` — `AppScreen`, `AppTab`, правила back (`backTarget`,
+  `parentScreen`, `isRoundActive`);
+- `PetViewModel.kt` — стек экранов, история навигации, snackbar/reply
+  состояния, `HomeActions`, `CareFeedback`;
+- `HomeScreen.kt` — сцена, статы, сетка ухода, сон/болезнь/смерть, баннер;
+- `OnboardingScreen.kt` — выбор персонажа и «Поселить»;
+- `HomeActions.kt`, `ActionFeedback.kt` — модели действий и обратной связи;
+- `VaiwuIcons.kt` — кастомные иконки ухода;
+- `Presentation.kt` — фоны по времени суток, часы, русские плюрали;
+- `strings.xml` — полный набор UI-строк и `plurals`;
+- `GameScreens.kt` — игры, 4 мини-игры, бой; `EconomyScreens.kt` — магазин,
+  питомец, RPS; `AssistantScreens.kt` — чат, настройки, справка.
+
+Требования этапа 1 проверяются JVM-тестами (`NavigationTest`,
+`HomeActionsTest`, `PluralRulesTest`, `ActionFeedbackTest`) и `@Preview`
+(норма/сон/болезнь/смерть/длинные строки/font scale 1.3). Результаты
+кодревью и оставшиеся вопросы — `docs/handoff.md`, раздел 13.
 
 ## 13. Открытые вопросы
 
