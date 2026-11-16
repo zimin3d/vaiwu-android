@@ -1,8 +1,8 @@
 # Handoff: редизайн интерфейса Vaiwu
 
 > Для продолжения работы в новой сессии. Состояние на 16 ноября 2026,
-> `main = 447e48a`, релиз `v0.1.3`. В рабочем дереве — незакоммиченный
-> UI-WIP этапа 1 (это ожидаемо, см. разделы 1–2 и 13).
+> `main = 7b92105`, релиз `v0.1.3`. Рабочее дерево чистое; этап 1 закоммичен
+> и прошёл зелёный CI (см. разделы 1–2 и 13).
 
 ## 1. Где остановились
 
@@ -11,12 +11,12 @@
 1. Аудит интерфейса превращён в нормативную спецификацию `docs/ui-spec.md`.
 2. Реализован и проверен в CI этап 0 — фундамент дизайн-системы.
 
-**Этап 1 (каркас, навигация, дом) написан целиком, но НЕ закоммичен.**
-Этот файл и `docs/ui-spec.md` описаны по состоянию на коммит `0f1ff18`;
-фактический `main` сейчас `447e48a`, а незакоммиченный UI-WIP лежит в
-рабочем дереве.
+**Этап 1 (каркас, навигация, дом, остальные экраны) закоммичен** в
+`bee5a1d`, после чего последовали исправления по кодревью и ошибкам CI
+(`38ee515`, `1a5513a`, `d6dba72`, `7b92105`). Матрица в `ui-spec.md` §12
+обновлена: этап 1 — «готово».
 
-В рамках этапа 1 сделано (все файлы — в рабочем дереве, не в коммите):
+В рамках этапа 1 сделано:
 
 - каркас: `VaiwuScaffold` (top/bottom bar, snackbar, insets), `VaiwuApp`;
 - навигация: `Navigation` (`AppScreen`, `AppTab`, back-правила), `PetViewModel`
@@ -30,31 +30,32 @@
 - JVM-тесты: `NavigationTest`, `HomeActionsTest`, `PluralRulesTest`,
   обновлённый `ActionFeedbackTest`; 5 `@Preview` дома (включая font scale 1.3).
 
-**Что осталось по этапу 1:** принять решение по findings кодревью (раздел 13),
-закоммитить UI-WIP отдельным коммитом, запушить и **дождаться зелёного
-`Android APK`** — локально Kotlin/Compose не собирается. Пока CI не зелёный,
-этап 1 считается «в работе» в матрице `ui-spec.md` §12.
+**Этап 1 закрыт:** UI-код закоммичен, `Android APK` и `CodeQL` на `7b92105`
+— зелёные. Все находки кодревью и ошибки компиляции, найденные CI, исправлены
+(раздел 13).
 
 Механику не трогали: изменения только в UI-слое и ресурсах.
 
 ## 2. Состояние репозитория
 
 ```
-main = 447e48a  Add reproducible sprite slicing pipeline and refresh AI art
-       c1b6599  Record published art assets in the handoff and ignore raw output
-       ba55fd5  Make the art tool resilient to flaky relays
+main = 7b92105  Fix FilterChip and exhaustive when flagged by CI
+       d6dba72  Fix more Compose API mismatches from CI
+       1a5513a  Fix Compose API mismatches flagged by CI
+       bee5a1d  Complete stage 1 UI redesign and address review findings
+       38ee515  Validate PNG row count before encoding
+       447e48a  Add reproducible sprite slicing pipeline and refresh AI art
 ```
 
 - Релиз **v0.1.3** опубликован (тег `447e48a`): подписанный `vaiwu-android.apk`
-  (~9.7 МБ) с новыми изображениями. CI тега `Android APK` — success,
-  CI `main` `Android APK` — success, `CodeQL` — success.
-- Submodule `external/vaiwu` → `9a56022` (прозрачные AI-спрайты), рабочее
-  дерево сабмодуля чистое.
-- **Рабочее дерево грязное по дизайн-ветке:** незакоммиченный UI-WIP этапа 1
-  (Kotlin/Compose в `app/src/`) и несохранённые правки документации.
-  Это ожидаемое состояние; арт-коммиты в него не включали.
-- Локальные проверки (последний прогон): native-тесты — PASSED,
-  art-тесты — 101/101 OK. Kotlin/Compose локально не проверялись.
+  (~9.7 МБ) с новыми изображениями. ⚠️ Релиз собран **до** UI-редизайна —
+  новый интерфейс этапа 1 в нём ещё нет; для него нужен следующий тег.
+- **CI на `7b92105` (текущий `main`): `Android APK` success, `CodeQL` success.**
+  Промежуточные коммиты `bee5a1d`, `1a5513a`, `d6dba72` падали на компиляции
+  Kotlin — все ошибки исправлены.
+- Submodule `external/vaiwu` → `9a56022` (прозрачные AI-спрайты), чистое.
+- Рабочее дерево чистое. Локальные проверки: native-тесты PASSED,
+  art-тесты 101/101 OK. Kotlin/Compose проверены только в CI.
 
 Локально **нет JDK и Android SDK**: `java`, `kotlinc`, `ANDROID_HOME`
 отсутствуют. Любая проверка Kotlin/Compose — только через GitHub Actions.
@@ -268,14 +269,14 @@ curl -s "https://api.github.com/repos/zimin3d/vaiwu-android/actions/runs?head_sh
 
 ## 12. Чек-лист старта новой сессии
 
-1. `git status` — **сейчас не чисто**: UI-WIP этапа 1. `git log -1` —
-   `447e48a` или новее; не путать с зафиксированными арт-коммитами.
+1. `git status` — чистое; `git log -1` — `7b92105` или новее.
 2. Прочитать `docs/ui-spec.md`, разделы 3, 4, 6.2, 12, и раздел 13 этого файла
    (результаты кодревью).
-3. Взять этап 1 из раздела 7 этого файла; экраны уже написаны в UI-WIP —
-   сначала решить вопросы из раздела 13, затем коммитить.
+3. Этап 1 закрыт. Дальше — этап 2 (игры/бой) по §8, но только после снятия
+   open-вопросов §11.
 4. После изменений: native-тесты, art-тесты, пуш, зелёный `Android APK`.
-5. Обновить матрицу в `docs/ui-spec.md`, раздел 12 (сейчас «в работе»).
+5. Обновить матрицу в `docs/ui-spec.md`, раздел 12.
+6. Если нужен релиз с новым UI — создать тег `v0.1.4` (в v0.1.3 UI ещё старый).
 
 ## 13. Кодревью последних изменений (16 ноября 2026)
 
@@ -330,6 +331,26 @@ curl -s "https://api.github.com/repos/zimin3d/vaiwu-android/actions/runs?head_sh
 вреден, но не проверяет реальный вызов `pluralStringResource` — для этого
 нужны Compose-тесты (см. §11, вопрос 3).
 
-⚠️ Kotlin/Compose локально не компилируются (нет JDK/SDK). Все исправления
-прошли статическую проверку, но **финальное подтверждение — только зелёный
-`Android APK` в CI после пуша UI-WIP**.
+### Ошибки, найденные уже в CI (и исправленные)
+
+Статическое ревью не поймало несовместимости с Compose BOM 2024.12.01 — их
+выявил первый же прогон `Android APK` в CI. Все исправлены:
+
+- `VaiwuIcons.kt` — `strokeCap` → `strokeLineCap` в `path()`;
+- `VaiwuScaffold.kt` — nullable `bottomBar ?: {}`, `surfaceElevated` → `surface`,
+  удалены `selectedContentColor`/`unselectedContentColor` у `NavigationBarItem`;
+- `HomeScreen.kt` — `surfaceElevated` → `surface`;
+- `Sprite.kt` — `Image(painter=…, filterQuality=…)` → `Image(bitmap=…, …)`
+  (только overload с `bitmap` принимает `filterQuality`);
+- `PetViewModel.kt` — `SystemMessage`/`PetSpeech` сделаны публичными,
+  `application.getString` → `getApplication<Application>().getString`;
+- `Navigation.kt` — добавлено `AppTab.screen` (использовалось, но не было);
+- `AssistantScreens.kt` — `PasswordVisualTransformation` из `ui.text.input`,
+  а не из `material3`;
+- `EconomyScreens.kt` — `AssistChip(selected=…)` → `FilterChip`, импорт
+  правильного `androidx.compose.foundation.BorderStroke`;
+- `HomeActions.kt` — `when (lifeState)` expression дополнился веткой `else`
+  (`LifeState` — это `object` с Int-константами, не enum).
+
+Итог: `Android APK` и `CodeQL` на `7b92105` — **зелёные**. Локально Kotlin
+не компилируется (нет JDK/SDK), подтверждение — только CI.
