@@ -450,7 +450,7 @@ class PreviewTests(unittest.TestCase):
             self.assertEqual(written, ["sprites_preview.png", "monsters_preview.png"])
             self.assertEqual(skipped, [])
             self.assertEqual(
-                pngio.read_png(dest / "sprites_preview.png")[:2], (1472, 1920)
+                pngio.read_png(dest / "sprites_preview.png")[:2], (1472, 2192)  # 8 character rows
             )
             self.assertEqual(
                 pngio.read_png(dest / "monsters_preview.png")[:2], (1264, 224)
@@ -497,9 +497,10 @@ class DiscoveryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             slice_art.discover(self.src, ["sprite_nobody_idle"])
 
-    def test_expected_set_is_seven_characters_plus_monsters(self):
+    def test_expected_set_is_eight_characters_plus_monsters(self):
         names = slice_art.expected_names()
-        self.assertEqual(len(names), 7 * 7 + 6)
+        self.assertEqual(len(names), 8 * 7 + 6)
+        self.assertIn("sprite_vesper_idle", names)
         self.assertIn("sprite_aoi_idle", names)
         self.assertIn("monster_golem", names)
 

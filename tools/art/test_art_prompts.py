@@ -56,7 +56,13 @@ class EmotionTests(unittest.TestCase):
         self.assertEqual(list(art_prompts.EMOTIONS), firmware_list("EMOTIONS"))
 
     def test_character_order_matches_firmware(self):
-        self.assertEqual(list(art_prompts.CHARACTERS), firmware_list("CHARS"))
+        # The firmware tool draws the first characters procedurally. Vesper is
+        # art-only until gen_sprites.py can draw her: when that happens this
+        # test must be updated to compare the full list.
+        names = list(art_prompts.CHARACTERS)
+        firmware = firmware_list("CHARS")
+        self.assertEqual(names[: len(firmware)], firmware)
+        self.assertEqual(names[len(firmware) :], ["vesper"])
 
     def test_monster_order_matches_firmware(self):
         self.assertEqual(list(art_prompts.MONSTERS), firmware_list("MONSTERS"))
@@ -116,9 +122,9 @@ class AssetTests(unittest.TestCase):
         assets = art_prompts.build_assets()
         characters = [asset for asset in assets if asset.kind == "character"]
         monsters = [asset for asset in assets if asset.kind == "monster"]
-        self.assertEqual(len(characters), 7 * 7)
+        self.assertEqual(len(characters), 8 * 7)
         self.assertEqual(len(monsters), 6)
-        self.assertEqual(len(assets), 55)
+        self.assertEqual(len(assets), 62)
 
     def test_filenames_follow_the_firmware_preview_convention(self):
         assets = art_prompts.build_assets()
@@ -169,7 +175,7 @@ class AssetTests(unittest.TestCase):
 
     def test_empty_character_filter_still_means_all(self):
         # An explicit empty list is treated as "not given", matching the CLI.
-        self.assertEqual(len(art_prompts.build_assets(characters=[])), 55)
+        self.assertEqual(len(art_prompts.build_assets(characters=[])), 62)
 
 
 class PromptFileTests(unittest.TestCase):
@@ -180,7 +186,7 @@ class PromptFileTests(unittest.TestCase):
             gen_art.write_prompt_files(assets, out_dir)
 
             payload = json.loads((out_dir / "prompts.json").read_text(encoding="utf-8"))
-            self.assertEqual(len(payload["assets"]), 55)
+            self.assertEqual(len(payload["assets"]), 62)
             self.assertEqual(payload["style_anchor"], art_prompts.STYLE_ANCHOR)
             self.assertEqual(payload["negative_prompt"], art_prompts.NEGATIVE_PROMPT)
 

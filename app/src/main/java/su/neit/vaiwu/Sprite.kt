@@ -24,7 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-internal val characterIds = listOf("aoi", "hina", "rin", "yuki", "akane", "unicorn", "kolobok")
+internal val characterIds = listOf("aoi", "hina", "rin", "yuki", "akane", "unicorn", "kolobok", "vesper")
 internal val emotionIds = listOf("idle", "happy", "sad", "angry", "sleepy", "sick", "dead")
 
 data class SpriteAnimation(

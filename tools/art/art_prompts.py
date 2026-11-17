@@ -103,6 +103,14 @@ CHARACTERS: Dict[str, str] = {
         "shiny baked crust with a glossy highlight and small crust cracks, "
         "stubby little feet, simple kawaii face with big eyes and rosy cheeks"
     ),
+    "vesper": (
+        "adult anime demoness woman, 30+ years old, mature face, long dark "
+        "violet hair with a few lilac streaks, small black horns, small bat "
+        "wings, glowing violet eyes, playful smirk and soft blush, modest "
+        "fully covered dark violet dress with a high neckline, long sleeves and "
+        "a long skirt, black lace choker and ribbon, purple accents, black "
+        "flat shoes"
+    ),
 }
 
 # --- Monsters ----------------------------------------------------------------

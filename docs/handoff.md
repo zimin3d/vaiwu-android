@@ -527,3 +527,85 @@ CI-прогон → исправление CI-ошибок → зелёный CI
 
 Релиз **`v0.1.6`** (тег `57d88ac`, опубликован 17 ноября 2026, APK 9 665 420 байт):
 взрослые персонажи, розовый хромакей, боковая панель с шкалами.
+
+## 15. Проект нового персонажа: Vesper — суккубка-демонесса (30+), дизайн
+
+### 15.1 Контекст
+
+- Этап 1 закрыт; `main = 2e3f029`; `Android APK` на HEAD (`2e3f029`) — ✅ success
+  (native-тесты ✅, art-тесты 104/104 ✅, `./gradlew --no-daemon lintDebug
+  testDebugUnitTest assembleRelease` ✅ через CI).
+- После закрытия этапа 1 работа перешла в **проектирование нового персонажа**.
+
+### 15.2 Проверка целостности промптов (вопрос сессии)
+
+- Вопрос: не потеряли ли промпты ответов, зависящие от персонажа и его состояния?
+- **Ответ: нет, не потеряны.**
+- `PhraseContext` (Kotlin `AssistantModels.kt`) и C++ (`OfflinePhrases.hpp`) —
+  идентичны: 18 контекстов (`Greeting = 0 … Fainted = 17`).
+- Таблицы: `kPhrases[kCharacterCount][kContexts][kVariants]` (EN) и `kPhrasesRu[…]`
+  (RU) — размерность `[7][18][3]`.
+- JNI: `nativePhrase` валидирует `context ∈ [0, PhraseContext::Fainted]` и зовёт
+  `offlinePhrase(character, context, rng(), Lang::Ru)`.
+- Native-хост-тест `testAssistantAndOfflinePhrasesRemainAvailable` перебирает все
+  18 контекстов, проверяет непустоту фраз — **зелёный** (`ALL ANDROID NATIVE TESTS
+  PASSED`).
+
+### 15.3 Персонаж: Vesper — суккубка-демонесса (30+)
+
+- **Имя:** `Vesper` (прежнее имя — `Lilith`; заменено в этой сессии).
+- **Возраст:** взрослый, **30+** (mature face; как Akane/Uni после `a5d6331`).
+- **Traits:** name `Vesper`; personality `seductive little demoness, teasing and
+  needy, craves closeness and cozy dark, feeds on affection`; favoriteFood `wine`;
+  happinessDecayMult `0.95`, energyDecayMult `1.15`, playHappinessMult `1.25`,
+  happinessGainMult `1.20`, sleepRegenMult `0.90`, sicknessResistant `false`,
+  angryWhenHungry `true`, accentColor `0xFF9D4EDD`.
+- **Stats:** str `2, vit 2, agi 3, mag 4, luck 2` (сумма 13) — «тёмная чародейка».
+- **Навык:** `SkillKind::Blast`.
+- **Фразы:** все 18 контекстов × 3 варианта (EN/RU) — полный набор сгенерирован в
+  сессии; имена в самих фразах не используются.
+
+### 15.4 Альтернатива: Lumi — светлячок (firefly)
+
+- id `7` (кандидат), traits: name `Lumi`, personality `curious little firefly girl…`,
+  favoriteFood `honey`, playHappinessMult `1.30`, happinessGainMult `1.15`,
+  sleepRegenMult `1.20`, stats `{2,2,4,2,3}`, skill `Lucky`.
+- Решение: **Vesper** — финальный кандидат.
+
+### 15.5 Чек-лист добавления персонажа (основной цикл реализации)
+
+1. `Characters.hpp/.cpp` — `CharacterId::Vesper = 7`, `kCharacterCount = 8`, строка `kTraits`.
+2. `Rpg.cpp` — `kBase[8]`, `kSkills[8]` (Blast).
+3. `OfflinePhrases.cpp` — `kPhrasesRu[8][18][3]` + `kPhrases[8][18][3]`.
+4. `strings.xml` — `<item>Vesper</item>` в `character_names`.
+5. `Sprite.kt` — `characterIds += "vesper"`.
+6. Assets — `sprite_vesper_{idle,happy,sad,angry,sleepy,sick,dead}.png`.
+7. Тесты — `AssetCatalogTest`, native-тесты.
+
+**Проверено в код-ревью патча Vesper и исправлено в этой сессии:**
+
+- `VaiwuUi.cpp::spriteFor` — ловит `c >= 7` (границы строк таблицы спрайтов) до обращения
+  к `vaiwu_sprites[c][e]`; без фикса `spriteFor` ушёл бы за границы массива (UB).
+  Сейчас для ещё не сгенерированного персонажа показывается спрайт Аои.
+- `SoundSynth.cpp` — добавлен явный `case CharacterId::Vesper` (без него компилятор
+  не упал, но Vesper молча получил бы голос Аои из-за `default`).
+- Таблица спрайтов прошивки `vaiwu_sprites[7][7]` и генератор `gen_sprites.py`
+  (CHARS, 7 персонажей) — до поднятия `kCharacterCount` до 8 нужно перегенерировать
+  C-массивы на `[8][7]` и CHARS.
+- `gen_site.py` (галерея), `art_prompts.py` + тесты, firmware docs — при добавлении
+  персонажа обновить контракты списков.
+- Тест art: сетка теперь «8 персонажей × 7 эмоций + монстры = 62 актива»;
+  `test_character_order_matches_firmware` сравнивает префикс с прошивкой.
+
+### 15.6 Статус
+
+- Дизайн персонажа **Vesper** (взрослая 30+ суккубка-демонесса) — готов; тон утверждён
+  владельцем: флирт без сексуальных намёков, без «откровенных» акцентов.
+- **Реализация — в процессии** (сессия 2026-11-17): данные персонажа, фразы, Android-код,
+  промпты — внесены; нативные тесты Android + прошивочные host-проверки — **зелёные**;
+  art-тесты `tools/art` — **104/104 OK**; спрайты Vesper генерируются через `tools/art`
+  (сгенерированы `idle`, `happy` со скромным нарядом; проверено прозрачность фона).
+- **Блокер:** квота генерации изображений исчерпана (HTTP 403 «доступная квота
+  недостаточна») — оставшиеся эмоции (`sad`, `angry`, `sleepy`, `sick`, `dead`) не генерируются.
+- Осталось: генерация оставшихся спрайтов → срезка → коммит → CI → релиз → деплой артов.
+  `AssetCatalogTest` требует все `sprite_<char>_<emotion>.png`.

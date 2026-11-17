@@ -1,0 +1,48 @@
+# sprite_vesper_idle (96x128, 3:4)
+# api size: 1024x1536
+
+adult anime demoness woman, 30+ years old, mature face, long dark violet hair with a few lilac streaks, small black horns, small bat wings, glowing violet eyes, playful smirk and soft blush, modest fully covered dark violet dress with a high neckline, long sleeves and a long skirt, black lace choker and ribbon, purple accents, black flat shoes, gentle calm smile, relaxed pose, arms at sides, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_vesper_happy (96x128, 3:4)
+# api size: 1024x1536
+
+adult anime demoness woman, 30+ years old, mature face, long dark violet hair with a few lilac streaks, small black horns, small bat wings, glowing violet eyes, playful smirk and soft blush, modest fully covered dark violet dress with a high neckline, long sleeves and a long skirt, black lace choker and ribbon, purple accents, black flat shoes, joyful laughing, closed ^ ^ eyes, open mouth smile, small sparkles around, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_vesper_sad (96x128, 3:4)
+# api size: 1024x1536
+
+adult anime demoness woman, 30+ years old, mature face, long dark violet hair with a few lilac streaks, small black horns, small bat wings, glowing violet eyes, playful smirk and soft blush, modest fully covered dark violet dress with a high neckline, long sleeves and a long skirt, black lace choker and ribbon, purple accents, black flat shoes, sad drooping eyebrows, watery teary eyes, single tear drop, small frown, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_vesper_angry (96x128, 3:4)
+# api size: 1024x1536
+
+adult anime demoness woman, 30+ years old, mature face, long dark violet hair with a few lilac streaks, small black horns, small bat wings, glowing violet eyes, playful smirk and soft blush, modest fully covered dark violet dress with a high neckline, long sleeves and a long skirt, black lace choker and ribbon, purple accents, black flat shoes, angry furrowed brows, pouting frown, red anger vein mark on head, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_vesper_sleepy (96x128, 3:4)
+# api size: 1024x1536
+
+adult anime demoness woman, 30+ years old, mature face, long dark violet hair with a few lilac streaks, small black horns, small bat wings, glowing violet eyes, playful smirk and soft blush, modest fully covered dark violet dress with a high neckline, long sleeves and a long skirt, black lace choker and ribbon, purple accents, black flat shoes, sleepy closed eyes, small yawn, "Zzz" letters floating above head, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_vesper_sick (96x128, 3:4)
+# api size: 1024x1536
+
+adult anime demoness woman, 30+ years old, mature face, long dark violet hair with a few lilac streaks, small black horns, small bat wings, glowing violet eyes, playful smirk and soft blush, modest fully covered dark violet dress with a high neckline, long sleeves and a long skirt, black lace choker and ribbon, purple accents, black flat shoes, dizzy spiral eyes, pale sickly greenish face, big sweat drop on temple, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
+
+# sprite_vesper_dead (96x128, 3:4)
+# api size: 1024x1536
+
+adult anime demoness woman, 30+ years old, mature face, long dark violet hair with a few lilac streaks, small black horns, small bat wings, glowing violet eyes, playful smirk and soft blush, modest fully covered dark violet dress with a high neckline, long sleeves and a long skirt, black lace choker and ribbon, purple accents, black flat shoes, knocked out, X X eyes, whole character in grey monochrome, flat mouth, full body character sprite, front view, standing pose, centered composition, flat solid bright magenta background (#FF00FF) with no gradient and no shadow on it, detailed anime illustration, soft cel shading, large expressive eyes, pastel color palette, clean lineart, high quality
+
+# negative: text, watermark, logo, scenery background, multiple characters, cropped body, extra limbs, blurry, photo, 3d render
