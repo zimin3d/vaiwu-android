@@ -609,3 +609,16 @@ CI-прогон → исправление CI-ошибок → зелёный CI
   недостаточна») — оставшиеся эмоции (`sad`, `angry`, `sleepy`, `sick`, `dead`) не генерируются.
 - Осталось: генерация оставшихся спрайтов → срезка → коммит → CI → релиз → деплой артов.
   `AssetCatalogTest` требует все `sprite_<char>_<emotion>.png`.
+
+### 15.7 Выполнение реализации (2026-11-17)
+
+- ИИ-квота исчерпана (HTTP 403) — после пополнения баланса и смены ключа генерация
+  продолжена успешно: `idle`, `happy`, `sad`, `angry`, `sleepy`, `sick`, `dead`.
+- Срезка (`tools/art/slice_art.py`) → `firmware/assets/sprite_Vesper_*.png` (7 шт).
+- Коммиты: подмодуль `external/vaiwu` `26bad10` («Character: add Vesper…»),
+  суперпроект `vaiwu-android` `99c88e0` («Character: implement Vesper…»).
+- Локально: art-тесты 104/104 OK, native host-тесты PASSED, прошивочные host-проверки
+  PASSED; `./gradlew` локально не запускался (нет Java/Android SDK) — проверка через
+  GitHub Actions `Android APK` (run на `99c88e0` упал на checkout подмодуля, запушенным
+  ранее в той же сессии; новый прогон запущен после `git submodule update --remote`).
+- Следующий шаг: дождаться зелёного CI, затем релиз и деплой артов Vesper.
