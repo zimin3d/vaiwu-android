@@ -154,6 +154,9 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
             snackbarHostState = snackbarHostState,
         ) { padding ->
             Box(modifier = Modifier.padding(padding)) {
+                if (updateState.value == UpdateUiState.NoUpdate) {
+                    NoUpdatesBanner(modifier = Modifier.align(Alignment.Top))
+                }
                 when (screen) {
                     AppScreen.Home -> HomeScreen(
                         pet = pet,
@@ -332,6 +335,7 @@ private fun UpdateDialog(state: UpdateUiState, onDownload: () -> Unit, onDismiss
     when (state) {
         UpdateUiState.Idle -> Unit
         UpdateUiState.Checking -> ProgressDialog(stringResource(R.string.update_checking))
+        UpdateUiState.NoUpdate -> Unit
         is UpdateUiState.Downloading -> {
             val percent = if (state.totalBytes > 0) {
                 (state.receivedBytes * 100 / state.totalBytes).toInt().coerceIn(0, 100)
@@ -380,6 +384,25 @@ private fun UpdateDialog(state: UpdateUiState, onDownload: () -> Unit, onDismiss
                     Text(stringResource(R.string.update_close))
                 }
             },
+        )
+    }
+}
+
+/**
+ * Сообщение о том, что новых версий нет. Вешается в верхнюю часть экрана;
+ * при включённой нижней навигации (кнопки) поднимается выше зоны навигации.
+ */
+@Composable
+private fun NoUpdatesBanner(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.update_none),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground,
         )
     }
 }

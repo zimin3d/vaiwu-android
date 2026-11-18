@@ -24,6 +24,7 @@ import java.util.concurrent.Executors
 sealed interface UpdateUiState {
     data object Idle : UpdateUiState
     data object Checking : UpdateUiState
+    data object NoUpdate : UpdateUiState
     data class Available(val release: ReleaseInfo) : UpdateUiState
     data class Downloading(
         val release: ReleaseInfo,
@@ -682,6 +683,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     fun checkForUpdates() {
         if (_updateState.value !is UpdateUiState.Idle &&
+            _updateState.value !is UpdateUiState.NoUpdate &&
             _updateState.value !is UpdateUiState.Error
         ) return
 
@@ -692,8 +694,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                     updater.findLatestUpdate(BuildConfig.VERSION_NAME)
                 }
                 if (release == null) {
-                    _updateState.value = UpdateUiState.Idle
-                    postSystemMessage(text(R.string.update_none))
+                    _updateState.value = UpdateUiState.NoUpdate
                 } else {
                     _updateState.value = UpdateUiState.Available(release)
                 }

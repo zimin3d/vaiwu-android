@@ -11,7 +11,7 @@ import java.io.File
  */
 class AssetCatalogTest {
 
-    private val assets = File("../external/vaiwu/firmware/assets")
+    private val assets = File("src/main/assets")
 
     private fun missing(names: Collection<String>): List<String> =
         names.distinct().filterNot { File(assets, it).isFile }

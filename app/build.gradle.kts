@@ -58,7 +58,9 @@ android {
 
     sourceSets {
         getByName("main") {
-            assets.srcDir("../external/vaiwu/firmware/assets")
+            // Ассеты живут в репозитории приложения (app/src/main/assets);
+            // ESP32-ассеты остаются в внешнем репозитории (external/vaiwu).
+            assets.srcDir("src/main/assets")
         }
     }
 
