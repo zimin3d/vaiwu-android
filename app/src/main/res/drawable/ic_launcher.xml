@@ -1,9 +1,37 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="#6C4AB0" android:pathData="M54,4A50,50 0,1 0,54 104A50,50 0,1 0,54 4" />
-    <path android:fillColor="#FFE4DE" android:pathData="M28,38L38,22L48,38L60,38L72,22L80,42L78,70Q54,94 30,70Z" />
-    <path android:fillColor="#342545" android:pathData="M38,56Q42,50 46,56Q42,62 38,56M62,56Q66,50 70,56Q66,62 62,56M47,70Q54,76 61,70Q54,82 47,70" />
+    <!-- Background gradient -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:startX="0" android:startY="0" android:endX="108" android:endY="108" android:type="linear">
+                <item android:offset="0" android:color="#FFB6D9" />
+                <item android:offset="0.5" android:color="#FF8FC7" />
+                <item android:offset="1" android:color="#C9A7E8" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Face -->
+    <path android:fillColor="#FFF5F0" android:pathData="M54,26A30,30 0,1 0,54 86A30,30 0,1 0,54 26Z" />
+    <!-- Ears -->
+    <path android:fillColor="#FFF5F0" android:pathData="M26,34L34,14L44,30Z" />
+    <path android:fillColor="#FFF5F0" android:pathData="M82,34L74,14L64,30Z" />
+    <path android:fillColor="#FFB6D9" android:pathData="M30,32L34,20L40,30Z" />
+    <path android:fillColor="#FFB6D9" android:pathData="M78,32L74,20L68,30Z" />
+    <!-- Eyes -->
+    <path android:fillColor="#3A2A55" android:pathData="M40,50A6,7 0,1 0,40 64A6,7 0,1 0,40 50Z" />
+    <path android:fillColor="#3A2A55" android:pathData="M68,50A6,7 0,1 0,68 64A6,7 0,1 0,68 50Z" />
+    <!-- Eye highlights -->
+    <path android:fillColor="#FFFFFF" android:pathData="M38,52A2,2 0,1 0,38 56A2,2 0,1 0,38 52Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M66,52A2,2 0,1 0,66 56A2,2 0,1 0,66 52Z" />
+    <!-- Blush -->
+    <path android:fillColor="#FFB6D9" android:pathData="M30,66A5,3 0,1 0,30 72A5,3 0,1 0,30 66Z" android:fillAlpha="0.6" />
+    <path android:fillColor="#FFB6D9" android:pathData="M78,66A5,3 0,1 0,78 72A5,3 0,1 0,78 66Z" android:fillAlpha="0.6" />
+    <!-- Smile -->
+    <path android:fillColor="#00000000" android:strokeColor="#3A2A55" android:strokeWidth="2.5" android:strokeLineCap="round" android:pathData="M46,72Q54,80 62,72" />
+    <!-- Nose -->
+    <path android:fillColor="#FF8FC7" android:pathData="M52,66A2,1.5 0,1 0,56 66A2,1.5 0,1 0,52 66Z" />
 </vector>
