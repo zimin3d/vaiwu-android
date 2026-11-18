@@ -154,8 +154,8 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
             snackbarHostState = snackbarHostState,
         ) { padding ->
             Box(modifier = Modifier.padding(padding)) {
-                if (updateState.value == UpdateUiState.NoUpdate) {
-                    NoUpdatesBanner(modifier = Modifier.align(Alignment.Top))
+                if (updateState == UpdateUiState.NoUpdate) {
+                    NoUpdatesBanner(modifier = Modifier.align(Alignment.TopStart))
                 }
                 when (screen) {
                     AppScreen.Home -> HomeScreen(
