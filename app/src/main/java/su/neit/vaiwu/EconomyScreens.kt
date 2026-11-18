@@ -57,7 +57,6 @@ fun ShopScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(VaiwuSpacing.screenPadding),
     ) {
         Row(

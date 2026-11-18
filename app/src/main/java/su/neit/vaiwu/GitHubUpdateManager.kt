@@ -250,7 +250,7 @@ class GitHubUpdateManager(private val context: Context) {
         private const val RELEASES_API_URL =
             "https://api.github.com/repos/zimin3d/vaiwu-android/releases/latest"
         private const val APK_ASSET_NAME = "vaiwu-android.apk"
-        private const val MaxApkBytes = 64L * 1024 * 1024
+        private const val MaxApkBytes = 128L * 1024 * 1024
     }
 }
 
