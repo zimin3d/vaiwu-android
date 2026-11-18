@@ -122,5 +122,19 @@ jobs:
       - name: Publish signed release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
-          generate_release_notes: true
+          # Release notes are maintained here: user-facing changelog for the update dialog.
+          body: |
+            ## Vaiwu v0.1.8
+
+            ### Новое
+            - Все ассеты питомцев и фонов находятся в репозитории приложения (`app/src/main/assets/`): генерация больше не требует внешних папок. ESP32-ассеты остаются в `external/vaiwu/firmware/assets/`.
+            - При проверке обновлений, если новых версий нет, показывается баннер «Новых версий нет» в верхней части экрана; при включённой нижней навигации (кнопки) сообщение поднимается выше зоны навигации.
+
+            ### Изменения
+            - При доступной версии обновления пользователь получает список изменений: версия релиза и текст заметок.
+
+            ### Исправления
+            - Исправлена ошибка сборки экрана обновлений: корректная работа с делегированным состоянием и позиционирование баннера (`Alignment.TopStart`).
+
+            **Сравнение с предыдущей версией:** https://github.com/zimin3d/vaiwu-android/compare/v0.1.7...v0.1.8
           files: out/vaiwu-android.apk
