@@ -153,104 +153,106 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
             },
             snackbarHostState = snackbarHostState,
         ) { padding ->
-            Box(modifier = Modifier.padding(padding)) {
+            Column(modifier = Modifier.padding(padding).fillMaxSize()) {
                 if (updateState == UpdateUiState.NoUpdate) {
-                    NoUpdatesBanner(modifier = Modifier.align(Alignment.TopStart))
+                    NoUpdatesBanner(modifier = Modifier.fillMaxWidth())
                 }
-                when (screen) {
-                    AppScreen.Home -> HomeScreen(
-                        pet = pet,
-                        speech = speech?.text,
-                        hour = hour,
-                        onAction = viewModel::performAction,
-                        onGames = { viewModel.openTab(AppTab.Games) },
-                        onShop = { viewModel.openFocus(AppScreen.Shop) },
-                        onPet = viewModel::openPet,
-                        onRestart = { confirmingReset = true },
-                        inventory = inventory,
-                    )
-                    AppScreen.Games -> GamesScreen(
-                        pet = pet,
-                        onRps = viewModel::startRps,
-                        onMiniGame = { kind, melodyLength -> viewModel.startMiniGame(kind, melodyLength) },
-                        onBattle = viewModel::startBattle,
-                    )
-                    AppScreen.Pet -> PetScreen(
-                        pet = pet,
-                        inventory = inventory,
-                        onAllocate = viewModel::allocateStat,
-                        onEquip = { slot, itemId -> viewModel.equip(slot, itemId) },
-                        onSell = { itemId -> viewModel.sell(itemId) },
-                    )
-                    AppScreen.Chat -> ChatScreen(
-                        messages = chatMessages,
-                        busy = chatBusy,
-                        speechEnabled = assistantSettings.speechEnabled,
-                        voice = voice,
-                        onSend = viewModel::submitChat,
-                    )
-                    AppScreen.Shop -> ShopScreen(
-                        items = shopItems,
-                        category = shopCategory,
-                        coins = pet.coins,
-                        onBuy = viewModel::buyItem,
-                        onInventory = viewModel::openPet,
-                        onCategoryChange = viewModel::selectShopCategory,
-                    )
-                    AppScreen.Rps -> RpsScreen(
-                        pet = pet,
-                        result = rpsResult,
-                        onChoice = viewModel::playRps,
-                        onAgain = { viewModel.startRps() },
-                        onExit = {
-                            if (isRoundActive(AppScreen.Rps, rpsResult, miniGame, battle)) {
-                                confirmingExit = true
-                            } else {
-                                viewModel.openHome()
-                            }
-                        },
-                    )
-                    AppScreen.MiniGame -> miniGame?.let { game ->
-                        MiniGameScreen(
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    when (screen) {
+                        AppScreen.Home -> HomeScreen(
                             pet = pet,
-                            state = game,
-                            onChoice = viewModel::chooseMiniGame,
-                            onNote = viewModel::playNote,
-                            onAgain = { viewModel.startMiniGame(game.kind, game.sequence.size) },
-                            onExit = {
-                                if (isRoundActive(AppScreen.MiniGame, rpsResult, miniGame, battle)) {
-                                    confirmingExit = true
-                                } else {
-                                    viewModel.openHome()
-                                }
-                            },
-                        )
-                    }
-                    AppScreen.Battle -> battle?.let { currentBattle ->
-                        BattleScreen(
-                            battle = currentBattle,
+                            speech = speech?.text,
                             hour = hour,
-                            onAction = viewModel::battleAction,
-                            onNextRoom = { viewModel.nextDungeonRoom() },
+                            onAction = viewModel::performAction,
+                            onGames = { viewModel.openTab(AppTab.Games) },
+                            onShop = viewModel::openShop,
+                            onPet = viewModel::openPet,
+                            onRestart = { confirmingReset = true },
+                            inventory = inventory,
+                        )
+                        AppScreen.Games -> GamesScreen(
+                            pet = pet,
+                            onRps = viewModel::startRps,
+                            onMiniGame = { kind, melodyLength -> viewModel.startMiniGame(kind, melodyLength) },
+                            onBattle = viewModel::startBattle,
+                        )
+                        AppScreen.Pet -> PetScreen(
+                            pet = pet,
+                            inventory = inventory,
+                            onAllocate = viewModel::allocateStat,
+                            onEquip = { slot, itemId -> viewModel.equip(slot, itemId) },
+                            onSell = { itemId -> viewModel.sell(itemId) },
+                        )
+                        AppScreen.Chat -> ChatScreen(
+                            messages = chatMessages,
+                            busy = chatBusy,
+                            speechEnabled = assistantSettings.speechEnabled,
+                            voice = voice,
+                            onSend = viewModel::submitChat,
+                        )
+                        AppScreen.Shop -> ShopScreen(
+                            items = shopItems,
+                            category = shopCategory,
+                            coins = pet.coins,
+                            onBuy = viewModel::buyItem,
+                            onInventory = viewModel::openPet,
+                            onCategoryChange = viewModel::selectShopCategory,
+                        )
+                        AppScreen.Rps -> RpsScreen(
+                            pet = pet,
+                            result = rpsResult,
+                            onChoice = viewModel::playRps,
+                            onAgain = { viewModel.startRps() },
                             onExit = {
-                                if (isRoundActive(AppScreen.Battle, rpsResult, miniGame, battle)) {
+                                if (isRoundActive(AppScreen.Rps, rpsResult, miniGame, battle)) {
                                     confirmingExit = true
                                 } else {
                                     viewModel.openHome()
                                 }
                             },
                         )
+                        AppScreen.MiniGame -> miniGame?.let { game ->
+                            MiniGameScreen(
+                                pet = pet,
+                                state = game,
+                                onChoice = viewModel::chooseMiniGame,
+                                onNote = viewModel::playNote,
+                                onAgain = { viewModel.startMiniGame(game.kind, game.sequence.size) },
+                                onExit = {
+                                    if (isRoundActive(AppScreen.MiniGame, rpsResult, miniGame, battle)) {
+                                        confirmingExit = true
+                                    } else {
+                                        viewModel.openHome()
+                                    }
+                                },
+                            )
+                        }
+                        AppScreen.Battle -> battle?.let { currentBattle ->
+                            BattleScreen(
+                                battle = currentBattle,
+                                hour = hour,
+                                onAction = viewModel::battleAction,
+                                onNextRoom = { viewModel.nextDungeonRoom() },
+                                onExit = {
+                                    if (isRoundActive(AppScreen.Battle, rpsResult, miniGame, battle)) {
+                                        confirmingExit = true
+                                    } else {
+                                        viewModel.openHome()
+                                    }
+                                },
+                            )
+                        }
+                        AppScreen.Settings -> SettingsScreen(
+                            settings = assistantSettings,
+                            soundEnabled = soundEnabled,
+                            voice = voice,
+                            onSoundEnabled = viewModel::setSoundEnabled,
+                            onSave = { apiKey, speech, lat, lon -> viewModel.saveAssistantSettings(apiKey, speech, lat, lon) },
+                            onUpdate = viewModel::checkForUpdates,
+                            onHelp = viewModel::openHelp,
+                            onReset = { confirmingReset = true },                    )
+                        AppScreen.Help -> HelpScreen()
                     }
-                    AppScreen.Settings -> SettingsScreen(
-                        settings = assistantSettings,
-                        soundEnabled = soundEnabled,
-                        voice = voice,
-                        onSoundEnabled = viewModel::setSoundEnabled,
-                        onSave = { apiKey, speech, lat, lon -> viewModel.saveAssistantSettings(apiKey, speech, lat, lon) },
-                        onUpdate = viewModel::checkForUpdates,
-                        onHelp = viewModel::openHelp,
-                        onReset = { confirmingReset = true },                    )
-                    AppScreen.Help -> HelpScreen()
                 }
             }
         }
