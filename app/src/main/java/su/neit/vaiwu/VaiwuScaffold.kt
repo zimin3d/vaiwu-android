@@ -21,7 +21,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -59,7 +58,10 @@ fun VaiwuScaffold(
         modifier = modifier,
         topBar = topBar,
         bottomBar = bottomBar ?: {},
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        // SnackbarHost is intentionally empty here: system messages are
+        // rendered at the TOP of the content area by VaiwuApp, because the
+        // bottom snackbar was covered by the Android navigation bar.
+        snackbarHost = {},
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = contentWindowInsets,
         content = content,

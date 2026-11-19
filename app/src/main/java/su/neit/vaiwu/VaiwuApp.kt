@@ -157,6 +157,14 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                 if (updateState == UpdateUiState.NoUpdate) {
                     NoUpdatesBanner(modifier = Modifier.fillMaxWidth())
                 }
+                // System messages live at the top: at the bottom they were
+                // half-covered by the Android navigation bar.
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = VaiwuSpacing.screenPadding),
+                )
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when (screen) {
                         AppScreen.Home -> HomeScreen(

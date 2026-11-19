@@ -99,7 +99,7 @@ main = 80027ba  Show app version in settings instead of nowhere          <- ко
 | `app/src/main/java/su/neit/vaiwu/Theme.kt` | полная схема Material 3, типографика (10 стилей), формы |
 | `app/src/main/java/su/neit/vaiwu/Components.kt` | `VaiwuPrimaryButton`, `VaiwuSecondaryButton`, `StatMeter`, `StatusChip`, `CoinChip`, `SectionCard`, `EmptyState`, `toneColor()` |
 | `app/src/main/java/su/neit/vaiwu/VaiwuApp.kt` | главный экран переведён на `StatMeter`, новые кнопки и чип «Болеет» |
-| `app/src/main/res/values/styles.xml` | фон окна `#141021` = `colorScheme.background` |
+| `app/src/main/res/values/styles.xml` | фон окна `#1A1430` = `colorScheme.background` |
 | `app/src/main/res/values/strings.xml` | добавлены `pet_sick_short`, `stat_a11y` |
 | `app/src/test/java/su/neit/vaiwu/DesignTokensTest.kt` | контраст текстовых пар, непрозрачность палитры, пороги статов, значения токенов |
 

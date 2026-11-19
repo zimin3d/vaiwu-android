@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.Color
  * their contrast ratios. Do not hardcode colours in screens.
  */
 internal object Palette {
-    const val Background = 0xFF141021
+    const val Background = 0xFF1A1430
     const val Surface = 0xFF1E1833
     const val SurfaceElevated = 0xFF2A2245
     const val SurfaceVariant = 0xFF332A52

@@ -2,6 +2,7 @@ package su.neit.vaiwu
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +25,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -118,6 +121,37 @@ fun ShopScreen(
     }
 }
 
+/**
+ * Иконка товара по `ShopItemSnapshot.id` (порядок enum `ShopItem` в
+ * `external/vaiwu/.../Shop.hpp`). Неизвестный id — запасной значок.
+ */
+private fun shopIconFor(itemId: Int): Int = when (itemId) {
+    0 -> R.drawable.shop_tasty_food
+    1 -> R.drawable.shop_cake
+    2 -> R.drawable.shop_toy
+    3 -> R.drawable.shop_energy_drink
+    4 -> R.drawable.shop_medicine
+    5 -> R.drawable.shop_ribbon
+    6 -> R.drawable.shop_sushi
+    7 -> R.drawable.shop_vitamins
+    8 -> R.drawable.shop_super_energy
+    9 -> R.drawable.shop_hp_potion
+    10 -> R.drawable.shop_wooden_sword
+    11 -> R.drawable.shop_steel_sword
+    12 -> R.drawable.shop_magic_staff
+    13 -> R.drawable.shop_wind_dagger
+    14 -> R.drawable.shop_leather_vest
+    15 -> R.drawable.shop_iron_armor
+    16 -> R.drawable.shop_lucky_charm
+    17 -> R.drawable.shop_star_amulet
+    18 -> R.drawable.shop_moon_blade
+    19 -> R.drawable.shop_scale_mail
+    20 -> R.drawable.shop_silk_cloak
+    21 -> R.drawable.shop_sage_ring
+    22 -> R.drawable.shop_mp_potion
+    else -> R.drawable.shop_icon_unknown
+}
+
 @Composable
 private fun ShopItemCard(
     item: ShopItemSnapshot,
@@ -134,31 +168,52 @@ private fun ShopItemCard(
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(VaiwuSpacing.medium),
-            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+            horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.medium),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(item.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-            if (item.effect.isNotBlank()) {
-                Text(
-                    item.effect,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Surface(
+                modifier = Modifier.size(56.dp),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Image(
+                    painter = painterResource(shopIconFor(item.id)),
+                    contentDescription = null,
+                    modifier = Modifier.padding(6.dp),
                 )
             }
-            if (item.owned) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+            ) {
                 Text(
-                    text = stringResource(R.string.bought),
-                    color = MaterialTheme.colorScheme.secondary,
-                    style = MaterialTheme.typography.labelMedium,
+                    item.name,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
                 )
-            } else {
-                Button(
-                    onClick = { onBuy(item.id) },
-                    enabled = item.price <= coins,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(text = stringResource(R.string.buy_with_price, item.price))
+                if (item.effect.isNotBlank()) {
+                    Text(
+                        item.effect,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (item.owned) {
+                    Text(
+                        text = stringResource(R.string.bought),
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                } else {
+                    Button(
+                        onClick = { onBuy(item.id) },
+                        enabled = item.price <= coins,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(text = stringResource(R.string.buy_with_price, item.price))
+                    }
                 }
             }
         }

@@ -2,6 +2,7 @@ package su.neit.vaiwu
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
@@ -219,13 +221,21 @@ private fun PetStage(
     backgroundAsset: String,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(VaiwuRadius.card))
+            .border(
+                width = 1.dp,
+                color = Color(Palette.OutlineMuted),
+                shape = RoundedCornerShape(VaiwuRadius.card),
+            ),
+    ) {
         AssetImage(
             assetName = backgroundAsset,
             description = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
-            filterQuality = FilterQuality.None,
+            filterQuality = FilterQuality.Medium,
         )
         Box(
             modifier = Modifier
@@ -233,7 +243,7 @@ private fun PetStage(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color(Palette.Background).copy(alpha = 0.6f),
+                            Color(Palette.Background).copy(alpha = 0.25f),
                             Color.Transparent,
                         ),
                     ),
@@ -244,10 +254,12 @@ private fun PetStage(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(
+                        colors = listOf(
+                            Color.Transparent,
                             Color.Transparent,
                             Color(Palette.Background),
                         ),
+                        stops = floatArrayOf(0f, 0.55f, 1f),
                     ),
                 ),
         )
