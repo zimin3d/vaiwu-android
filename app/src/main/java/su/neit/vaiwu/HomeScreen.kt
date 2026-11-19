@@ -541,7 +541,9 @@ fun FeedDialog(
             tonalElevation = 6.dp,
         ) {
             Column(
-                modifier = Modifier.padding(VaiwuSpacing.large),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(VaiwuSpacing.large),
                 verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
             ) {
                 Text(
