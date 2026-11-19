@@ -254,12 +254,9 @@ private fun PetStage(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Transparent,
-                            Color(Palette.Background),
-                        ),
-                        stops = floatArrayOf(0f, 0.55f, 1f),
+                        0f to Color.Transparent,
+                        0.55f to Color.Transparent,
+                        1f to Color(Palette.Background),
                     ),
                 ),
         )
