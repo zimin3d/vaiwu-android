@@ -484,14 +484,18 @@ private fun HomeLinkCard(
                 .fillMaxWidth()
                 .padding(horizontal = VaiwuSpacing.medium, vertical = VaiwuSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+            horizontalArrangement = Arrangement.Center,
         ) {
             Image(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(32.dp),
             )
-            Text(text = label, style = MaterialTheme.typography.labelLarge)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

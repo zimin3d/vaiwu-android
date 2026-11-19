@@ -127,6 +127,26 @@ fun ShopScreen(
  * Иконка товара по `ShopItemSnapshot.id` (порядок enum `ShopItem` в
  * `external/vaiwu/.../Shop.hpp`). Неизвестный id — запасной значок.
  */
+/**
+ * Иконка снаряжения по `EquipmentSnapshot.id` (порядок `EquipItem` в
+ * `external/vaiwu/.../Rpg.hpp`). Используются те же арты, что и в магазине.
+ */
+internal fun equipIconFor(itemId: Int): Int = when (itemId) {
+    0 -> R.drawable.shop_wooden_sword
+    1 -> R.drawable.shop_steel_sword
+    2 -> R.drawable.shop_magic_staff
+    3 -> R.drawable.shop_wind_dagger
+    4 -> R.drawable.shop_leather_vest
+    5 -> R.drawable.shop_iron_armor
+    6 -> R.drawable.shop_lucky_charm
+    7 -> R.drawable.shop_star_amulet
+    8 -> R.drawable.shop_moon_blade
+    9 -> R.drawable.shop_scale_mail
+    10 -> R.drawable.shop_silk_cloak
+    11 -> R.drawable.shop_sage_ring
+    else -> R.drawable.shop_icon_unknown
+}
+
 internal fun shopIconFor(itemId: Int): Int = when (itemId) {
     0 -> R.drawable.shop_tasty_food
     1 -> R.drawable.shop_cake
@@ -405,21 +425,38 @@ fun PetScreen(
                     ),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 ) {
-                    Column(modifier = Modifier.padding(VaiwuSpacing.medium)) {
-                        Text(item.name, fontWeight = FontWeight.Bold)
-                        Text(item.bonuses, style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small)) {
-                            if (item.equipped) {
-                                OutlinedButton(onClick = { onEquip(slot, -1) }) {
-                                    Text(stringResource(R.string.unequip))
+                    Row(
+                        modifier = Modifier.padding(VaiwuSpacing.medium),
+                        horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.medium),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(48.dp),
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                        ) {
+                            Image(
+                                painter = painterResource(equipIconFor(item.id)),
+                                contentDescription = null,
+                                modifier = Modifier.padding(5.dp),
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(item.name, fontWeight = FontWeight.Bold)
+                            Text(item.bonuses, style = MaterialTheme.typography.bodySmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small)) {
+                                if (item.equipped) {
+                                    OutlinedButton(onClick = { onEquip(slot, -1) }) {
+                                        Text(stringResource(R.string.unequip))
+                                    }
+                                } else {
+                                    Button(onClick = { onEquip(slot, item.id) }) {
+                                        Text(stringResource(R.string.equip))
+                                    }
                                 }
-                            } else {
-                                Button(onClick = { onEquip(slot, item.id) }) {
-                                    Text(stringResource(R.string.equip))
+                                TextButton(onClick = { pendingSale = item }) {
+                                    Text(stringResource(R.string.sell_with_price, item.sellPrice))
                                 }
-                            }
-                            TextButton(onClick = { pendingSale = item }) {
-                                Text(stringResource(R.string.sell_with_price, item.sellPrice))
                             }
                         }
                     }

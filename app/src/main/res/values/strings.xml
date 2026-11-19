@@ -71,7 +71,7 @@
     <string name="stat_agility">ЛОВ</string>
     <string name="stat_magic">МАГ</string>
     <string name="stat_luck">УДЧ</string>
-    <string name="stat_points_free">Свободные очки</string>
+    <string name="stat_points_free">Свободные очки: %1$d</string>
     <string name="stat_allocate">+1 %1$s</string>
     <string name="stat_a11y">%1$s: %2$d из 100</string>
     <string name="percent">%1$d%%</string>
@@ -240,15 +240,25 @@
 
     <string name="help_title">Справка</string>
     <string name="help_care">Уход</string>
-    <string name="help_care_text">Кормление, мытьё, уборка и объятия — всё доступно с главного экрана в один тап.</string>
+    <string name="help_care_text">Кормление, мытьё, уборка и объятия — всё доступно с главного экрана в один тап. Кормление открывает меню: бесплатный рис и платные лакомства.</string>
+    <string name="help_feed">Кормление</string>
+    <string name="help_feed_text">Бесплатный рис восстанавливает голод, но требует дисциплины. Платные блюда (вкусная еда, торт, суши) можно купить в магазине — они попадают в сумку. Лакомства, чей эффект пропал бы зря (энергетик при полной энергии), недоступны.</string>
     <string name="help_games">Игры</string>
-    <string name="help_games_text">Игры тратят энергию. Победы приносят монеты и улучшают настроение.</string>
+    <string name="help_games_text">Игры тратят энергию. Победы приносят монеты и улучшают настроение. Проигрыш снижает дисциплину.</string>
     <string name="help_rpg">Приключения</string>
-    <string name="help_rpg_text">Бои дают опыт и добычу. В джунглях после боя ждёт комната с боссом.</string>
+    <string name="help_rpg_text">Бои дают опыт и добычу. В джунглях после боя ждёт комната с боссом. Зелья HP/MP используются прямо в бою.</string>
+    <string name="help_shop">Магазин и сумка</string>
+    <string name="help_shop_text">Покупки (еда, лекарства, энергетики) попадают в сумку, а не применяются сразу. Используйте их, когда нужно. Снаряжение покупается один раз и надевается на экране питомца. Зелья HP/MP лежат в боевой сумке.</string>
+    <string name="help_pet">Питомец и характеристики</string>
+    <string name="help_pet_text">На экране питомца видны характеристики и свободные очки. Очки распределяются между Силой, Живучестью, Ловкостью, Магией и Удачей. Снаряжение даёт бонусы к характеристикам.</string>
+    <string name="help_sleep">Сон и болезнь</string>
+    <string name="help_sleep_text">При низкой энергии питомец засыпает сам. Сон восстанавливает энергию и дисциплину. При голоде или лишнем весе питомец заболевает — дайте лекарство из сумки.</string>
     <string name="help_progress">Прогрессия</string>
-    <string name="help_progress_text">Свободные очки характеристик можно распределить на экране питомца.</string>
+    <string name="help_progress_text">Свободные очки характеристик можно распределить на экране питомца. Уровень растёт от побед в боях.</string>
+    <string name="help_save">Сохранение</string>
+    <string name="help_save_text">Игра сохраняется автоматически. При закрытии приложения прогресс не теряется.</string>
     <string name="help_assistant">Ассистент</string>
-    <string name="help_assistant_text">Чат умеет ставить напоминания, рассказывать время и анекдоты.</string>
+    <string name="help_assistant_text">Чат умеет ставить напоминания, рассказывать время и анекдоты. Доступен офлайн-режим с canned-фразами.</string>
 
     <string name="settings_title">Настройки</string>
     <string name="settings_sound_title">Звуки</string>

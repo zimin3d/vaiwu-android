@@ -292,9 +292,14 @@ fun HelpScreen() {
         )
         listOf(
             R.string.help_care to R.string.help_care_text,
+            R.string.help_feed to R.string.help_feed_text,
             R.string.help_games to R.string.help_games_text,
             R.string.help_rpg to R.string.help_rpg_text,
+            R.string.help_shop to R.string.help_shop_text,
+            R.string.help_pet to R.string.help_pet_text,
+            R.string.help_sleep to R.string.help_sleep_text,
             R.string.help_progress to R.string.help_progress_text,
+            R.string.help_save to R.string.help_save_text,
             R.string.help_assistant to R.string.help_assistant_text,
         ).forEach { (titleRes, textRes) ->
             Card(

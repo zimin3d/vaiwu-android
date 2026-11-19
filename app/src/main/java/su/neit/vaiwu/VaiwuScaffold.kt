@@ -1,6 +1,7 @@
 package su.neit.vaiwu
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -27,8 +28,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.Image
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
@@ -109,7 +112,7 @@ fun VaiwuBottomBar(
     modifier: Modifier = Modifier,
 ) {
     NavigationBar(
-        modifier = modifier,
+        modifier = modifier.height(64.dp),
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
@@ -119,14 +122,10 @@ fun VaiwuBottomBar(
                 selected = tab == selected,
                 onClick = { onSelect(tab) },
                 icon = {
-                    Icon(
-                        imageVector = tab.icon(),
+                    Image(
+                        painter = painterResource(tab.iconRes()),
                         contentDescription = null,
-                        tint = if (tab == selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
+                        modifier = Modifier.size(22.dp),
                     )
                 },
                 label = {
@@ -148,11 +147,11 @@ fun VaiwuBottomBar(
     }
 }
 
-private fun AppTab.icon(): ImageVector = when (this) {
-    AppTab.Home -> Icons.Default.Home
-    AppTab.Games -> Icons.Default.PlayArrow
-    AppTab.Pet -> Icons.Default.Face
-    AppTab.Chat -> VaiwuIcons.speech
+private fun AppTab.iconRes(): Int = when (this) {
+    AppTab.Home -> R.drawable.icon_home
+    AppTab.Games -> R.drawable.icon_games
+    AppTab.Pet -> R.drawable.icon_pet
+    AppTab.Chat -> R.drawable.icon_chat
 }
 
 private fun AppTab.labelRes(): Int = when (this) {
