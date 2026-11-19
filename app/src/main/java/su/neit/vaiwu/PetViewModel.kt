@@ -237,6 +237,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openShop() {
         playSfx(Sfx.Tap)
+        refreshEconomy()
         openFocus(AppScreen.Shop)
     }
 

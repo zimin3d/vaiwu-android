@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,7 +45,7 @@ import androidx.compose.ui.unit.dp
  * is visible without scrolling and the purchase button refuses coins that are
  * not enough.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ShopScreen(
     items: List<ShopItemSnapshot>,
@@ -75,9 +77,10 @@ fun ShopScreen(
             }
         }
         Spacer(Modifier.height(VaiwuSpacing.medium))
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
         ) {
             categories.forEachIndexed { index, name ->
                 FilterChip(
@@ -102,7 +105,10 @@ fun ShopScreen(
             if (items.none { it.categoryId == category }) {
                 item {
                     EmptyState(
-                        title = stringResource(R.string.shop_empty),
+                        title = if (category == categories.lastIndex)
+                            stringResource(R.string.shop_cosmetics_coming_soon)
+                        else
+                            stringResource(R.string.shop_empty),
                         actionLabel = null,
                         onAction = null,
                     )
