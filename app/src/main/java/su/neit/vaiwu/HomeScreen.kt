@@ -73,7 +73,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val stageHeight = (maxHeight * 0.4f).coerceAtLeast(240.dp)
+        val stageHeight = (maxHeight * 0.48f).coerceAtLeast(280.dp)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -286,7 +286,7 @@ private fun PetStage(
                 characterId = pet.characterId,
                 emotionId = pet.emotionId,
                 description = pet.petName,
-                modifier = Modifier.size(144.dp, 192.dp),
+                modifier = Modifier.size(180.dp, 240.dp),
             )
             Spacer(Modifier.height(VaiwuSpacing.small))
             Row(

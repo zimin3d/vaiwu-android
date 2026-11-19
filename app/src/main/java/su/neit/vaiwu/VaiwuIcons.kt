@@ -90,6 +90,26 @@ internal object VaiwuIcons {
         }
     }.build()
 
+    /** A filled heart: the mini-game target. */
+    val heart: ImageVector = ImageVector.Builder(
+        name = "VaiwuHeart",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(fill = SolidColor(Color.Black)) {
+            moveTo(12f, 21f)
+            curveTo(12f, 21f, 3f, 14.5f, 3f, 9f)
+            curveTo(3f, 6f, 5.5f, 3.5f, 8.5f, 3.5f)
+            curveTo(10.5f, 3.5f, 12f, 5f, 12f, 5f)
+            curveTo(12f, 5f, 13.5f, 3.5f, 15.5f, 3.5f)
+            curveTo(18.5f, 3.5f, 21f, 6f, 21f, 9f)
+            curveTo(21f, 14.5f, 12f, 21f, 12f, 21f)
+            close()
+        }
+    }.build()
+
     /** A speech bubble: talking. */
     val speech: ImageVector = ImageVector.Builder(
         name = "VaiwuSpeech",

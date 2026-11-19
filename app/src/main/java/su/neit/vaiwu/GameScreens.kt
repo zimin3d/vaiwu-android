@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -242,8 +243,9 @@ private fun MiniGameHearts(state: MiniGameState, onChoice: (Int) -> Unit) {
         style = MaterialTheme.typography.bodyLarge,
     )
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "♥",
+        Icon(
+            imageVector = VaiwuIcons.heart,
+            contentDescription = null,
             modifier = Modifier
                 .align(Alignment.Center)
                 .offset {
@@ -254,9 +256,7 @@ private fun MiniGameHearts(state: MiniGameState, onChoice: (Int) -> Unit) {
                 }
                 .size(72.dp)
                 .clickable { onChoice(0) },
-            color = Color(0xFFFF8FA8),
-            fontSize = 54.sp,
-            textAlign = TextAlign.Center,
+            tint = Color(0xFFFF8FA8),
         )
     }
 }
