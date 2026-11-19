@@ -2,6 +2,7 @@ package su.neit.vaiwu
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -269,7 +271,7 @@ fun EmptyState(
  */
 @Composable
 fun CareActionButton(
-    icon: ImageVector,
+    iconRes: Int,
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -293,11 +295,10 @@ fun CareActionButton(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.xs),
         ) {
-            Icon(
-                imageVector = icon,
+            Image(
+                painter = painterResource(iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(VaiwuSizes.icon),
-                tint = MaterialTheme.colorScheme.primary,
             )
             Text(
                 text = label,

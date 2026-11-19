@@ -139,13 +139,13 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.medium),
                 ) {
                     HomeLinkCard(
-                        icon = Icons.Default.ShoppingCart,
+                        iconRes = R.drawable.icon_shop,
                         label = stringResource(R.string.shop_link_label),
                         onClick = onShop,
                         modifier = Modifier.weight(1f),
                     )
                     HomeLinkCard(
-                        icon = Icons.Default.Person,
+                        iconRes = R.drawable.icon_pet,
                         label = stringResource(R.string.pet_tab_label),
                         onClick = onPet,
                         modifier = Modifier.weight(1f),
@@ -438,7 +438,7 @@ private fun HomeCareGrid(
             ) {
                 row.forEach { kind ->
                     CareActionButton(
-                        icon = careIcon(kind),
+                        iconRes = careIcon(kind),
                         label = stringResource(careLabelRes(kind)),
                         onClick = {
                             when (kind) {
@@ -464,7 +464,7 @@ private fun HomeCareGrid(
 
 @Composable
 private fun HomeLinkCard(
-    icon: ImageVector,
+    iconRes: Int,
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -486,10 +486,10 @@ private fun HomeLinkCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
         ) {
-            Icon(
-                imageVector = icon,
+            Image(
+                painter = painterResource(iconRes),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
             )
             Text(text = label, style = MaterialTheme.typography.labelLarge)
         }
@@ -505,13 +505,13 @@ private fun careLabelRes(kind: CareKind): Int = when (kind) {
     CareKind.Games -> R.string.action_games
 }
 
-private fun careIcon(kind: CareKind): ImageVector = when (kind) {
-    CareKind.Feed -> VaiwuIcons.bowl
-    CareKind.Wash -> VaiwuIcons.drop
-    CareKind.Clean -> VaiwuIcons.sparkles
-    CareKind.Talk -> VaiwuIcons.speech
-    CareKind.Hug -> Icons.Default.Favorite
-    CareKind.Games -> Icons.Default.PlayArrow
+private fun careIcon(kind: CareKind): Int = when (kind) {
+    CareKind.Feed -> R.drawable.icon_feed
+    CareKind.Wash -> R.drawable.icon_wash
+    CareKind.Clean -> R.drawable.icon_clean
+    CareKind.Talk -> R.drawable.icon_talk
+    CareKind.Hug -> R.drawable.icon_hug
+    CareKind.Games -> R.drawable.icon_games
 }
 
 /**
@@ -562,10 +562,9 @@ fun FeedDialog(
                     enabled = true,
                     onClick = { onFeed(-1) },
                 ) {
-                    Icon(
-                        imageVector = VaiwuIcons.bowl,
+                    Image(
+                        painter = painterResource(R.drawable.icon_feed),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(28.dp),
                     )
                 }
