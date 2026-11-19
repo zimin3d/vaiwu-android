@@ -151,6 +151,13 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                     )
                 }
+                Spacer(Modifier.height(VaiwuSpacing.small))
+                Text(
+                    text = stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                )
             }
         }
     }

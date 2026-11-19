@@ -290,6 +290,12 @@ fun HelpScreen() {
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
         )
+        Text(
+            text = stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
         listOf(
             R.string.help_care to R.string.help_care_text,
             R.string.help_feed to R.string.help_feed_text,
