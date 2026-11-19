@@ -2,6 +2,7 @@ package su.neit.vaiwu
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -43,10 +45,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 /**
  * Home tab (UI-HOME): the pet stage, the stats, the care grid, the sickness
@@ -58,6 +64,7 @@ fun HomeScreen(
     speech: String?,
     hour: Int,
     onAction: (Int) -> Unit,
+    onFeedMenu: () -> Unit,
     onGames: () -> Unit,
     onShop: () -> Unit,
     onPet: () -> Unit,
@@ -121,6 +128,7 @@ fun HomeScreen(
                     LifeState.Awake -> HomeCareGrid(
                         kinds = homeOffers(pet).filterIsInstance<HomeOffer.Care>().map { it.kind }.distinct(),
                         onAction = onAction,
+                        onFeedMenu = onFeedMenu,
                         onGames = onGames,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -413,6 +421,7 @@ private fun SleepingCard(
 private fun HomeCareGrid(
     kinds: List<CareKind>,
     onAction: (Int) -> Unit,
+    onFeedMenu: () -> Unit,
     onGames: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -432,10 +441,12 @@ private fun HomeCareGrid(
                         icon = careIcon(kind),
                         label = stringResource(careLabelRes(kind)),
                         onClick = {
-                            if (kind == CareKind.Games) {
-                                onGames()
-                            } else {
-                                onAction(careAction(kind))
+                            when (kind) {
+                                // Feeding opens the menu (free rice + paid
+                                // dishes) instead of applying one fixed meal.
+                                CareKind.Feed -> onFeedMenu()
+                                CareKind.Games -> onGames()
+                                else -> onAction(careAction(kind))
                             }
                         },
                         modifier = Modifier
@@ -503,6 +514,134 @@ private fun careIcon(kind: CareKind): ImageVector = when (kind) {
     CareKind.Games -> Icons.Default.PlayArrow
 }
 
+/**
+ * Feed menu: free rice plus the shop's food items, like the ESP firmware.
+ * A dish already in the bag is eaten for free; otherwise the row shows its
+ * price and buys-and-feeds in one tap. Rows whose effect would be wasted
+ * (an energy drink at full energy, a treat at full mood) are disabled, so a
+ * purchase from this menu can never be money thrown away.
+ */
+@Composable
+fun FeedDialog(
+    options: List<ShopItemSnapshot>,
+    onFeed: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = VaiwuSpacing.large),
+            shape = RoundedCornerShape(VaiwuRadius.sheet),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            tonalElevation = 6.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(VaiwuSpacing.large),
+                verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+            ) {
+                Text(
+                    text = stringResource(R.string.feed_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.feed_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FeedOption(
+                    name = stringResource(R.string.feed_free_rice),
+                    note = stringResource(R.string.feed_free),
+                    enabled = true,
+                    onClick = { onFeed(-1) },
+                ) {
+                    Icon(
+                        imageVector = VaiwuIcons.bowl,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp),
+                    )
+                }
+                options.forEach { item ->
+                    FeedOption(
+                        name = item.name,
+                        note = if (item.count > 0) {
+                            stringResource(R.string.feed_in_bag, item.count)
+                        } else {
+                            stringResource(R.string.buy_with_price, item.price)
+                        },
+                        enabled = item.usable,
+                        onClick = { onFeed(item.id) },
+                    ) {
+                        Image(
+                            painter = painterResource(shopIconFor(item.id)),
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedOption(
+    name: String,
+    note: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            disabledContainerColor = MaterialTheme.colorScheme.surface,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = VaiwuSpacing.medium, vertical = VaiwuSpacing.small),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.medium),
+        ) {
+            Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                icon()
+            }
+            Text(
+                text = name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = note,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
 @Preview(name = "Home", showBackground = false)
 @Composable
 fun HomePreviewNormal() {
@@ -512,6 +651,7 @@ fun HomePreviewNormal() {
             speech = null,
             hour = 12,
             onAction = {},
+            onFeedMenu = {},
             onGames = {},
             onShop = {},
             onPet = {},
@@ -529,6 +669,7 @@ fun HomePreviewSleep() {
             speech = null,
             hour = 23,
             onAction = {},
+            onFeedMenu = {},
             onGames = {},
             onShop = {},
             onPet = {},
@@ -546,6 +687,7 @@ fun HomePreviewIllness() {
             speech = "Длинная строка для проверки переноса текста на экране при большом масштабе.",
             hour = 9,
             onAction = {},
+            onFeedMenu = {},
             onGames = {},
             onShop = {},
             onPet = {},
@@ -563,6 +705,7 @@ fun HomePreviewDeath() {
             speech = null,
             hour = 3,
             onAction = {},
+            onFeedMenu = {},
             onGames = {},
             onShop = {},
             onPet = {},
@@ -580,6 +723,7 @@ fun HomePreviewLong() {
             speech = "Очень длинная фраза питомца, которая должна оставаться читаемой при увеличенном масштабе интерфейса без обрезки кнопок и заголовков.",
             hour = 15,
             onAction = {},
+            onFeedMenu = {},
             onGames = {},
             onShop = {},
             onPet = {},

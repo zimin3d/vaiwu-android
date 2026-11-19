@@ -226,7 +226,7 @@ Java_su_neit_vaiwu_NativePet_nativeShop(JNIEnv* env, jobject, jlong handle)
         return nullptr;
     }
     const jmethodID constructor = env->GetMethodID(itemClass, "<init>",
-        "(IILjava/lang/String;IZLjava/lang/String;I)V");
+        "(IILjava/lang/String;IZLjava/lang/String;IIZ)V");
     if (constructor == nullptr) {
         return nullptr;
     }
@@ -253,11 +253,14 @@ Java_su_neit_vaiwu_NativePet_nativeShop(JNIEnv* env, jobject, jlong handle)
             const bool owned = info.equip >= 0
                 && ownsEquip(p->rpg(), static_cast<EquipItem>(info.equip));
             const int kind = info.equip >= 0 ? 1 : info.potion ? 2 : info.mpPotion ? 3 : 0;
+            const int carried = kind == 0 ? p->consumableCount(id) : 0;
+            const bool usable = kind == 0 && canUseShopItem(*p, items[index]);
             jobject item = env->NewObject(itemClass, constructor,
                 static_cast<jint>(id), static_cast<jint>(category),
                 javaString(env, tr(Lang::Ru, info.nameId)),
                 static_cast<jint>(info.price), owned ? JNI_TRUE : JNI_FALSE,
-                javaString(env, shopEffect(info)), static_cast<jint>(kind));
+                javaString(env, shopEffect(info)), static_cast<jint>(kind),
+                static_cast<jint>(carried), usable ? JNI_TRUE : JNI_FALSE);
             if (item == nullptr) {
                 return nullptr;
             }
@@ -278,7 +281,47 @@ Java_su_neit_vaiwu_NativePet_nativeBuy(JNIEnv*, jobject, jlong handle, jint item
     if (itemId < 0 || itemId >= kShopItemCount) {
         return JNI_FALSE;
     }
-    return buyShopItem(*pet(handle), static_cast<ShopItem>(itemId)) ? JNI_TRUE : JNI_FALSE;
+    // App purchases go into the bag; the ESP firmware keeps the instant
+    // buyShopItem() behaviour.
+    return buyShopItemToBag(*pet(handle), static_cast<ShopItem>(itemId)) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_su_neit_vaiwu_NativePet_nativeUseItem(JNIEnv*, jobject, jlong handle, jint itemId)
+{
+    using namespace vaiwu::game;
+    if (itemId < 0 || itemId >= kShopItemCount) {
+        return static_cast<jint>(UseResult::NotOwned);
+    }
+    return static_cast<jint>(useShopItem(*pet(handle), static_cast<ShopItem>(itemId)));
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_su_neit_vaiwu_NativePet_nativeFeedWith(JNIEnv*, jobject, jlong handle, jint itemId)
+{
+    using namespace vaiwu::game;
+    VaiwuPet* p = pet(handle);
+    if (itemId < 0) {
+        // Free rice keeps the classic feed rules (caprice, "already full").
+        switch (p->feed()) {
+        case ActionResult::Ok: return 0;
+        case ActionResult::RefusedDead: return 10;
+        case ActionResult::RefusedSleeping: return 11;
+        case ActionResult::RefusedCaprice: return 12;
+        case ActionResult::NotHungry: return 13;
+        default: return 19;
+        }
+    }
+    if (itemId >= kShopItemCount) {
+        return static_cast<jint>(UseResult::NotApplicable);
+    }
+    const auto item = static_cast<ShopItem>(itemId);
+    // A dish already in the bag is used for free; otherwise the menu acts as
+    // a shortcut that buys and feeds in one step (and refuses to spend when
+    // the effect would be wasted).
+    return static_cast<jint>(p->consumableCount(itemId) > 0
+        ? useShopItem(*p, item)
+        : buyAndUseShopItem(*p, item));
 }
 
 extern "C" JNIEXPORT jobject JNICALL

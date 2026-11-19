@@ -94,6 +94,9 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val _shopItems = MutableStateFlow<List<ShopItemSnapshot>>(emptyList())
     val shopItems: StateFlow<List<ShopItemSnapshot>> = _shopItems.asStateFlow()
 
+    private val _feedMenuOpen = MutableStateFlow(false)
+    val feedMenuOpen: StateFlow<Boolean> = _feedMenuOpen.asStateFlow()
+
     private val _inventory = MutableStateFlow<InventorySnapshot?>(null)
     val inventory: StateFlow<InventorySnapshot?> = _inventory.asStateFlow()
 
@@ -190,6 +193,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         val petName = safeName.ifBlank { profile?.name.orEmpty() }
         pet.startNew(characterId, petName, System.currentTimeMillis())
         refreshPet()
+        refreshEconomy()
         postSpeech(pet.phrase(PhraseContext.Greeting) ?: text(R.string.pet_greeting))
         playSfx(Sfx.Win)
         savePet()
@@ -205,6 +209,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _screen.value = AppScreen.Home
         _shopItems.value = emptyList()
         _inventory.value = null
+        _feedMenuOpen.value = false
         _rpsResult.value = null
         _miniGame.value = null
         _battle.value = null
@@ -220,6 +225,11 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         playSfx(Sfx.Tap)
         leaveRoundIfNeeded()
         history.clear()
+        // The Pet tab shows the carried items, so make sure the bag snapshot
+        // is fresh even if the shop was never opened in this session.
+        if (tab.screen == AppScreen.Pet) {
+            refreshEconomy()
+        }
         _screen.value = tab.screen
     }
 
@@ -239,6 +249,18 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         playSfx(Sfx.Tap)
         refreshEconomy()
         openFocus(AppScreen.Shop)
+    }
+
+    /** Opens the feed menu (free rice + paid dishes, like the ESP firmware). */
+    fun openFeedMenu() {
+        if (_snapshot.value?.lifeState != LifeState.Awake) return
+        playSfx(Sfx.Tap)
+        refreshEconomy()
+        _feedMenuOpen.value = true
+    }
+
+    fun closeFeedMenu() {
+        _feedMenuOpen.value = false
     }
 
     fun openSettings() {
@@ -580,11 +602,62 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         val item = _shopItems.value.firstOrNull { it.id == itemId } ?: return
         val bought = pet.buy(itemId)
         _systemMessage.value = when {
+            bought && item.kind == ShopItemKind.Consumable ->
+                SystemMessage(messageCounter++, text(R.string.shop_bought_bag, item.name))
             bought -> SystemMessage(messageCounter++, text(R.string.shop_bought, item.name))
             item.owned -> SystemMessage(messageCounter++, text(R.string.shop_already_bought))
+            item.kind == ShopItemKind.Consumable && item.count >= 99 ->
+                SystemMessage(messageCounter++, text(R.string.shop_bag_full))
             else -> SystemMessage(messageCounter++, text(R.string.shop_not_enough))
         }
         playSfx(if (bought) Sfx.Feed else Sfx.Tap)
+        refreshPet()
+        refreshEconomy()
+        savePet()
+    }
+
+    /** Feed from the menu: `itemId < 0` is the free rice, otherwise a dish. */
+    fun feedWith(itemId: Int) {
+        val result = pet.feedWith(itemId)
+        _feedMenuOpen.value = false
+        val message: String? = when (result) {
+            UseResult.Ok -> null
+            UseResult.NotOwned -> text(R.string.item_not_owned)
+            UseResult.NotApplicable -> text(R.string.item_not_applicable)
+            UseResult.NoCoins -> text(R.string.shop_not_enough)
+            UseResult.RefusedDead,
+            UseResult.FreeRiceRefusedDead -> text(R.string.pet_left)
+            UseResult.FreeRiceRefusedSleeping -> text(R.string.action_still_sleeping)
+            UseResult.FreeRiceRefusedCaprice -> text(R.string.action_caprice)
+            UseResult.FreeRiceNotHungry -> text(R.string.action_already_full)
+            else -> text(R.string.action_unavailable)
+        }
+        val speechText = if (result == UseResult.Ok) pet.phrase(PhraseContext.Fed) else null
+        if (message != null) {
+            _systemMessage.value = SystemMessage(messageCounter++, message)
+        }
+        if (speechText != null) {
+            _speech.value = PetSpeech(messageCounter++, speechText)
+        }
+        playSfx(if (result == UseResult.Ok) Sfx.Feed else Sfx.Tap)
+        refreshPet()
+        refreshEconomy()
+        savePet()
+    }
+
+    /** Use a carried consumable from the bag. */
+    fun useItem(itemId: Int) {
+        val item = _shopItems.value.firstOrNull { it.id == itemId } ?: return
+        val result = pet.useItem(itemId)
+        val message = when (result) {
+            UseResult.Ok -> text(R.string.item_used, item.name)
+            UseResult.NotOwned -> text(R.string.item_not_owned)
+            UseResult.NotApplicable -> text(R.string.item_not_applicable)
+            UseResult.RefusedDead -> text(R.string.pet_left)
+            else -> text(R.string.action_unavailable)
+        }
+        _systemMessage.value = SystemMessage(messageCounter++, message)
+        playSfx(if (result == UseResult.Ok) Sfx.Feed else Sfx.Tap)
         refreshPet()
         refreshEconomy()
         savePet()
@@ -801,6 +874,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         if (effectiveStart != savedAt && !pet.load(coreSave, effectiveStart)) return
         pet.tick(now)
         refreshPet()
+        refreshEconomy()
         postSystemMessage(text(R.string.pet_welcome_back))
     }
 

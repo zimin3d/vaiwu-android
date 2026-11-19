@@ -169,14 +169,32 @@
 
     <string name="shop_title">Магазин</string>
     <string name="shop_bought">Куплено: %1$s</string>
+    <string name="shop_bought_bag">В сумку: %1$s</string>
     <string name="shop_already_bought">Эта вещь уже куплена</string>
     <string name="shop_not_enough">Не хватает монет</string>
+    <string name="shop_bag_full">В сумке уже 99 таких предметов</string>
     <string name="shop_link_label">Магазин</string>
     <string name="shop_balance_note">монет</string>
     <string name="shop_empty">В этой категории пока нет товаров</string>
     <string name="shop_cosmetics_coming_soon">Скоро: предметы, меняющие внешний вид питомца</string>
     <string name="buy_with_price">%1$d · Купить</string>
     <string name="coins">Монеты: %1$d</string>
+    <string name="shop_in_bag">В сумке: %1$d</string>
+
+    <string name="feed_title">Чем покормить?</string>
+    <string name="feed_hint">Рис бесплатный. Лакомства берутся из сумки или покупаются сразу.</string>
+    <string name="feed_free_rice">Рис</string>
+    <string name="feed_free">Бесплатно</string>
+    <string name="feed_in_bag">В сумке: %1$d</string>
+
+    <string name="bag_title">Сумка</string>
+    <string name="bag_empty">Сумка пуста — загляните в магазин</string>
+    <string name="bag_potions">Зелья для боя: HP %1$d · MP %2$d</string>
+    <string name="bag_count">×%1$d</string>
+    <string name="use_item">Использовать</string>
+    <string name="item_used">Использовано: %1$s</string>
+    <string name="item_not_owned">Этого предмета нет в сумке</string>
+    <string name="item_not_applicable">Сейчас это не нужно — эффект пропал бы зря</string>
 
     <string name="equipment">Снаряжение</string>
     <string name="bought">Куплено</string>

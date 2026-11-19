@@ -8,6 +8,10 @@ data class ShopItemSnapshot(
     val owned: Boolean,
     val effect: String,
     val kind: Int,
+    /** How many of this item are carried in the bag (consumables only). */
+    val count: Int,
+    /** Using one now would change something (not wasted on a full stat). */
+    val usable: Boolean,
 )
 
 data class EquipmentSnapshot(

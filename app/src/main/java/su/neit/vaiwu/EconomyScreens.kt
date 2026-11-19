@@ -55,6 +55,7 @@ fun ShopScreen(
     category: Int,
     coins: Int,
     onBuy: (Int) -> Unit,
+    onUse: (Int) -> Unit,
     onInventory: () -> Unit,
     onCategoryChange: (Int) -> Unit,
 ) {
@@ -76,7 +77,7 @@ fun ShopScreen(
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = onInventory) {
-                Text(stringResource(R.string.equipment))
+                Text(stringResource(R.string.bag_title))
             }
         }
         Spacer(Modifier.height(VaiwuSpacing.medium))
@@ -103,6 +104,7 @@ fun ShopScreen(
                     item = item,
                     coins = coins,
                     onBuy = onBuy,
+                    onUse = onUse,
                 )
             }
             if (items.none { it.categoryId == category }) {
@@ -125,7 +127,7 @@ fun ShopScreen(
  * Иконка товара по `ShopItemSnapshot.id` (порядок enum `ShopItem` в
  * `external/vaiwu/.../Shop.hpp`). Неизвестный id — запасной значок.
  */
-private fun shopIconFor(itemId: Int): Int = when (itemId) {
+internal fun shopIconFor(itemId: Int): Int = when (itemId) {
     0 -> R.drawable.shop_tasty_food
     1 -> R.drawable.shop_cake
     2 -> R.drawable.shop_toy
@@ -157,6 +159,7 @@ private fun ShopItemCard(
     item: ShopItemSnapshot,
     coins: Int,
     onBuy: (Int) -> Unit,
+    onUse: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -200,12 +203,36 @@ private fun ShopItemCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (item.count > 0) {
+                    Text(
+                        text = stringResource(R.string.shop_in_bag, item.count),
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
                 if (item.owned) {
                     Text(
                         text = stringResource(R.string.bought),
                         color = MaterialTheme.colorScheme.secondary,
                         style = MaterialTheme.typography.labelMedium,
                     )
+                } else if (item.count > 0) {
+                    // Something is already in the bag: using it is the main
+                    // action, buying another one is secondary.
+                    Button(
+                        onClick = { onUse(item.id) },
+                        enabled = item.usable,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(text = stringResource(R.string.use_item))
+                    }
+                    OutlinedButton(
+                        onClick = { onBuy(item.id) },
+                        enabled = item.price <= coins,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(text = stringResource(R.string.buy_with_price, item.price))
+                    }
                 } else {
                     Button(
                         onClick = { onBuy(item.id) },
@@ -220,6 +247,59 @@ private fun ShopItemCard(
     }
 }
 
+/** One carried consumable in the bag, with a "use now" action. */
+@Composable
+private fun BagItemCard(
+    item: ShopItemSnapshot,
+    onUse: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Row(
+            modifier = Modifier.padding(VaiwuSpacing.medium),
+            horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.medium),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Image(
+                    painter = painterResource(shopIconFor(item.id)),
+                    contentDescription = null,
+                    modifier = Modifier.padding(5.dp),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(item.name, fontWeight = FontWeight.Bold)
+                if (item.effect.isNotBlank()) {
+                    Text(
+                        item.effect,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Text(
+                text = stringResource(R.string.bag_count, item.count),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+            OutlinedButton(onClick = onUse, enabled = item.usable) {
+                Text(stringResource(R.string.use_item))
+            }
+        }
+    }
+}
+
 /**
  * Pet screen: stats, equipment and the bag live on one screen (I-5,
  * UI-ECO-05…07).
@@ -228,9 +308,11 @@ private fun ShopItemCard(
 fun PetScreen(
     pet: PetSnapshot,
     inventory: InventorySnapshot?,
+    shopItems: List<ShopItemSnapshot>,
     onAllocate: (Int) -> Unit,
     onEquip: (Int, Int) -> Unit,
     onSell: (Int) -> Unit,
+    onUseItem: (Int) -> Unit,
 ) {
     var pendingSale by remember { mutableStateOf<EquipmentSnapshot?>(null) }
     Column(
@@ -273,6 +355,30 @@ fun PetScreen(
             if (stats.statPoints > 0) {
                 StatAllocation(points = stats.statPoints, onAllocate = onAllocate)
             }
+        }
+        Spacer(Modifier.height(VaiwuSpacing.sectionGap))
+        Text(
+            text = stringResource(R.string.bag_title),
+            style = MaterialTheme.typography.titleLarge,
+        )
+        val carried = shopItems.filter { it.count > 0 }
+        if (carried.isEmpty()) {
+            Text(
+                text = stringResource(R.string.bag_empty),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            carried.forEach { item ->
+                BagItemCard(item = item, onUse = { onUseItem(item.id) })
+            }
+        }
+        inventory?.let { stats ->
+            Text(
+                text = stringResource(R.string.bag_potions, stats.potions, stats.mpPotions),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = VaiwuSpacing.small),
+            )
         }
         Spacer(Modifier.height(VaiwuSpacing.sectionGap))
         Text(

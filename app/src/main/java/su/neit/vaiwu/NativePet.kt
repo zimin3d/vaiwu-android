@@ -32,6 +32,13 @@ class NativePet : Closeable {
     fun buy(itemId: Int): Boolean = nativeBuy(handle, itemId)
 
     @Synchronized
+    fun useItem(itemId: Int): Int = nativeUseItem(handle, itemId)
+
+    /** Feed: `itemId < 0` is free rice, otherwise a dish from the feed menu. */
+    @Synchronized
+    fun feedWith(itemId: Int): Int = nativeFeedWith(handle, itemId)
+
+    @Synchronized
     fun inventory(): InventorySnapshot = nativeInventory(handle)
 
     @Synchronized
@@ -100,6 +107,8 @@ class NativePet : Closeable {
     private external fun nativeSnapshot(handle: Long): PetSnapshot
     private external fun nativeShop(handle: Long): Array<ShopItemSnapshot>
     private external fun nativeBuy(handle: Long, itemId: Int): Boolean
+    private external fun nativeUseItem(handle: Long, itemId: Int): Int
+    private external fun nativeFeedWith(handle: Long, itemId: Int): Int
     private external fun nativeInventory(handle: Long): InventorySnapshot
     private external fun nativeEquip(handle: Long, slot: Int, itemId: Int): Boolean
     private external fun nativeSell(handle: Long, itemId: Int): Int

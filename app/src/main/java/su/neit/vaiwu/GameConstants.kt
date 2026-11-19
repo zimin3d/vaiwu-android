@@ -27,6 +27,36 @@ object ActionResult {
 }
 
 /**
+ * `ShopItemSnapshot.kind`: what a purchase turns into. Consumables go into
+ * the bag (use them later), equipment is owned once, potions live in the RPG
+ * bag and are spent in battle.
+ */
+object ShopItemKind {
+    const val Consumable = 0
+    const val Equipment = 1
+    const val Potion = 2
+    const val MpPotion = 3
+}
+
+/**
+ * `vaiwu::game::UseResult` values from `Shop.hpp`, plus the free-rice results
+ * of `nativeFeedWith` (offset by 10 to keep the two sets apart).
+ */
+object UseResult {
+    const val Ok = 0
+    const val NotOwned = 1
+    const val NotApplicable = 2
+    const val NoCoins = 3
+    const val RefusedDead = 4
+
+    const val FreeRiceRefusedDead = 10
+    const val FreeRiceRefusedSleeping = 11
+    const val FreeRiceRefusedCaprice = 12
+    const val FreeRiceNotHungry = 13
+    const val Unknown = 19
+}
+
+/**
  * `LifeState` values from `vaiwu/game/VaiwuPet.hpp`.
  */
 object LifeState {

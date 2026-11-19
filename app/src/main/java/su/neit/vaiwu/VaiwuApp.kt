@@ -86,6 +86,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
     val assistantSettings by viewModel.assistantSettings.collectAsStateWithLifecycle()
     val soundEnabled by viewModel.soundEnabled.collectAsStateWithLifecycle()
     val shopCategory by viewModel.shopCategory.collectAsStateWithLifecycle()
+    val feedMenuOpen by viewModel.feedMenuOpen.collectAsStateWithLifecycle()
 
     var confirmingReset by remember { mutableStateOf(false) }
     var confirmingExit by remember { mutableStateOf(false) }
@@ -172,6 +173,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                             speech = speech?.text,
                             hour = hour,
                             onAction = viewModel::performAction,
+                            onFeedMenu = viewModel::openFeedMenu,
                             onGames = { viewModel.openTab(AppTab.Games) },
                             onShop = viewModel::openShop,
                             onPet = viewModel::openPet,
@@ -187,9 +189,11 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                         AppScreen.Pet -> PetScreen(
                             pet = pet,
                             inventory = inventory,
+                            shopItems = shopItems,
                             onAllocate = viewModel::allocateStat,
                             onEquip = { slot, itemId -> viewModel.equip(slot, itemId) },
                             onSell = { itemId -> viewModel.sell(itemId) },
+                            onUseItem = viewModel::useItem,
                         )
                         AppScreen.Chat -> ChatScreen(
                             messages = chatMessages,
@@ -203,6 +207,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                             category = shopCategory,
                             coins = pet.coins,
                             onBuy = viewModel::buyItem,
+                            onUse = viewModel::useItem,
                             onInventory = viewModel::openPet,
                             onCategoryChange = viewModel::selectShopCategory,
                         )
@@ -293,6 +298,13 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                 viewModel.openHome()
             },
             onDismiss = { confirmingExit = false },
+        )
+    }
+    if (feedMenuOpen && pet != null) {
+        FeedDialog(
+            options = shopItems.filter { it.categoryId == 0 },
+            onFeed = viewModel::feedWith,
+            onDismiss = viewModel::closeFeedMenu,
         )
     }
 }
