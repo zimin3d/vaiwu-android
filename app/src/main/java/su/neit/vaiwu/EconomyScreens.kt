@@ -509,7 +509,6 @@ fun RpsScreen(
                 choices.forEachIndexed { index, name ->
                     Button(
                         onClick = { onChoice(index) },
-                        enabled = result == null,
                         modifier = Modifier.weight(1f),
                     ) {
                         Text(name, textAlign = TextAlign.Center)
