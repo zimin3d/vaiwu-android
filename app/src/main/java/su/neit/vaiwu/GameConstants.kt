@@ -66,6 +66,20 @@ object LifeState {
 }
 
 /**
+ * `Emotion` values from `vaiwu/game/VaiwuPet.hpp`. Mirrors the visual mood
+ * used to pick `sprite_<character>_<emotion>.png`.
+ */
+object Emotion {
+    const val Idle = 0
+    const val Happy = 1
+    const val Sad = 2
+    const val Angry = 3
+    const val Sleepy = 4
+    const val Sick = 5
+    const val Dead = 6
+}
+
+/**
  * `RpsResult.outcome` values returned by the native side.
  */
 object RpsOutcome {

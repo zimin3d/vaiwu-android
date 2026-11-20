@@ -50,7 +50,13 @@ private object SpriteBitmapCache {
 }
 
 @Composable
-fun PetSprite(characterId: Int, emotionId: Int, description: String, modifier: Modifier) {
+fun PetSprite(
+    characterId: Int,
+    emotionId: Int,
+    description: String,
+    modifier: Modifier,
+    frameDurationMs: Long = 180L,
+) {
     val context = LocalContext.current
     val animation = remember(characterId, emotionId) {
         val character = characterIds.getOrElse(characterId) { characterIds.first() }
@@ -61,7 +67,7 @@ fun PetSprite(characterId: Int, emotionId: Int, description: String, modifier: M
             .map { frame -> "${base}_${frame.toString().padStart(2, '0')}.png" }
             .takeWhile(available::contains)
             .toList()
-        SpriteAnimation(frames.ifEmpty { listOf("$base.png") })
+        SpriteAnimation(frames.ifEmpty { listOf("$base.png") }, frameDurationMs)
     }
     SpriteImage(animation = animation, description = description, modifier = modifier)
 }
