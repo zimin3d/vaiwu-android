@@ -248,6 +248,8 @@ private fun PetStage(
                 shape = RoundedCornerShape(VaiwuRadius.card),
             ),
     ) {
+        val spriteHeight = petSpriteHeightForStage(maxHeight)
+        val spriteWidth = spriteHeight * SPRITE_ASPECT_RATIO
         AssetImage(
             assetName = backgroundAsset,
             description = null,
@@ -292,8 +294,6 @@ private fun PetStage(
                 SpeechBubble(text = speech)
                 Spacer(Modifier.height(VaiwuSpacing.small))
             }
-            val spriteHeight = petSpriteHeightForStage(maxHeight)
-            val spriteWidth = spriteHeight * SPRITE_ASPECT_RATIO
             PetSprite(
                 characterId = pet.characterId,
                 emotionId = pet.emotionId,

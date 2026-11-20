@@ -369,7 +369,7 @@ fun BattleScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(battleLogHeight)
+                    .height(VaiwuSizes.battleLogHeight)
                     .padding(vertical = 12.dp),
             ) {
                 Column(
