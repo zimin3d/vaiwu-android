@@ -293,7 +293,7 @@ private fun PetStage(
                 Spacer(Modifier.height(VaiwuSpacing.small))
             }
             val spriteHeight = petSpriteHeightForStage(maxHeight)
-            val spriteWidth = spriteHeight.copy(spriteHeight.value * SPRITE_ASPECT_RATIO)
+            val spriteWidth = spriteHeight * SPRITE_ASPECT_RATIO
             PetSprite(
                 characterId = pet.characterId,
                 emotionId = pet.emotionId,
