@@ -50,7 +50,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toDp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -294,7 +293,7 @@ private fun PetStage(
                 Spacer(Modifier.height(VaiwuSpacing.small))
             }
             val spriteHeight = petSpriteHeightForStage(maxHeight)
-            val spriteWidth = (spriteHeight.value * SPRITE_ASPECT_RATIO).toDp()
+            val spriteWidth = spriteHeight.copy(spriteHeight.value * SPRITE_ASPECT_RATIO)
             PetSprite(
                 characterId = pet.characterId,
                 emotionId = pet.emotionId,

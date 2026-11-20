@@ -2,7 +2,6 @@ package su.neit.vaiwu
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toDp
 
 /**
  * Spacing, radius and size tokens from `docs/ui-spec.md` (section 3).
@@ -70,5 +69,7 @@ fun statTone(value: Float): StatTone = when {
  * box, so a tablet shows a proportionally larger character instead of a tiny
  * one while phones keep the familiar size (UI-A11Y-05).
  */
-internal fun petSpriteHeightForStage(stageHeight: Dp): Dp =
-    (stageHeight.value * 0.62f).toDp().coerceIn(180.dp, 340.dp)
+internal fun petSpriteHeightForStage(stageHeight: Dp): Dp {
+    val scaled = (stageHeight.value * 0.62f).coerceIn(180f, 340f)
+    return stageHeight.copy(scaled)
+}
