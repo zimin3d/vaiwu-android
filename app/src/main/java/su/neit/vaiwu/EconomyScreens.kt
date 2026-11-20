@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -223,7 +224,9 @@ private fun ShopItemCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (item.count > 0) {
+                // The bag line is rendered for every not-yet-owned item so the
+                // card keeps a constant number of text lines across purchases.
+                if (item.count > 0 || !item.owned) {
                     Text(
                         text = stringResource(R.string.shop_in_bag, item.count),
                         color = MaterialTheme.colorScheme.secondary,
@@ -238,29 +241,39 @@ private fun ShopItemCard(
                     )
                 } else if (item.count > 0) {
                     // Something is already in the bag: using it is the main
-                    // action, buying another one is secondary.
-                    Button(
-                        onClick = { onUse(item.id) },
-                        enabled = item.usable,
+                    // action, buying another one is secondary. Both actions sit
+                    // in one row of equal-height buttons, so the card never
+                    // grows taller after a purchase.
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
                     ) {
-                        Text(text = stringResource(R.string.use_item))
-                    }
-                    OutlinedButton(
-                        onClick = { onBuy(item.id) },
-                        enabled = item.price <= coins,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(text = stringResource(R.string.buy_with_price, item.price))
+                        OutlinedButton(
+                            onClick = { onUse(item.id) },
+                            enabled = item.usable,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = VaiwuSizes.primaryButtonHeight),
+                        ) {
+                            Text(text = stringResource(R.string.use_item))
+                        }
+                        Button(
+                            onClick = { onBuy(item.id) },
+                            enabled = item.price <= coins,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = VaiwuSizes.primaryButtonHeight),
+                        ) {
+                            Text(text = stringResource(R.string.buy_with_price, item.price))
+                        }
                     }
                 } else {
-                    Button(
+                    VaiwuPrimaryButton(
+                        text = stringResource(R.string.buy_with_price, item.price),
                         onClick = { onBuy(item.id) },
                         enabled = item.price <= coins,
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(text = stringResource(R.string.buy_with_price, item.price))
-                    }
+                    )
                 }
             }
         }

@@ -366,12 +366,23 @@ fun BattleScreen(
                 stringResource(R.string.battle_potions, battle.potions, battle.mpPotions),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                Text(
-                    battle.log,
-                    modifier = Modifier.padding(12.dp),
-                    textAlign = TextAlign.Center,
-                )
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(battleLogHeight)
+                    .padding(vertical = 12.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(12.dp),
+                ) {
+                    Text(
+                        battle.log,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
             when {
                 battle.cleared -> {

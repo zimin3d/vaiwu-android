@@ -1,7 +1,6 @@
 package su.neit.vaiwu
 
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -34,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /**
@@ -113,7 +113,10 @@ fun VaiwuBottomBar(
     modifier: Modifier = Modifier,
 ) {
     NavigationBar(
-        modifier = modifier.height(64.dp),
+        // The bar height is owned by the Material component (its own minimum
+        // keeps icon and label inside the bar); forcing a smaller height here
+        // pushed the icon and the label out of bounds.
+        modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
@@ -126,7 +129,7 @@ fun VaiwuBottomBar(
                     Image(
                         painter = painterResource(tab.iconRes()),
                         contentDescription = null,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(VaiwuSizes.icon),
                     )
                 },
                 label = {
@@ -134,6 +137,7 @@ fun VaiwuBottomBar(
                         text = stringResource(tab.labelRes()),
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(

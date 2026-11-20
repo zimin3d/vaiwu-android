@@ -50,9 +50,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toDp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+
+/** Heroine art ratio (width / height) of the sprite: 180x240 dp. */
+private const val SPRITE_ASPECT_RATIO = 0.75f
 
 /**
  * Home tab (UI-HOME): the pet stage, the stats, the care grid, the sickness
@@ -236,7 +240,7 @@ private fun PetStage(
     backgroundAsset: String,
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .clip(RoundedCornerShape(VaiwuRadius.card))
             .border(
@@ -289,11 +293,13 @@ private fun PetStage(
                 SpeechBubble(text = speech)
                 Spacer(Modifier.height(VaiwuSpacing.small))
             }
+            val spriteHeight = petSpriteHeightForStage(maxHeight)
+            val spriteWidth = (spriteHeight.value * SPRITE_ASPECT_RATIO).toDp()
             PetSprite(
                 characterId = pet.characterId,
                 emotionId = pet.emotionId,
                 description = pet.petName,
-                modifier = Modifier.size(180.dp, 240.dp),
+                modifier = Modifier.size(spriteWidth, spriteHeight),
             )
             Spacer(Modifier.height(VaiwuSpacing.small))
             Row(

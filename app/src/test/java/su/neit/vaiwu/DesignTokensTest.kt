@@ -1,5 +1,6 @@
 package su.neit.vaiwu
 
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -115,5 +116,13 @@ class DesignTokensTest {
         assertEquals(48f, VaiwuSizes.minTouchTarget.value, 0f)
         assertEquals(8f, VaiwuSizes.statBarHeight.value, 0f)
         assertEquals(24f, VaiwuRadius.sheet.value, 0f)
+        assertEquals(120f, VaiwuSizes.battleLogHeight.value, 0f)
+    }
+
+    @Test
+    fun `pet sprite height scales with the stage`() {
+        assertEquals(180f, petSpriteHeightForStage(200.dp).value, 0f)
+        assertEquals(186f, petSpriteHeightForStage(300.dp).value, 0f)
+        assertEquals(340f, petSpriteHeightForStage(1200.dp).value, 0f)
     }
 }

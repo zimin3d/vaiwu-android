@@ -158,14 +158,6 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                 if (updateState == UpdateUiState.NoUpdate) {
                     NoUpdatesBanner(modifier = Modifier.fillMaxWidth())
                 }
-                // System messages live at the top: at the bottom they were
-                // half-covered by the Android navigation bar.
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = VaiwuSpacing.screenPadding),
-                )
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when (screen) {
                         AppScreen.Home -> HomeScreen(
@@ -266,6 +258,16 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                             onReset = { confirmingReset = true },                    )
                         AppScreen.Help -> HelpScreen()
                     }
+                    // System messages float OVER the content at the top: an
+                    // appearing notification must never push the screen down.
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = VaiwuSpacing.screenPadding)
+                            .padding(top = VaiwuSpacing.small),
+                    )
                 }
             }
         }
