@@ -1,16 +1,18 @@
 package su.neit.vaiwu
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,17 +22,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -85,29 +85,61 @@ fun GamesScreen(
             GameCardModel(R.string.battle_adventure, R.string.battle_adventure_reward) { onBattle(false) },
             GameCardModel(R.string.battle_dungeon, R.string.battle_dungeon_reward) { onBattle(true) },
         )
-        cards.chunked(2).forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.itemGap),
-            ) {
-                row.forEach { card ->
-                    GameCard(
-                        title = stringResource(card.titleRes),
-                        reward = stringResource(card.rewardRes),
-                        onClick = card.onClick,
-                        enabled = pet.energy >= GameScreenEnergyThreshold,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (row.size == 1) {
-                    Spacer(Modifier.weight(1f))
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.itemGap),
+        ) {
+            cards.chunked(2).forEach { row ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.itemGap),
+                ) {
+                    row.forEach { card ->
+                        GameCard(
+                            title = stringResource(card.titleRes),
+                            reward = stringResource(card.rewardRes),
+                            onClick = card.onClick,
+                            enabled = canPlayGames(pet),
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                        )
+                    }
+                    if (row.size == 1) {
+                        Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
     }
 }
 
-private const val GameScreenEnergyThreshold = 40f
+// Matches VaiwuPet::startPlay(): energy >= 20 and energy - 8 > 15 (forced-sleep threshold).
+private const val PlayEnergyThreshold = 23f
+
+internal fun canPlayGames(pet: PetSnapshot): Boolean =
+    pet.lifeState == LifeState.Awake && pet.energy > PlayEnergyThreshold
+
+/**
+ * Maps percentage coordinates (`heartX`, `heartY` in 0..100) into pixel offsets
+ * relative to `Alignment.TopStart` so the heart icon stays completely inside
+ * the playfield.
+ */
+internal fun heartOffsetPx(
+    containerWidth: Int,
+    containerHeight: Int,
+    iconSize: Int,
+    heartX: Int,
+    heartY: Int,
+): Pair<Int, Int> {
+    val maxX = (containerWidth - iconSize).coerceAtLeast(0)
+    val maxY = (containerHeight - iconSize).coerceAtLeast(0)
+    val clampedX = heartX.coerceIn(0, 100)
+    val clampedY = heartY.coerceIn(0, 100)
+    return (maxX * clampedX / 100f).toInt() to (maxY * clampedY / 100f).toInt()
+}
 
 private data class GameCardModel(
     val titleRes: Int,
@@ -125,7 +157,7 @@ private fun GameCard(
 ) {
     Card(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.heightIn(min = VaiwuSizes.careActionHeight),
         enabled = enabled,
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
@@ -141,8 +173,18 @@ private fun GameCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(reward, style = MaterialTheme.typography.bodySmall)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                reward,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
@@ -242,19 +284,25 @@ private fun MiniGameHearts(state: MiniGameState, onChoice: (Int) -> Unit) {
         text = stringResource(R.string.mini_hearts_caught, state.heartsCaught, 5) + " " + stringResource(R.string.mini_time_left, (state.remainingMs + 999) / 1000),
         style = MaterialTheme.typography.bodyLarge,
     )
+    val heartSize = 72.dp
+    val heartPx = with(LocalDensity.current) { heartSize.roundToPx() }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         Icon(
             imageVector = VaiwuIcons.heart,
             contentDescription = null,
             modifier = Modifier
-                .align(Alignment.Center)
+                .align(Alignment.TopStart)
                 .offset {
-                    IntOffset(
-                        (constraints.maxWidth * state.heartX / 100f).toInt(),
-                        (constraints.maxHeight * state.heartY / 100f).toInt(),
+                    val (x, y) = heartOffsetPx(
+                        containerWidth = constraints.maxWidth,
+                        containerHeight = constraints.maxHeight,
+                        iconSize = heartPx,
+                        heartX = state.heartX,
+                        heartY = state.heartY,
                     )
+                    IntOffset(x, y)
                 }
-                .size(72.dp)
+                .size(heartSize)
                 .clickable { onChoice(0) },
             tint = Color(0xFFFF8FA8),
         )
@@ -312,132 +360,5 @@ private fun MiniGameMath(state: MiniGameState, onChoice: (Int) -> Unit) {
         Button(onClick = { onChoice(index) }, modifier = Modifier.fillMaxWidth().padding(4.dp)) {
             Text("$answer")
         }
-    }
-}
-
-@Composable
-fun BattleScreen(
-    battle: BattleSnapshot,
-    hour: Int,
-    onAction: (Int) -> Unit,
-    onNextRoom: () -> Unit,
-    onExit: () -> Unit,
-) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        AssetImage(battleBackgroundForHour(hour), stringResource(R.string.battle_terrain), Modifier.fillMaxSize(), ContentScale.Crop)
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0x9918122B))
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                if (battle.dungeon) {
-                    stringResource(R.string.battle_dungeon, battle.room, battle.rooms)
-                } else {
-                    stringResource(R.string.battle_adventure)
-                },
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            if (battle.boss) {
-                Text(
-                    stringResource(R.string.battle_boss),
-                    color = MaterialTheme.colorScheme.error,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            AssetImage(monsterAsset(battle.foeKind), battle.foeName, Modifier.size(170.dp), ContentScale.Fit)
-            Text(
-                stringResource(R.string.battle_monster_level, battle.foeName, battle.foeLevel),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            CombatBar(stringResource(R.string.battle_foe_hp), battle.foeHp, battle.foeHpMax, MaterialTheme.colorScheme.error)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                stringResource(R.string.battle_level_xp, battle.level, battle.xp, battle.xpNext),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            CombatBar(stringResource(R.string.battle_hp), battle.hp, battle.hpMax, Color(0xFF37E08D))
-            CombatBar(stringResource(R.string.battle_mp), battle.mp, battle.mpMax, Color(0xFF72D9FF))
-            Text(
-                stringResource(R.string.battle_potions, battle.potions, battle.mpPotions),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(VaiwuSizes.battleLogHeight)
-                    .padding(vertical = 12.dp),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(12.dp),
-                ) {
-                    Text(
-                        battle.log,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-            when {
-                battle.cleared -> {
-                    Text(
-                        stringResource(R.string.battle_cleared, battle.chestGold),
-                        color = Color(0xFFFFD166),
-                    )
-                    Button(onClick = onExit) { Text(stringResource(R.string.battle_claim)) }
-                }
-                battle.awaitingRest -> {
-                    Text(stringResource(R.string.battle_rest))
-                    Button(onClick = onNextRoom) { Text(stringResource(R.string.battle_rest_next)) }
-                    OutlinedButton(onClick = onExit) { Text(stringResource(R.string.battle_exit_loot)) }
-                }
-                battle.over -> Button(onClick = onExit) { Text(stringResource(R.string.battle_back_home)) }
-                else -> {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Button(
-                            onClick = { onAction(RpgAction.Attack) },
-                            modifier = Modifier.weight(1f),
-                        ) { Text(stringResource(R.string.battle_action_attack)) }
-                        Button(
-                            onClick = { onAction(RpgAction.Skill) },
-                            modifier = Modifier.weight(1f),
-                        ) { Text(battle.skillName, textAlign = TextAlign.Center) }
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedButton(
-                            onClick = { onAction(RpgAction.Potion) },
-                            modifier = Modifier.weight(1f),
-                        ) { Text(stringResource(R.string.battle_action_hp_potion)) }
-                        OutlinedButton(
-                            onClick = { onAction(RpgAction.MpPotion) },
-                            modifier = Modifier.weight(1f),
-                        ) { Text(stringResource(R.string.battle_action_mp_potion)) }
-                        OutlinedButton(
-                            onClick = { onAction(RpgAction.Run) },
-                            modifier = Modifier.weight(1f),
-                        ) { Text(stringResource(R.string.battle_action_run)) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CombatBar(label: String, value: Int, maximum: Int, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-        LinearProgressIndicator(
-            progress = { if (maximum > 0) (value.toFloat() / maximum).coerceIn(0f, 1f) else 0f },
-            modifier = Modifier.weight(2f),
-            color = color,
-        )
-        Text(" $value/$maximum", style = MaterialTheme.typography.bodySmall)
     }
 }

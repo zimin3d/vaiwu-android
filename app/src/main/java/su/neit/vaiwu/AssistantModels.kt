@@ -23,6 +23,7 @@ data class AssistantIntent(
 data class ChatMessage(
     val text: String,
     val fromPet: Boolean,
+    val id: Long = 0L,
 )
 
 data class AssistantSettings(

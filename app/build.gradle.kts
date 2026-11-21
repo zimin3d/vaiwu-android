@@ -40,9 +40,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (System.getenv("KEYSTORE_FILE").isNullOrEmpty()) {
+                logger.warn("KEYSTORE_FILE is not set: release build will use debug signing")
+            }
             signingConfig = signingConfigs.getByName(
                 if (System.getenv("KEYSTORE_FILE").isNullOrEmpty()) "debug" else "release",
             )

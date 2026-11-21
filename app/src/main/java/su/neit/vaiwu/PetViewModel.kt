@@ -47,6 +47,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val assistantClient = AssistantClient(application)
     private val reminders = ReminderScheduler(application)
     private val settingsStore = application.getSharedPreferences("settings", 0)
+    private val secretStore = SecretStore(settingsStore)
     private val soundPlayer = SoundPlayer()
     private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val saveScope = CoroutineScope(SupervisorJob() + saveDispatcher)
@@ -110,6 +111,15 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val _battle = MutableStateFlow<BattleSnapshot?>(null)
     val battle: StateFlow<BattleSnapshot?> = _battle.asStateFlow()
 
+    private val _tacticalBattle = MutableStateFlow<su.neit.vaiwu.combat.TacticalBattleSession?>(null)
+    val tacticalBattle: StateFlow<su.neit.vaiwu.combat.TacticalBattleSession?> = _tacticalBattle.asStateFlow()
+
+    private val _coachEnabled = MutableStateFlow(settingsStore.getBoolean(CoachPreference, true))
+    val coachEnabled: StateFlow<Boolean> = _coachEnabled.asStateFlow()
+
+    private val _battleFastMode = MutableStateFlow(settingsStore.getBoolean(FastModePreference, false))
+    val battleFastMode: StateFlow<Boolean> = _battleFastMode.asStateFlow()
+
     private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
 
@@ -122,6 +132,9 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val _soundEnabled = MutableStateFlow(settingsStore.getBoolean(SoundPreference, true))
     val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
 
+    private val _hour = MutableStateFlow(currentHour())
+    val hour: StateFlow<Int> = _hour.asStateFlow()
+
     init {
         soundPlayer.enabled = _soundEnabled.value
         loadSavedPet()
@@ -130,6 +143,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 delay(1_000)
                 if (!inForeground || _snapshot.value == null) continue
                 val now = System.currentTimeMillis()
+                _hour.value = currentHour()
                 pet.tick(now)
                 refreshPet()
                 if (now - lastSaveAt >= SaveIntervalMs) {
@@ -150,6 +164,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onForeground() {
+        _hour.value = currentHour()
         if (inForeground) return
         inForeground = true
         val core = backgroundSave
@@ -174,6 +189,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             _rpsResult.value = null
             _miniGame.value = null
             _battle.value = null
+            _tacticalBattle.value = null
         }
     }
 
@@ -213,6 +229,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _rpsResult.value = null
         _miniGame.value = null
         _battle.value = null
+        _tacticalBattle.value = null
         _chatMessages.value = emptyList()
         _speech.value = null
         _systemMessage.value = null
@@ -304,6 +321,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         if (_screen.value == AppScreen.Battle) {
             pet.leaveBattle()
             _battle.value = null
+            _tacticalBattle.value = null
             savePet()
         }
         _rpsResult.value = null
@@ -401,12 +419,15 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startBattle(dungeon: Boolean) {
-        val result = pet.startBattle(dungeon)
+        val result = pet.startPlay()
         refreshPet()
-        if (result != ActionResult.Ok || _snapshot.value?.lifeState != LifeState.Awake) {
-            pet.leaveBattle()
+        val currentPet = _snapshot.value
+        if (result != ActionResult.Ok || currentPet == null || currentPet.lifeState != LifeState.Awake) {
+            if (result == ActionResult.Ok) {
+                pet.cancelPlay()
+            }
             postSystemMessage(
-                if (_snapshot.value?.lifeState == LifeState.Sleeping) {
+                if (currentPet?.lifeState == LifeState.Sleeping) {
                     text(R.string.not_enough_energy_adventure)
                 } else {
                     actionMessage(result)
@@ -414,7 +435,15 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             )
             playSfx(Sfx.Tap)
         } else {
-            _battle.value = pet.battleSnapshot()
+            val inv = pet.inventory()
+            _inventory.value = inv
+            val hero = su.neit.vaiwu.combat.EncounterBuilder.heroBuildFromSnapshots(currentPet, inv)
+            _tacticalBattle.value = su.neit.vaiwu.combat.EncounterBuilder.startSession(
+                hero = hero,
+                dungeon = dungeon,
+                seed = System.nanoTime(),
+            )
+            _battle.value = null
             openFocus(AppScreen.Battle)
             postSystemMessage(
                 text(if (dungeon) R.string.battle_started_dungeon else R.string.battle_started_adventure),
@@ -422,6 +451,158 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             playSfx(Sfx.Encounter)
         }
         savePet()
+    }
+
+    fun performTacticalAction(action: su.neit.vaiwu.combat.CombatAction) {
+        if (_screen.value != AppScreen.Battle) return
+        val session = _tacticalBattle.value ?: return
+        if (session.isOver || !session.state.isPlayerTurn) return
+
+        val nextState = try {
+            su.neit.vaiwu.combat.TacticalCombat.performAndResolve(session.state, action)
+        } catch (_: su.neit.vaiwu.combat.CombatActionException) {
+            playSfx(Sfx.Tap)
+            return
+        }
+
+        if (nextState.winner != null) {
+            _tacticalBattle.value = settleTacticalRoom(session, nextState)
+            refreshPet()
+            refreshEconomy()
+            savePet()
+        } else {
+            val nextUndo = if (action is su.neit.vaiwu.combat.CombatAction.EndTurn) {
+                emptyList()
+            } else {
+                session.undoStack + session.state
+            }
+            _tacticalBattle.value = session.copy(state = nextState, undoStack = nextUndo)
+        }
+    }
+
+    fun undoTacticalAction() {
+        val session = _tacticalBattle.value ?: return
+        if (session.isOver || session.undoStack.isEmpty()) return
+        val previous = session.undoStack.last().copy(events = emptyList())
+        _tacticalBattle.value = session.copy(
+            state = previous,
+            undoStack = session.undoStack.dropLast(1),
+        )
+        playSfx(Sfx.Tap)
+    }
+
+    fun setCoachEnabled(enabled: Boolean) {
+        _coachEnabled.value = enabled
+        settingsStore.edit().putBoolean(CoachPreference, enabled).apply()
+        playSfx(Sfx.Tap)
+    }
+
+    fun setBattleFastMode(fast: Boolean) {
+        _battleFastMode.value = fast
+        settingsStore.edit().putBoolean(FastModePreference, fast).apply()
+        playSfx(Sfx.Tap)
+    }
+
+    fun playCombatEventSfx(event: su.neit.vaiwu.combat.CombatEvent) {
+        playSfx(sfxForCombatEvent(event))
+    }
+
+    private fun settleTacticalRoom(
+        session: su.neit.vaiwu.combat.TacticalBattleSession,
+        finished: su.neit.vaiwu.combat.CombatState,
+    ): su.neit.vaiwu.combat.TacticalBattleSession {
+        val player = finished.player
+        val winner = finished.winner ?: return session
+        return when (winner) {
+            su.neit.vaiwu.combat.CombatWinner.Player -> {
+                val isFinalDungeonRoom = session.dungeon && session.room >= session.rooms
+                val chest = if (isFinalDungeonRoom) {
+                    su.neit.vaiwu.combat.EncounterBuilder.computeDungeonChestGold(
+                        rooms = session.rooms,
+                        seed = finished.rng.seed xor 0x85EBCA6BL,
+                    )
+                } else {
+                    0
+                }
+                val goldTotal = finished.goldDelta + chest
+                val applyPlayBonus = !session.dungeon || isFinalDungeonRoom
+                val levels = pet.settleTacticalBattle(
+                    outcome = BattleOutcome.Victory,
+                    hpLeft = player.hp,
+                    mpLeft = player.mp,
+                    potionsLeft = finished.hpPotions,
+                    mpPotionsLeft = finished.mpPotions,
+                    xpGained = finished.xpEarned,
+                    goldDelta = goldTotal,
+                    applyPlayOutcome = applyPlayBonus,
+                ).coerceAtLeast(0)
+
+                if (applyPlayBonus) {
+                    postSpeech(pet.phrase(PhraseContext.Victory) ?: text(R.string.battle_victory))
+                }
+                session.copy(
+                    state = finished,
+                    undoStack = emptyList(),
+                    awaitingRest = session.dungeon && !isFinalDungeonRoom,
+                    dungeonCleared = isFinalDungeonRoom,
+                    chestGold = chest,
+                    bankedGold = session.bankedGold + goldTotal,
+                    bankedXp = session.bankedXp + finished.xpEarned,
+                    totalXpThisRoom = finished.xpEarned,
+                    totalGoldThisRoom = goldTotal,
+                    levelsGainedThisRoom = levels,
+                    settled = true,
+                )
+            }
+            su.neit.vaiwu.combat.CombatWinner.Enemy -> {
+                val defeatPenalty = -(5 + player.level * 2)
+                val netGold = (finished.goldDelta + defeatPenalty).coerceAtMost(0)
+                pet.settleTacticalBattle(
+                    outcome = BattleOutcome.Defeat,
+                    hpLeft = 0,
+                    mpLeft = player.mp,
+                    potionsLeft = finished.hpPotions,
+                    mpPotionsLeft = finished.mpPotions,
+                    xpGained = 0,
+                    goldDelta = netGold,
+                    applyPlayOutcome = true,
+                )
+                postSpeech(pet.phrase(PhraseContext.Fainted) ?: text(R.string.battle_fainted))
+                session.copy(
+                    state = finished,
+                    undoStack = emptyList(),
+                    awaitingRest = false,
+                    dungeonCleared = false,
+                    totalXpThisRoom = 0,
+                    totalGoldThisRoom = netGold,
+                    levelsGainedThisRoom = 0,
+                    settled = true,
+                )
+            }
+            su.neit.vaiwu.combat.CombatWinner.Escaped -> {
+                pet.settleTacticalBattle(
+                    outcome = BattleOutcome.Escaped,
+                    hpLeft = player.hp.coerceAtLeast(1),
+                    mpLeft = player.mp,
+                    potionsLeft = finished.hpPotions,
+                    mpPotionsLeft = finished.mpPotions,
+                    xpGained = finished.xpEarned,
+                    goldDelta = finished.goldDelta,
+                    applyPlayOutcome = false,
+                )
+                postSystemMessage(text(R.string.battle_loot_saved))
+                session.copy(
+                    state = finished,
+                    undoStack = emptyList(),
+                    awaitingRest = false,
+                    dungeonCleared = false,
+                    totalXpThisRoom = finished.xpEarned,
+                    totalGoldThisRoom = finished.goldDelta,
+                    levelsGainedThisRoom = 0,
+                    settled = true,
+                )
+            }
+        }
     }
 
     fun battleAction(action: Int) {
@@ -464,9 +645,33 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun nextDungeonRoom() {
-        if (!pet.nextDungeonRoom()) return
-        _battle.value = pet.battleSnapshot()
+        val session = _tacticalBattle.value ?: return
+        if (!session.dungeon || !session.awaitingRest || session.dungeonCleared) return
+        if (!pet.restDungeonRoom()) return
         refreshPet()
+        val currentPet = _snapshot.value ?: return
+        val inv = pet.inventory()
+        _inventory.value = inv
+        val nextRoom = session.room + 1
+        val hero = su.neit.vaiwu.combat.EncounterBuilder.heroBuildFromSnapshots(currentPet, inv)
+        val nextState = su.neit.vaiwu.combat.EncounterBuilder.buildRoomCombat(
+            hero = hero,
+            dungeon = true,
+            room = nextRoom,
+            rooms = session.rooms,
+            seed = System.nanoTime() xor (nextRoom.toLong() * 0x9E3779B9L),
+        )
+        _tacticalBattle.value = session.copy(
+            room = nextRoom,
+            isBossRoom = nextRoom >= session.rooms,
+            state = nextState,
+            undoStack = emptyList(),
+            awaitingRest = false,
+            settled = false,
+            totalXpThisRoom = 0,
+            totalGoldThisRoom = 0,
+            levelsGainedThisRoom = 0,
+        )
         playSfx(Sfx.Encounter)
         savePet()
     }
@@ -480,16 +685,35 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         savePet()
     }
 
-    fun saveAssistantSettings(apiKey: String, speechEnabled: Boolean, latitude: Double, longitude: Double): Boolean {
-        if (!latitude.isFinite() || !longitude.isFinite() ||
-            latitude !in -90.0..90.0 || longitude !in -180.0..180.0
-        ) {
+    fun setSpeechEnabled(enabled: Boolean) {
+        settingsStore.edit().putBoolean("speech", enabled).apply()
+        _assistantSettings.value = readAssistantSettings()
+        playSfx(Sfx.Tap)
+    }
+
+    fun clearApiKey() {
+        secretStore.writeApiKey("")
+        _assistantSettings.value = readAssistantSettings()
+        postSystemMessage(text(R.string.settings_api_cleared))
+        playSfx(Sfx.Tap)
+    }
+
+    fun saveAssistantSettings(apiKey: String, latitudeRaw: String, longitudeRaw: String): Boolean {
+        val latitude = parseCoordinate(latitudeRaw)
+        val longitude = parseCoordinate(longitudeRaw)
+        if (latitude == null || longitude == null || !isValidCoordinates(latitude, longitude)) {
             postSystemMessage(text(R.string.settings_invalid_coordinates))
             return false
         }
+        val nextKey = resolveApiKeyUpdate(
+            input = apiKey,
+            clearRequested = false,
+            existing = secretStore.readApiKey(),
+        )
+        if (apiKey.isNotBlank()) {
+            secretStore.writeApiKey(nextKey)
+        }
         settingsStore.edit()
-            .putString("openrouter_key", apiKey.trim().take(300))
-            .putBoolean("speech", speechEnabled)
             .putString("latitude", latitude.toString())
             .putString("longitude", longitude.toString())
             .putBoolean("location_configured", true)
@@ -515,7 +739,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     fun submitChat(rawText: String) {
         val text = rawText.trim().take(2_000)
         if (text.isEmpty() || _chatBusy.value || _snapshot.value == null) return
-        _chatMessages.value = (_chatMessages.value + ChatMessage(text, false)).takeLast(50)
+        _chatMessages.value = (_chatMessages.value + ChatMessage(text, false, messageCounter++)).takeLast(50)
         val intent = pet.parseIntent(text)
         if (intent == null) {
             answerChat(pet.phrase(PhraseContext.Talked) ?: text(R.string.pet_talked_fallback))
@@ -571,8 +795,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun loadChatAnswer() {
-        val settings = _assistantSettings.value
-        val key = settingsStore.getString("openrouter_key", "").orEmpty()
+        val key = secretStore.readApiKey()
         if (key.isBlank()) {
             answerChat(pet.phrase(PhraseContext.Talked) ?: text(R.string.chat_idle))
             return
@@ -585,6 +808,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                     assistantClient.chat(key, current.petName, current.characterName, _chatMessages.value)
                 }
             } catch (_: Exception) {
+                if (!isActive) return@launch
                 pet.phrase(PhraseContext.Talked)?.let { text(R.string.chat_offline, it) }
                     ?: text(R.string.chat_offline_fallback)
             }
@@ -594,7 +818,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun answerChat(text: String) {
-        _chatMessages.value = (_chatMessages.value + ChatMessage(text, true)).takeLast(50)
+        _chatMessages.value = (_chatMessages.value + ChatMessage(text, true, messageCounter++)).takeLast(50)
         playSfx(Sfx.Talk)
     }
 
@@ -768,7 +992,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                     updater.findLatestUpdate(BuildConfig.VERSION_NAME)
                 }
                 if (release == null) {
-                    _updateState.value = UpdateUiState.NoUpdate
+                    _updateState.value = UpdateUiState.Idle
+                    postSystemMessage(text(R.string.update_none))
                 } else {
                     _updateState.value = UpdateUiState.Available(release)
                 }
@@ -903,7 +1128,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun readAssistantSettings(): AssistantSettings = AssistantSettings(
         speechEnabled = settingsStore.getBoolean("speech", false),
-        hasApiKey = !settingsStore.getString("openrouter_key", "").isNullOrBlank(),
+        hasApiKey = secretStore.hasApiKey(),
         locationConfigured = settingsStore.getBoolean("location_configured", false),
         latitude = settingsStore.getString("latitude", "0")?.toDoubleOrNull() ?: 0.0,
         longitude = settingsStore.getString("longitude", "0")?.toDoubleOrNull() ?: 0.0,
@@ -927,13 +1152,15 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         flushSave()
         saveDispatcher.close()
         soundPlayer.close()
-        pet.close()
         super.onCleared()
+        pet.close()
     }
 
     private companion object {
         const val SaveHeader = "VAIWU-ANDROID-1"
         const val SaveIntervalMs = 15_000L
         const val SoundPreference = "sound"
+        const val CoachPreference = "tactical_coach"
+        const val FastModePreference = "tactical_fast"
     }
 }

@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
+    <!-- Downloaded APKs live in cacheDir/updates/, which the OS excludes automatically. -->
     <cloud-backup>
-        <exclude domain="file" path="updates/" />
         <exclude domain="sharedpref" path="settings.xml" />
         <exclude domain="sharedpref" path="reminders.xml" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="file" path="updates/" />
         <exclude domain="sharedpref" path="settings.xml" />
         <exclude domain="sharedpref" path="reminders.xml" />
     </device-transfer>

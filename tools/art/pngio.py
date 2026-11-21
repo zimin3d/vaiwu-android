@@ -26,6 +26,9 @@ PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 #: Samples per pixel for each PNG colour type.
 _CHANNELS = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
 
+#: Hard cap on decoded pixels to prevent decompression bombs from exhausting RAM.
+MAX_IMAGE_PIXELS = 64_000_000
+
 
 class PngError(ValueError):
     """Raised when a file is not a PNG this codec can handle."""
@@ -116,6 +119,8 @@ def decode_png(data: bytes) -> Tuple[int, int, List[bytearray]]:
     if header is None:
         raise PngError("PNG has no IHDR chunk")
     width, height, bit_depth, color_type, compression, filter_method, interlace = header
+    if width <= 0 or height <= 0 or width * height > MAX_IMAGE_PIXELS:
+        raise PngError(f"unsupported image dimensions {width}x{height}")
     if compression != 0 or filter_method != 0:
         raise PngError(f"unsupported compression/filter method {compression}/{filter_method}")
     if interlace != 0:
@@ -128,9 +133,19 @@ def decode_png(data: bytes) -> Tuple[int, int, List[bytearray]]:
     if color_type == 3 and palette is None:
         raise PngError("palettised PNG without a PLTE chunk")
 
-    raw = zlib.decompress(bytes(idat)) if idat else b""
     stride = width * channels
-    if len(raw) < (stride + 1) * height:
+    expected_raw = (stride + 1) * height
+    if idat:
+        decompressor = zlib.decompressobj()
+        try:
+            raw = decompressor.decompress(bytes(idat), expected_raw + 1)
+            if not decompressor.eof or len(raw) > expected_raw:
+                raise PngError("PNG image data exceeds expected decompressed size")
+        except zlib.error as error:
+            raise PngError(f"corrupt PNG compressed data: {error}") from error
+    else:
+        raw = b""
+    if len(raw) < expected_raw:
         raise PngError("PNG pixel data is shorter than the header promises")
 
     scanlines = _unfilter(raw, width, height, channels)

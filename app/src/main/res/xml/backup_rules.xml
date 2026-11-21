@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <exclude domain="file" path="updates/" />
+    <!-- Downloaded APKs live in cacheDir/updates/, which the OS excludes automatically. -->
     <exclude domain="sharedpref" path="settings.xml" />
     <exclude domain="sharedpref" path="reminders.xml" />
 </full-backup-content>

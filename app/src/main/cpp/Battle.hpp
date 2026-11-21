@@ -64,8 +64,8 @@ public:
             pet.addCoins(static_cast<std::uint32_t>(result.snagged));
         }
         if (result.goldStolen > 0) {
-            (void)pet.spendCoins(static_cast<std::uint32_t>(
-                std::min(static_cast<int>(pet.coins()), result.goldStolen)));
+            const auto stolen = static_cast<std::uint32_t>(result.goldStolen);
+            (void)pet.spendCoins(std::min(pet.coins(), stolen));
         }
         if (result.victory) {
             pet.addCoins(static_cast<std::uint32_t>(result.goldGained));
@@ -85,8 +85,10 @@ public:
                 }
             }
         } else if (result.defeat) {
-            (void)pet.spendCoins(static_cast<std::uint32_t>(
-                std::min(static_cast<int>(pet.coins()), result.goldLostHint)));
+            if (result.goldLostHint > 0) {
+                const auto lost = static_cast<std::uint32_t>(result.goldLostHint);
+                (void)pet.spendCoins(std::min(pet.coins(), lost));
+            }
             pet.applyPlayResult(false);
             state_.over = true;
             state_.outcome = BattleOutcome::Defeat;
@@ -245,5 +247,102 @@ private:
 
     BattleState state_{};
 };
+
+struct TacticalSettlement {
+    int outcome{0}; // BattleOutcome: 1=Victory, -1=Defeat, 2=Escaped
+    int hpLeft{0};
+    int mpLeft{0};
+    int potionsLeft{0};
+    int mpPotionsLeft{0};
+    int xpGained{0};
+    int goldDelta{0};
+    bool applyPlayOutcome{true};
+};
+
+// Validates and applies the result of an Android tactical combat room/battle to
+// VaiwuPet without altering the V6 save format. Returns levels gained (>= 0),
+// or -1 if the pet is dead or outcome is invalid.
+inline int settleTacticalBattle(game::VaiwuPet& pet, const TacticalSettlement& s)
+{
+    using namespace vaiwu::game;
+    if (pet.life() == LifeState::Dead) {
+        return -1;
+    }
+    const auto outcome = static_cast<BattleOutcome>(s.outcome);
+    if (outcome != BattleOutcome::Victory &&
+        outcome != BattleOutcome::Defeat &&
+        outcome != BattleOutcome::Escaped) {
+        return -1;
+    }
+
+    auto& progress = pet.rpg();
+    normalizeRpg(pet.character(), progress);
+    const int hpMax = hpMaxFor(pet.character(), progress);
+    const int mpMax = mpMaxFor(pet.character(), progress);
+
+    progress.guardTurns = 0;
+    progress.poisonTurns = 0;
+    progress.stunTurns = 0;
+
+    // Potions can only be spent during combat, never conjured out of thin air.
+    const int maxPotions = std::clamp(progress.potions, 0, 99);
+    const int maxMpPotions = std::clamp(progress.mpPotions, 0, 99);
+    progress.potions = std::clamp(s.potionsLeft, 0, maxPotions);
+    progress.mpPotions = std::clamp(s.mpPotionsLeft, 0, maxMpPotions);
+    progress.hp = std::clamp(s.hpLeft, 0, hpMax);
+    progress.mp = std::clamp(s.mpLeft, 0, mpMax);
+
+    const int goldDelta = std::clamp(s.goldDelta, -5000, 5000);
+    if (goldDelta > 0) {
+        pet.addCoins(static_cast<std::uint32_t>(goldDelta));
+    } else if (goldDelta < 0) {
+        const auto loss = static_cast<std::uint32_t>(-goldDelta);
+        (void)pet.spendCoins(std::min(pet.coins(), loss));
+    }
+
+    int levelsGained = 0;
+    if (outcome == BattleOutcome::Victory) {
+        const int xp = std::clamp(s.xpGained, 0, 5000);
+        progress.xp += xp;
+        while (progress.xp >= xpForNext(progress.level) && progress.level < 99) {
+            progress.xp -= xpForNext(progress.level);
+            ++progress.level;
+            progress.statPoints += kPointsPerLevel;
+            ++levelsGained;
+        }
+        if (levelsGained > 0) {
+            progress.hp = hpMaxFor(pet.character(), progress);
+            progress.mp = mpMaxFor(pet.character(), progress);
+        } else if (progress.hp <= 0) {
+            progress.hp = 1;
+        }
+        if (s.applyPlayOutcome) {
+            pet.applyPlayResult(true);
+        }
+    } else if (outcome == BattleOutcome::Defeat) {
+        // Defeat in battle faints the pet back home at ~30% HP; never pet death.
+        progress.hp = std::max(1, hpMax * 3 / 10);
+        if (s.applyPlayOutcome) {
+            pet.applyPlayResult(false);
+        }
+    } else {
+        progress.hp = std::max(1, progress.hp);
+    }
+
+    normalizeRpg(pet.character(), progress);
+    return levelsGained;
+}
+
+inline bool restBetweenTacticalRooms(game::VaiwuPet& pet)
+{
+    using namespace vaiwu::game;
+    if (pet.life() == LifeState::Dead) {
+        return false;
+    }
+    restBetweenRooms(pet.character(), pet.rpg());
+    pet.rpg().poisonTurns = 0;
+    pet.rpg().stunTurns = 0;
+    return true;
+}
 
 } // namespace vaiwu::android

@@ -1,9 +1,11 @@
 #include "AndroidGame.hpp"
 #include "Battle.hpp"
+#include "Utf8Codec.hpp"
 #include "vaiwu/game/Assistant.hpp"
 #include "vaiwu/game/OfflinePhrases.hpp"
 #include "vaiwu/game/SoundSynth.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -321,6 +323,134 @@ void testSoundSynthCoversEveryEffect()
     }
 }
 
+void testUtf8Utf16RoundTripHandlesEmojiAndMalformedInput()
+{
+    using vaiwu::android::utf16ToUtf8;
+    using vaiwu::android::utf8ToUtf16;
+
+    // ASCII + Cyrillic + 3-byte BMP + 4-byte emoji (U+1F431 cat face).
+    const std::string original = "Aoi \xD0\x9F\xD1\x80\xD0\xB8\xD0\xB2\xD0\xB5\xD1\x82 \xE2\x9C\xA8 \xF0\x9F\x90\xB1";
+    const std::u16string u16 = utf8ToUtf16(original);
+    CHECK(!u16.empty());
+    const std::string roundTripped = utf16ToUtf8(
+        reinterpret_cast<const std::uint16_t*>(u16.data()), u16.size());
+    CHECK(roundTripped == original);
+
+    // Lone surrogates in UTF-16 become U+FFFD instead of invalid UTF-8.
+    const std::uint16_t loneHigh[] = {0xD83D, 'A'};
+    const std::string sanitized16 = utf16ToUtf8(loneHigh, 2);
+    CHECK(sanitized16 == "\xEF\xBF\xBD" "A");
+
+    // Truncated 4-byte UTF-8 sequence becomes U+FFFD instead of crashing.
+    const std::u16string sanitized8 = utf8ToUtf16(std::string("\xF0\x9F\x90", 3));
+    CHECK(!sanitized8.empty());
+    CHECK(sanitized8[0] == u'\uFFFD');
+}
+
+void testDeserializeRejectsNonFiniteAndClampsCorruptValues()
+{
+    VaiwuPet pet;
+    CHECK(!pet.deserialize("V1 0 nan 80 100 60 15 0 0 0\nAoi", 1000));
+    CHECK(!pet.deserialize("V1 0 50 inf 100 60 15 0 0 0\nAoi", 1000));
+    CHECK(!pet.deserialize("V1 0 50 80 -inf 60 15 0 0 0\nAoi", 1000));
+
+    // Extreme coins and RPG allocations are clamped safely.
+    const std::string extreme =
+        "V3 0 80 80 80 60 15 100 0 0 3000000000 "
+        "999 -50 99999 -10 999999 0 0 0 999999 999999 999\nAoi";
+    CHECK(pet.deserialize(extreme, 1000));
+    CHECK(pet.coins() == 99999U);
+    CHECK(pet.rpg().level == 99);
+    CHECK(pet.rpg().xp == 0);
+    CHECK(pet.rpg().statPoints == 300);
+    CHECK(pet.rpg().alloc.str == 0);
+    CHECK(pet.rpg().alloc.vit == 500);
+    CHECK(pet.rpg().potions == 99);
+    CHECK(std::isfinite(pet.stats().hunger));
+}
+
+void testTacticalSettlementVictoryLevelUpAndClamping()
+{
+    VaiwuPet pet;
+    pet.startNew(CharacterId::Aoi, "Aoi", 1000);
+    pet.rpg().potions = 2;
+    pet.rpg().mpPotions = 1;
+    const auto coinsBefore = pet.coins();
+
+    vaiwu::android::TacticalSettlement win{};
+    win.outcome = static_cast<int>(vaiwu::android::BattleOutcome::Victory);
+    win.hpLeft = 10;
+    win.mpLeft = 3;
+    // Attempt to inflate potions beyond inventory must be clamped to owned count.
+    win.potionsLeft = 50;
+    win.mpPotionsLeft = 0;
+    win.xpGained = xpForNext(1) + 5;
+    win.goldDelta = 15;
+    win.applyPlayOutcome = true;
+
+    const int gained = vaiwu::android::settleTacticalBattle(pet, win);
+    CHECK(gained == 1);
+    CHECK(pet.rpg().level == 2);
+    CHECK(pet.rpg().xp == 5);
+    CHECK(pet.rpg().statPoints == kPointsPerLevel);
+    CHECK(pet.rpg().hp == hpMaxFor(pet.character(), pet.rpg()));
+    CHECK(pet.rpg().mp == mpMaxFor(pet.character(), pet.rpg()));
+    CHECK(pet.rpg().potions == 2);
+    CHECK(pet.rpg().mpPotions == 0);
+    CHECK(pet.coins() == coinsBefore + 15U);
+
+    // Invalid outcome rejected without modifying state.
+    vaiwu::android::TacticalSettlement invalid{};
+    invalid.outcome = 99;
+    CHECK(vaiwu::android::settleTacticalBattle(pet, invalid) == -1);
+}
+
+void testTacticalSettlementDefeatEscapeAndRest()
+{
+    VaiwuPet pet;
+    pet.startNew(CharacterId::Rin, "Rin", 1000);
+    pet.addCoins(20);
+    const int hpMax = hpMaxFor(pet.character(), pet.rpg());
+
+    // Defeat faints back home (~30% HP), never kills pet, clamps coin loss.
+    vaiwu::android::TacticalSettlement defeat{};
+    defeat.outcome = static_cast<int>(vaiwu::android::BattleOutcome::Defeat);
+    defeat.hpLeft = 0;
+    defeat.mpLeft = 2;
+    defeat.potionsLeft = 0;
+    defeat.mpPotionsLeft = 0;
+    defeat.xpGained = 50; // ignored on defeat
+    defeat.goldDelta = -999;
+    defeat.applyPlayOutcome = true;
+
+    CHECK(vaiwu::android::settleTacticalBattle(pet, defeat) == 0);
+    CHECK(pet.life() != LifeState::Dead);
+    CHECK(pet.rpg().hp == std::max(1, hpMax * 3 / 10));
+    CHECK(pet.coins() == 0U);
+    CHECK(pet.rpg().xp == 0);
+
+    // Rest between dungeon rooms recovers HP and MP.
+    const int hpBeforeRest = pet.rpg().hp;
+    const int mpBeforeRest = pet.rpg().mp;
+    CHECK(vaiwu::android::restBetweenTacticalRooms(pet));
+    CHECK(pet.rpg().hp > hpBeforeRest);
+    CHECK(pet.rpg().mp >= mpBeforeRest);
+
+    // Escape keeps surviving HP (>= 1) and banked gold.
+    vaiwu::android::TacticalSettlement escape{};
+    escape.outcome = static_cast<int>(vaiwu::android::BattleOutcome::Escaped);
+    escape.hpLeft = 0;
+    escape.mpLeft = 4;
+    escape.potionsLeft = 0;
+    escape.mpPotionsLeft = 0;
+    escape.goldDelta = 7;
+    escape.applyPlayOutcome = false;
+
+    CHECK(vaiwu::android::settleTacticalBattle(pet, escape) == 0);
+    CHECK(pet.rpg().hp == 1);
+    CHECK(pet.coins() == 7U);
+}
+
 } // namespace
 
 int main()
@@ -340,6 +470,10 @@ int main()
     testPlayRefusesWhenItWouldPutPetToSleep();
     testPlayStartsWhenEnoughEnergyRemains();
     testSoundSynthCoversEveryEffect();
+    testUtf8Utf16RoundTripHandlesEmojiAndMalformedInput();
+    testDeserializeRejectsNonFiniteAndClampsCorruptValues();
+    testTacticalSettlementVictoryLevelUpAndClamping();
+    testTacticalSettlementDefeatEscapeAndRest();
 
     if (failures == 0) {
         std::printf("ALL ANDROID NATIVE TESTS PASSED\n");

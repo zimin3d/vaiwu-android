@@ -86,3 +86,15 @@ fun isRoundActive(
     AppScreen.Battle -> battle != null && (!battle.over || battle.awaitingRest)
     else -> false
 }
+
+fun isTacticalRoundActive(
+    screen: AppScreen,
+    rpsResult: RpsResult?,
+    miniGame: MiniGameState?,
+    tacticalBattle: su.neit.vaiwu.combat.TacticalBattleSession?,
+): Boolean = when (screen) {
+    AppScreen.Rps -> rpsResult == null
+    AppScreen.MiniGame -> miniGame != null && !miniGame.finished
+    AppScreen.Battle -> tacticalBattle != null && (!tacticalBattle.isOver || tacticalBattle.awaitingRest)
+    else -> false
+}

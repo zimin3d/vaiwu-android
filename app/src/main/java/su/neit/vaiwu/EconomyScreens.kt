@@ -5,12 +5,13 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -311,8 +312,26 @@ private fun BagItemCard(
                     modifier = Modifier.padding(5.dp),
                 )
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(item.name, fontWeight = FontWeight.Bold)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.xs),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        item.name,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = stringResource(R.string.bag_count, item.count),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
                 if (item.effect.isNotBlank()) {
                     Text(
                         item.effect,
@@ -320,14 +339,15 @@ private fun BagItemCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-            Text(
-                text = stringResource(R.string.bag_count, item.count),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.secondary,
-            )
-            OutlinedButton(onClick = onUse, enabled = item.usable) {
-                Text(stringResource(R.string.use_item))
+                OutlinedButton(
+                    onClick = onUse,
+                    enabled = item.usable,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = VaiwuSizes.secondaryButtonHeight),
+                ) {
+                    Text(stringResource(R.string.use_item))
+                }
             }
         }
     }
@@ -360,32 +380,41 @@ fun PetScreen(
             fontWeight = FontWeight.Bold,
         )
         inventory?.let { stats ->
-            StatMeter(
-                label = stringResource(R.string.stat_strength),
-                value = stats.strength.toFloat(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            StatMeter(
-                label = stringResource(R.string.stat_vitality),
-                value = stats.vitality.toFloat(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            StatMeter(
-                label = stringResource(R.string.stat_agility),
-                value = stats.agility.toFloat(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            StatMeter(
-                label = stringResource(R.string.stat_magic),
-                value = stats.magic.toFloat(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            StatMeter(
-                label = stringResource(R.string.stat_luck),
-                value = stats.luck.toFloat(),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Spacer(Modifier.height(VaiwuSpacing.small))
+            SectionCard(title = stringResource(R.string.inventory_level, stats.level, stats.xp, stats.xpNext)) {
+                Text(
+                    text = stringResource(R.string.inventory_hp_mp, stats.hp, stats.hpMax, stats.mp, stats.mpMax),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+                StatMeter(
+                    label = stringResource(R.string.stat_strength),
+                    value = stats.strength.toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                StatMeter(
+                    label = stringResource(R.string.stat_vitality),
+                    value = stats.vitality.toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                StatMeter(
+                    label = stringResource(R.string.stat_agility),
+                    value = stats.agility.toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                StatMeter(
+                    label = stringResource(R.string.stat_magic),
+                    value = stats.magic.toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                StatMeter(
+                    label = stringResource(R.string.stat_luck),
+                    value = stats.luck.toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             if (stats.statPoints > 0) {
+                Spacer(Modifier.height(VaiwuSpacing.small))
                 StatAllocation(points = stats.statPoints, onAllocate = onAllocate)
             }
         }
@@ -492,19 +521,33 @@ fun PetScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StatAllocation(points: Int, onAllocate: (Int) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+    ) {
         Column(
-            modifier = Modifier.padding(VaiwuSpacing.medium),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(VaiwuSpacing.medium),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
         ) {
             Text(
                 text = stringResource(R.string.stat_points_free, points),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
             )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 listOf(
                     stringResource(R.string.stat_strength) to 0,
                     stringResource(R.string.stat_vitality) to 1,
@@ -512,7 +555,10 @@ private fun StatAllocation(points: Int, onAllocate: (Int) -> Unit) {
                     stringResource(R.string.stat_magic) to 3,
                     stringResource(R.string.stat_luck) to 4,
                 ).forEach { (label, index) ->
-                    OutlinedButton(onClick = { onAllocate(index) }) {
+                    OutlinedButton(
+                        onClick = { onAllocate(index) },
+                        modifier = Modifier.heightIn(min = VaiwuSizes.secondaryButtonHeight),
+                    ) {
                         Text(stringResource(R.string.stat_allocate, label))
                     }
                 }
@@ -559,9 +605,12 @@ fun RpsScreen(
                 choices.forEachIndexed { index, name ->
                     Button(
                         onClick = { onChoice(index) },
-                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = VaiwuSpacing.small, vertical = VaiwuSpacing.medium),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = VaiwuSizes.primaryButtonHeight),
                     ) {
-                        Text(name, textAlign = TextAlign.Center)
+                        Text(name, textAlign = TextAlign.Center, maxLines = 1)
                     }
                 }
             }

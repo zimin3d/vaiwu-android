@@ -1,5 +1,6 @@
 #include <jni.h>
 
+#include "JniHelpers.hpp"
 #include "NativeState.hpp"
 #include "vaiwu/game/Assistant.hpp"
 #include "vaiwu/game/OfflinePhrases.hpp"
@@ -7,20 +8,27 @@
 namespace {
 NativePetState* state(jlong handle)
 {
+    if (handle == 0) {
+        return nullptr;
+    }
     return reinterpret_cast<NativePetState*>(static_cast<intptr_t>(handle));
 }
-}
+} // namespace
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_su_neit_vaiwu_NativePet_nativePhrase(JNIEnv* env, jobject, jlong handle, jint context)
 {
     using namespace vaiwu::game;
     auto* native = state(handle);
-    if (context < 0 || context > static_cast<jint>(PhraseContext::Fainted)) {
+    if (native == nullptr || context < 0 || context > static_cast<jint>(PhraseContext::Fainted)) {
         return nullptr;
     }
-    return env->NewStringUTF(offlinePhrase(native->pet.character(),
-        static_cast<PhraseContext>(context), native->rng(), Lang::Ru));
+    const char* text = offlinePhrase(native->pet.character(),
+        static_cast<PhraseContext>(context), native->rng(), Lang::Ru);
+    if (text == nullptr) {
+        return nullptr;
+    }
+    return vaiwu::android::toJavaString(env, text);
 }
 
 extern "C" JNIEXPORT jobject JNICALL
@@ -34,33 +42,67 @@ Java_su_neit_vaiwu_NativePet_nativeCharacterProfile(JNIEnv* env, jobject, jlong,
     const auto& traits = traitsFor(character);
     const auto& stats = baseStatsFor(character);
     const jclass model = env->FindClass("su/neit/vaiwu/CharacterProfile");
+    if (model == nullptr) {
+        return nullptr;
+    }
     const jmethodID constructor = env->GetMethodID(model, "<init>",
         "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;IIIII)V");
-    return env->NewObject(model, constructor, id, env->NewStringUTF(traits.name),
-        env->NewStringUTF(traits.personality), env->NewStringUTF(traits.favoriteFood),
-        stats.str, stats.vit, stats.agi, stats.mag, stats.luck);
+    if (constructor == nullptr) {
+        env->DeleteLocalRef(model);
+        return nullptr;
+    }
+    jstring nameStr = vaiwu::android::toJavaString(env, traits.name);
+    jstring personalityStr = vaiwu::android::toJavaString(env, traits.personality);
+    jstring foodStr = vaiwu::android::toJavaString(env, traits.favoriteFood);
+    jobject profile = nullptr;
+    if (nameStr != nullptr && personalityStr != nullptr && foodStr != nullptr) {
+        profile = env->NewObject(model, constructor, id, nameStr, personalityStr, foodStr,
+            stats.str, stats.vit, stats.agi, stats.mag, stats.luck);
+    }
+    if (nameStr != nullptr) env->DeleteLocalRef(nameStr);
+    if (personalityStr != nullptr) env->DeleteLocalRef(personalityStr);
+    if (foodStr != nullptr) env->DeleteLocalRef(foodStr);
+    env->DeleteLocalRef(model);
+    return profile;
 }
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_su_neit_vaiwu_NativePet_nativeParseIntent(JNIEnv* env, jobject, jlong, jstring text)
 {
     using namespace vaiwu::game;
-    const char* utf = env->GetStringUTFChars(text, nullptr);
-    if (utf == nullptr) {
+    std::string utf;
+    if (!vaiwu::android::fromJavaString(env, text, utf)) {
         return nullptr;
     }
-    const Intent parsed = parseIntent(utf, Lang::Ru);
-    env->ReleaseStringUTFChars(text, utf);
+    const Intent parsed = parseIntent(utf.c_str(), Lang::Ru);
     const jclass model = env->FindClass("su/neit/vaiwu/AssistantIntent");
+    if (model == nullptr) {
+        return nullptr;
+    }
     const jmethodID constructor = env->GetMethodID(model, "<init>",
         "(IIIILjava/lang/String;)V");
-    return env->NewObject(model, constructor, static_cast<jint>(parsed.kind), parsed.hour,
-        parsed.minute, parsed.afterMinutes, env->NewStringUTF(parsed.convertResult));
+    if (constructor == nullptr) {
+        env->DeleteLocalRef(model);
+        return nullptr;
+    }
+    jstring convertStr = vaiwu::android::toJavaString(env, parsed.convertResult);
+    jobject intent = nullptr;
+    if (convertStr != nullptr) {
+        intent = env->NewObject(model, constructor, static_cast<jint>(parsed.kind), parsed.hour,
+            parsed.minute, parsed.afterMinutes, convertStr);
+        env->DeleteLocalRef(convertStr);
+    }
+    env->DeleteLocalRef(model);
+    return intent;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_su_neit_vaiwu_NativePet_nativeJoke(JNIEnv* env, jobject, jlong handle)
 {
     auto* native = state(handle);
-    return env->NewStringUTF(vaiwu::game::jokeText(vaiwu::game::Lang::Ru, native->rng()));
+    if (native == nullptr) {
+        return vaiwu::android::toJavaString(env, "");
+    }
+    return vaiwu::android::toJavaString(env,
+        vaiwu::game::jokeText(vaiwu::game::Lang::Ru, native->rng()));
 }

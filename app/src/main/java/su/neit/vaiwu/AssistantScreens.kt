@@ -2,11 +2,13 @@ package su.neit.vaiwu
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,10 +19,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -30,8 +36,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,13 +101,17 @@ fun ChatScreen(
                 }
             }
         }
-        val lastPetReply = messages.lastOrNull()?.takeIf { it.fromPet }?.text
-        LaunchedEffect(speechEnabled, lastPetReply) {
-            // The pet speaks through the voice channel, never through the chat
-            // input (I-6). Key on the reply itself, otherwise a newly arrived
-            // message never re-triggers the effect.
-            if (speechEnabled && lastPetReply != null) {
-                voice?.speak(lastPetReply)
+        val lastPetMessage = messages.lastOrNull()?.takeIf { it.fromPet }
+        var lastSpokenId by rememberSaveable {
+            mutableLongStateOf(messages.lastOrNull { it.fromPet }?.id ?: -1L)
+        }
+        LaunchedEffect(speechEnabled, lastPetMessage?.id) {
+            // Speak only newly arrived pet replies, keyed by monotonic message
+            // id so identical consecutive replies still speak while tab
+            // switches never replay old messages.
+            if (speechEnabled && lastPetMessage != null && lastPetMessage.id > lastSpokenId) {
+                lastSpokenId = lastPetMessage.id
+                voice?.speak(lastPetMessage.text)
             }
         }
         Row(
@@ -107,7 +119,7 @@ fun ChatScreen(
                 .fillMaxWidth()
                 .imePadding(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
         ) {
             OutlinedTextField(
                 value = input,
@@ -116,22 +128,33 @@ fun ChatScreen(
                 label = { Text(stringResource(R.string.chat_input_label)) },
                 maxLines = 3,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                keyboardActions = KeyboardActions(onDone = { onSend(input); input = "" }),
+                keyboardActions = KeyboardActions(onDone = {
+                    if (input.isNotBlank() && !busy) {
+                        onSend(input)
+                        input = ""
+                    }
+                }),
             )
-            Button(
+            OutlinedButton(
                 onClick = { voice?.listen() },
                 enabled = voice != null && !busy,
+                contentPadding = PaddingValues(horizontal = VaiwuSpacing.medium, vertical = VaiwuSpacing.small),
+                modifier = Modifier.heightIn(min = VaiwuSizes.minTouchTarget),
             ) {
-                Text(stringResource(R.string.chat_voice_button))
+                Text(stringResource(R.string.chat_voice_button), maxLines = 1)
             }
-            Button(
+            FilledIconButton(
                 onClick = {
                     onSend(input)
                     input = ""
                 },
                 enabled = input.isNotBlank() && !busy,
+                modifier = Modifier.size(VaiwuSizes.minTouchTarget),
             ) {
-                Text(stringResource(R.string.chat_send))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = stringResource(R.string.chat_send),
+                )
             }
         }
     }
@@ -147,13 +170,14 @@ fun SettingsScreen(
     soundEnabled: Boolean,
     voice: VoiceController?,
     onSoundEnabled: (Boolean) -> Unit,
-    onSave: (String, Boolean, Double, Double) -> Unit,
+    onSpeechEnabled: (Boolean) -> Unit,
+    onClearApiKey: () -> Unit,
+    onSave: (String, String, String) -> Boolean,
     onUpdate: () -> Unit,
     onHelp: () -> Unit,
     onReset: () -> Unit,
 ) {
     var apiKey by remember { mutableStateOf("") }
-    var speech by remember(settings.speechEnabled) { mutableStateOf(settings.speechEnabled) }
     var latitude by remember(settings.latitude.toString()) { mutableStateOf(settings.latitude.toString()) }
     var longitude by remember(settings.longitude.toString()) { mutableStateOf(settings.longitude.toString()) }
 
@@ -195,7 +219,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            Switch(checked = speech, onCheckedChange = { speech = it })
+            Switch(checked = settings.speechEnabled, onCheckedChange = onSpeechEnabled)
         }
         OutlinedButton(
             onClick = { voice?.requestNotifications() },
@@ -221,6 +245,11 @@ fun SettingsScreen(
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
         )
+        if (settings.hasApiKey) {
+            TextButton(onClick = onClearApiKey) {
+                Text(stringResource(R.string.settings_api_clear))
+            }
+        }
         Spacer(Modifier.height(16.dp))
         Text(stringResource(R.string.settings_location_title), style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
@@ -237,10 +266,8 @@ fun SettingsScreen(
         )
         Button(
             onClick = {
-                val lat = latitude.toDoubleOrNull()
-                val lon = longitude.toDoubleOrNull()
-                if (lat != null && lon != null) {
-                    onSave(apiKey, speech, lat, lon)
+                if (onSave(apiKey, latitude, longitude)) {
+                    apiKey = ""
                 }
             },
             modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),

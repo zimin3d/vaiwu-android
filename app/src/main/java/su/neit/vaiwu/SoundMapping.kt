@@ -76,3 +76,24 @@ internal fun sfxForBattleAction(
 
 /** Maps a melody pad (0..3) to its note effect. */
 internal fun sfxForNote(note: Int): Int = Sfx.Note.getOrElse(note) { Sfx.Tap }
+
+/** Maps a tactical combat playback event to a synthesized sound effect. */
+internal fun sfxForCombatEvent(event: su.neit.vaiwu.combat.CombatEvent): Int? = when (event) {
+    is su.neit.vaiwu.combat.CombatEvent.Move -> if (event.teleport) Sfx.Magic else Sfx.Tap
+    is su.neit.vaiwu.combat.CombatEvent.SkillCast -> Sfx.Magic
+    is su.neit.vaiwu.combat.CombatEvent.WeaponStrike -> Sfx.Hit
+    is su.neit.vaiwu.combat.CombatEvent.ShieldUp -> Sfx.Magic
+    is su.neit.vaiwu.combat.CombatEvent.Blocked -> Sfx.Tap
+    is su.neit.vaiwu.combat.CombatEvent.Damage -> when {
+        event.targetId == su.neit.vaiwu.combat.PLAYER_ID -> Sfx.Hurt
+        event.crit -> Sfx.Crit
+        else -> Sfx.Hit
+    }
+    is su.neit.vaiwu.combat.CombatEvent.Heal -> Sfx.Magic
+    is su.neit.vaiwu.combat.CombatEvent.MpRestore -> Sfx.Magic
+    is su.neit.vaiwu.combat.CombatEvent.StatusApplied -> Sfx.Tap
+    is su.neit.vaiwu.combat.CombatEvent.CommandMark -> Sfx.Encounter
+    is su.neit.vaiwu.combat.CombatEvent.Down ->
+        if (event.targetId == su.neit.vaiwu.combat.PLAYER_ID) Sfx.Lose else Sfx.Win
+    is su.neit.vaiwu.combat.CombatEvent.FleeAttempt -> if (event.success) Sfx.Tap else Sfx.Hurt
+}

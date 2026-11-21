@@ -1,8 +1,10 @@
 #include <jni.h>
 
 #include "AndroidGame.hpp"
+#include "JniHelpers.hpp"
 #include "NativeState.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <random>
@@ -17,17 +19,21 @@ namespace {
 
 NativePetState* state(jlong handle)
 {
+    if (handle == 0) {
+        return nullptr;
+    }
     return reinterpret_cast<NativePetState*>(static_cast<intptr_t>(handle));
 }
 
 vaiwu::game::VaiwuPet* pet(jlong handle)
 {
-    return &state(handle)->pet;
+    auto* s = state(handle);
+    return s == nullptr ? nullptr : &s->pet;
 }
 
 jstring javaString(JNIEnv* env, const std::string& value)
 {
-    return env->NewStringUTF(value.c_str());
+    return vaiwu::android::toJavaString(env, value);
 }
 
 void appendBonus(std::string& text, vaiwu::game::Str label, int value)
@@ -93,17 +99,17 @@ extern "C" JNIEXPORT void JNICALL
 Java_su_neit_vaiwu_NativePet_nativeStartNew(
     JNIEnv* env, jobject, jlong handle, jint characterId, jstring name, jlong nowMs)
 {
-    if (characterId < 0 || characterId >= vaiwu::game::kCharacterCount) {
+    auto* s = state(handle);
+    if (s == nullptr || characterId < 0 || characterId >= vaiwu::game::kCharacterCount) {
         return;
     }
-    const char* utfName = env->GetStringUTFChars(name, nullptr);
-    const std::string petName = utfName == nullptr ? "" : utfName;
-    if (utfName != nullptr) {
-        env->ReleaseStringUTFChars(name, utfName);
+    std::string petName;
+    if (name != nullptr) {
+        (void)vaiwu::android::fromJavaString(env, name, petName);
     }
-    state(handle)->rpsStarted = false;
-    state(handle)->battle.leave();
-    pet(handle)->startNew(static_cast<vaiwu::game::CharacterId>(characterId), petName,
+    s->rpsStarted = false;
+    s->battle.leave();
+    s->pet.startNew(static_cast<vaiwu::game::CharacterId>(characterId), petName,
         static_cast<std::uint64_t>(nowMs));
 }
 
@@ -111,33 +117,45 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_su_neit_vaiwu_NativePet_nativeLoad(
     JNIEnv* env, jobject, jlong handle, jstring data, jlong nowMs)
 {
-    const char* utfData = env->GetStringUTFChars(data, nullptr);
-    if (utfData == nullptr) {
+    auto* s = state(handle);
+    if (s == nullptr) {
         return JNI_FALSE;
     }
-    const bool loaded = pet(handle)->deserialize(utfData, static_cast<std::uint64_t>(nowMs));
-    state(handle)->rpsStarted = false;
-    state(handle)->battle.leave();
-    env->ReleaseStringUTFChars(data, utfData);
+    std::string utfData;
+    if (!vaiwu::android::fromJavaString(env, data, utfData)) {
+        return JNI_FALSE;
+    }
+    const bool loaded = s->pet.deserialize(utfData, static_cast<std::uint64_t>(nowMs));
+    s->rpsStarted = false;
+    s->battle.leave();
     return loaded ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_su_neit_vaiwu_NativePet_nativeSave(JNIEnv* env, jobject, jlong handle)
 {
-    return javaString(env, pet(handle)->serialize());
+    auto* p = pet(handle);
+    if (p == nullptr) {
+        return javaString(env, "");
+    }
+    return javaString(env, p->serialize());
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_su_neit_vaiwu_NativePet_nativeTick(JNIEnv*, jobject, jlong handle, jlong nowMs)
 {
-    pet(handle)->tick(static_cast<std::uint64_t>(nowMs));
+    if (auto* p = pet(handle)) {
+        p->tick(static_cast<std::uint64_t>(nowMs));
+    }
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_su_neit_vaiwu_NativePet_nativeAction(JNIEnv*, jobject, jlong handle, jint action)
 {
     auto* p = pet(handle);
+    if (p == nullptr) {
+        return -1;
+    }
     switch (action) {
     case 0:
         return static_cast<jint>(p->feed());
@@ -166,18 +184,19 @@ Java_su_neit_vaiwu_NativePet_nativeFinishGame(
     JNIEnv*, jobject, jlong handle, jint outcome, jint reward)
 {
     auto* s = state(handle);
-    if (!s->rpsStarted || outcome < -1 || outcome > 1) {
+    if (s == nullptr || !s->rpsStarted || outcome < -1 || outcome > 1) {
         return JNI_FALSE;
     }
     s->rpsStarted = false;
-    auto* p = pet(handle);
+    auto& p = s->pet;
     if (outcome > 0) {
-        p->applyPlayResult(true);
-        p->addCoins(reward > 0 ? static_cast<std::uint32_t>(reward) : 0U);
+        p.applyPlayResult(true);
+        const auto safeReward = reward > 0 ? std::min<std::uint32_t>(static_cast<std::uint32_t>(reward), 10U) : 0U;
+        p.addCoins(safeReward);
     } else if (outcome < 0) {
-        p->applyPlayResult(false);
+        p.applyPlayResult(false);
     } else {
-        p->giveAffection(3.0f);
+        p.giveAffection(3.0f);
     }
     return JNI_TRUE;
 }
@@ -187,6 +206,9 @@ Java_su_neit_vaiwu_NativePet_nativeSnapshot(JNIEnv* env, jobject, jlong handle)
 {
     using vaiwu::game::traitsFor;
     const auto* p = pet(handle);
+    if (p == nullptr) {
+        return nullptr;
+    }
     const auto& stats = p->stats();
     const auto& traits = traitsFor(p->character());
 
@@ -197,23 +219,33 @@ Java_su_neit_vaiwu_NativePet_nativeSnapshot(JNIEnv* env, jobject, jlong handle)
     const jmethodID constructor = env->GetMethodID(snapshotClass, "<init>",
         "(ILjava/lang/String;Ljava/lang/String;FFFFFIIIIZ)V");
     if (constructor == nullptr) {
+        env->DeleteLocalRef(snapshotClass);
         return nullptr;
     }
 
-    return env->NewObject(snapshotClass, constructor,
-        static_cast<jint>(p->character()),
-        javaString(env, traits.name),
-        javaString(env, p->name()),
-        static_cast<jfloat>(stats.hunger),
-        static_cast<jfloat>(stats.happiness),
-        static_cast<jfloat>(stats.energy),
-        static_cast<jfloat>(stats.discipline),
-        static_cast<jfloat>(stats.weightKg),
-        static_cast<jint>(stats.ageSeconds),
-        static_cast<jint>(stats.coins),
-        static_cast<jint>(p->emotion()),
-        static_cast<jint>(p->life()),
-        p->isSick() ? JNI_TRUE : JNI_FALSE);
+    jstring characterName = javaString(env, traits.name);
+    jstring petName = javaString(env, p->name());
+    jobject snapshot = nullptr;
+    if (characterName != nullptr && petName != nullptr) {
+        snapshot = env->NewObject(snapshotClass, constructor,
+            static_cast<jint>(p->character()),
+            characterName,
+            petName,
+            static_cast<jfloat>(stats.hunger),
+            static_cast<jfloat>(stats.happiness),
+            static_cast<jfloat>(stats.energy),
+            static_cast<jfloat>(stats.discipline),
+            static_cast<jfloat>(stats.weightKg),
+            static_cast<jint>(stats.ageSeconds),
+            static_cast<jint>(stats.coins),
+            static_cast<jint>(p->emotion()),
+            static_cast<jint>(p->life()),
+            p->isSick() ? JNI_TRUE : JNI_FALSE);
+    }
+    if (characterName != nullptr) env->DeleteLocalRef(characterName);
+    if (petName != nullptr) env->DeleteLocalRef(petName);
+    env->DeleteLocalRef(snapshotClass);
+    return snapshot;
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL
@@ -221,6 +253,9 @@ Java_su_neit_vaiwu_NativePet_nativeShop(JNIEnv* env, jobject, jlong handle)
 {
     using namespace vaiwu::game;
     const auto* p = pet(handle);
+    if (p == nullptr) {
+        return nullptr;
+    }
     const jclass itemClass = env->FindClass("su/neit/vaiwu/ShopItemSnapshot");
     if (itemClass == nullptr) {
         return nullptr;
@@ -228,6 +263,7 @@ Java_su_neit_vaiwu_NativePet_nativeShop(JNIEnv* env, jobject, jlong handle)
     const jmethodID constructor = env->GetMethodID(itemClass, "<init>",
         "(IILjava/lang/String;IZLjava/lang/String;IIZ)V");
     if (constructor == nullptr) {
+        env->DeleteLocalRef(itemClass);
         return nullptr;
     }
 
@@ -241,6 +277,7 @@ Java_su_neit_vaiwu_NativePet_nativeShop(JNIEnv* env, jobject, jlong handle)
     }
     jobjectArray result = env->NewObjectArray(totalItems, itemClass, nullptr);
     if (result == nullptr) {
+        env->DeleteLocalRef(itemClass);
         return nullptr;
     }
     int outputIndex = 0;
@@ -255,20 +292,30 @@ Java_su_neit_vaiwu_NativePet_nativeShop(JNIEnv* env, jobject, jlong handle)
             const int kind = info.equip >= 0 ? 1 : info.potion ? 2 : info.mpPotion ? 3 : 0;
             const int carried = kind == 0 ? p->consumableCount(id) : 0;
             const bool usable = kind == 0 && canUseShopItem(*p, items[index]);
-            jobject item = env->NewObject(itemClass, constructor,
-                static_cast<jint>(id), static_cast<jint>(category),
-                javaString(env, tr(Lang::Ru, info.nameId)),
-                static_cast<jint>(info.price), owned ? JNI_TRUE : JNI_FALSE,
-                javaString(env, shopEffect(info)), static_cast<jint>(kind),
-                static_cast<jint>(carried), usable ? JNI_TRUE : JNI_FALSE);
+            jstring nameStr = javaString(env, tr(Lang::Ru, info.nameId));
+            jstring effectStr = javaString(env, shopEffect(info));
+            jobject item = (nameStr != nullptr && effectStr != nullptr)
+                ? env->NewObject(itemClass, constructor,
+                    static_cast<jint>(id), static_cast<jint>(category),
+                    nameStr,
+                    static_cast<jint>(info.price), owned ? JNI_TRUE : JNI_FALSE,
+                    effectStr, static_cast<jint>(kind),
+                    static_cast<jint>(carried), usable ? JNI_TRUE : JNI_FALSE)
+                : nullptr;
+            if (nameStr != nullptr) env->DeleteLocalRef(nameStr);
+            if (effectStr != nullptr) env->DeleteLocalRef(effectStr);
             if (item == nullptr) {
+                env->DeleteLocalRef(itemClass);
+                env->DeleteLocalRef(result);
                 return nullptr;
             }
             env->SetObjectArrayElement(result, outputIndex++, item);
             env->DeleteLocalRef(item);
         }
     }
+    env->DeleteLocalRef(itemClass);
     if (outputIndex != totalItems) {
+        env->DeleteLocalRef(result);
         return nullptr;
     }
     return result;
@@ -278,22 +325,24 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_su_neit_vaiwu_NativePet_nativeBuy(JNIEnv*, jobject, jlong handle, jint itemId)
 {
     using namespace vaiwu::game;
-    if (itemId < 0 || itemId >= kShopItemCount) {
+    auto* p = pet(handle);
+    if (p == nullptr || itemId < 0 || itemId >= kShopItemCount) {
         return JNI_FALSE;
     }
     // App purchases go into the bag; the ESP firmware keeps the instant
     // buyShopItem() behaviour.
-    return buyShopItemToBag(*pet(handle), static_cast<ShopItem>(itemId)) ? JNI_TRUE : JNI_FALSE;
+    return buyShopItemToBag(*p, static_cast<ShopItem>(itemId)) ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_su_neit_vaiwu_NativePet_nativeUseItem(JNIEnv*, jobject, jlong handle, jint itemId)
 {
     using namespace vaiwu::game;
-    if (itemId < 0 || itemId >= kShopItemCount) {
+    auto* p = pet(handle);
+    if (p == nullptr || itemId < 0 || itemId >= kShopItemCount) {
         return static_cast<jint>(UseResult::NotOwned);
     }
-    return static_cast<jint>(useShopItem(*pet(handle), static_cast<ShopItem>(itemId)));
+    return static_cast<jint>(useShopItem(*p, static_cast<ShopItem>(itemId)));
 }
 
 extern "C" JNIEXPORT jint JNICALL
@@ -301,6 +350,9 @@ Java_su_neit_vaiwu_NativePet_nativeFeedWith(JNIEnv*, jobject, jlong handle, jint
 {
     using namespace vaiwu::game;
     VaiwuPet* p = pet(handle);
+    if (p == nullptr) {
+        return static_cast<jint>(UseResult::NotApplicable);
+    }
     if (itemId < 0) {
         // Free rice keeps the classic feed rules (caprice, "already full").
         switch (p->feed()) {
@@ -329,6 +381,9 @@ Java_su_neit_vaiwu_NativePet_nativeInventory(JNIEnv* env, jobject, jlong handle)
 {
     using namespace vaiwu::game;
     auto* p = pet(handle);
+    if (p == nullptr) {
+        return nullptr;
+    }
     RpgProgress& progress = p->rpg();
     normalizeRpg(p->character(), progress);
     const RpgStats total = totalStats(p->character(), progress);
@@ -340,10 +395,12 @@ Java_su_neit_vaiwu_NativePet_nativeInventory(JNIEnv* env, jobject, jlong handle)
     const jmethodID equipmentConstructor = env->GetMethodID(equipmentClass, "<init>",
         "(IILjava/lang/String;Ljava/lang/String;ZZI)V");
     if (equipmentConstructor == nullptr) {
+        env->DeleteLocalRef(equipmentClass);
         return nullptr;
     }
     jobjectArray equipment = env->NewObjectArray(kEquipItemCount, equipmentClass, nullptr);
     if (equipment == nullptr) {
+        env->DeleteLocalRef(equipmentClass);
         return nullptr;
     }
     for (int id = 0; id < kEquipItemCount; ++id) {
@@ -358,26 +415,41 @@ Java_su_neit_vaiwu_NativePet_nativeInventory(JNIEnv* env, jobject, jlong handle)
                 break;
             }
         }
-        jobject entry = env->NewObject(equipmentClass, equipmentConstructor,
-            static_cast<jint>(id), static_cast<jint>(slot),
-            javaString(env, tr(Lang::Ru, info.nameId)), javaString(env, equipBonuses(item)),
-            ownsEquip(progress, item) ? JNI_TRUE : JNI_FALSE,
-            progress.equipped[slot] == id ? JNI_TRUE : JNI_FALSE,
-            static_cast<jint>(equipSellPrice(shopPrice)));
+        jstring nameStr = javaString(env, tr(Lang::Ru, info.nameId));
+        jstring bonusStr = javaString(env, equipBonuses(item));
+        jobject entry = (nameStr != nullptr && bonusStr != nullptr)
+            ? env->NewObject(equipmentClass, equipmentConstructor,
+                static_cast<jint>(id), static_cast<jint>(slot),
+                nameStr, bonusStr,
+                ownsEquip(progress, item) ? JNI_TRUE : JNI_FALSE,
+                progress.equipped[slot] == id ? JNI_TRUE : JNI_FALSE,
+                static_cast<jint>(equipSellPrice(shopPrice)))
+            : nullptr;
+        if (nameStr != nullptr) env->DeleteLocalRef(nameStr);
+        if (bonusStr != nullptr) env->DeleteLocalRef(bonusStr);
+        if (entry == nullptr) {
+            env->DeleteLocalRef(equipmentClass);
+            env->DeleteLocalRef(equipment);
+            return nullptr;
+        }
         env->SetObjectArrayElement(equipment, id, entry);
         env->DeleteLocalRef(entry);
     }
+    env->DeleteLocalRef(equipmentClass);
 
     const jclass inventoryClass = env->FindClass("su/neit/vaiwu/InventorySnapshot");
     if (inventoryClass == nullptr) {
+        env->DeleteLocalRef(equipment);
         return nullptr;
     }
     const jmethodID constructor = env->GetMethodID(inventoryClass, "<init>",
         "(IIIIIIIIIIIIIII[Lsu/neit/vaiwu/EquipmentSnapshot;)V");
     if (constructor == nullptr) {
+        env->DeleteLocalRef(inventoryClass);
+        env->DeleteLocalRef(equipment);
         return nullptr;
     }
-    return env->NewObject(inventoryClass, constructor,
+    jobject inventory = env->NewObject(inventoryClass, constructor,
         static_cast<jint>(progress.level), static_cast<jint>(progress.xp),
         static_cast<jint>(xpForNext(progress.level)),
         static_cast<jint>(progress.hp), static_cast<jint>(hpMaxFor(p->character(), progress)),
@@ -386,12 +458,18 @@ Java_su_neit_vaiwu_NativePet_nativeInventory(JNIEnv* env, jobject, jlong handle)
         static_cast<jint>(total.str), static_cast<jint>(total.vit),
         static_cast<jint>(total.agi), static_cast<jint>(total.mag), static_cast<jint>(total.luck),
         static_cast<jint>(progress.statPoints), equipment);
+    env->DeleteLocalRef(inventoryClass);
+    env->DeleteLocalRef(equipment);
+    return inventory;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_su_neit_vaiwu_NativePet_nativeEquip(JNIEnv*, jobject, jlong handle, jint slot, jint itemId)
 {
     auto* p = pet(handle);
+    if (p == nullptr) {
+        return JNI_FALSE;
+    }
     return vaiwu::android::applyEquipment(p->character(), p->rpg(), slot, itemId)
         ? JNI_TRUE
         : JNI_FALSE;
@@ -401,16 +479,20 @@ extern "C" JNIEXPORT jint JNICALL
 Java_su_neit_vaiwu_NativePet_nativeSell(JNIEnv*, jobject, jlong handle, jint itemId)
 {
     using namespace vaiwu::game;
-    if (itemId < 0 || itemId >= kEquipItemCount) {
+    auto* p = pet(handle);
+    if (p == nullptr || itemId < 0 || itemId >= kEquipItemCount) {
         return 0;
     }
-    return static_cast<jint>(sellEquip(*pet(handle), static_cast<EquipItem>(itemId)));
+    return static_cast<jint>(sellEquip(*p, static_cast<EquipItem>(itemId)));
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_su_neit_vaiwu_NativePet_nativeStartPlay(JNIEnv*, jobject, jlong handle)
 {
     auto* s = state(handle);
+    if (s == nullptr) {
+        return -1;
+    }
     const auto result = s->pet.startPlay();
     s->rpsStarted = result == vaiwu::game::ActionResult::Ok;
     return static_cast<jint>(result);
@@ -419,14 +501,16 @@ Java_su_neit_vaiwu_NativePet_nativeStartPlay(JNIEnv*, jobject, jlong handle)
 extern "C" JNIEXPORT void JNICALL
 Java_su_neit_vaiwu_NativePet_nativeCancelPlay(JNIEnv*, jobject, jlong handle)
 {
-    state(handle)->rpsStarted = false;
+    if (auto* s = state(handle)) {
+        s->rpsStarted = false;
+    }
 }
 
 extern "C" JNIEXPORT jobject JNICALL
 Java_su_neit_vaiwu_NativePet_nativePlayRps(JNIEnv* env, jobject, jlong handle, jint userChoice)
 {
     auto* s = state(handle);
-    if (!s->rpsStarted || s->pet.life() != vaiwu::game::LifeState::Awake ||
+    if (s == nullptr || !s->rpsStarted || s->pet.life() != vaiwu::game::LifeState::Awake ||
         userChoice < 0 || userChoice > 2) {
         return nullptr;
     }
@@ -449,8 +533,11 @@ Java_su_neit_vaiwu_NativePet_nativePlayRps(JNIEnv* env, jobject, jlong handle, j
     }
     const jmethodID constructor = env->GetMethodID(resultClass, "<init>", "(III)V");
     if (constructor == nullptr) {
+        env->DeleteLocalRef(resultClass);
         return nullptr;
     }
-    return env->NewObject(resultClass, constructor,
+    jobject result = env->NewObject(resultClass, constructor,
         static_cast<jint>(petChoice), static_cast<jint>(outcome), static_cast<jint>(reward));
+    env->DeleteLocalRef(resultClass);
+    return result;
 }

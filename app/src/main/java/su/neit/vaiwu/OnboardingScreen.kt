@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -51,7 +53,10 @@ fun OnboardingScreen(
     var petName by rememberSaveable { mutableStateOf("") }
 
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .systemBarsPadding()
+            .imePadding(),
     ) {
         Text(
             text = stringResource(R.string.onboarding_title),
@@ -59,7 +64,12 @@ fun OnboardingScreen(
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = VaiwuSpacing.xxl, bottom = VaiwuSpacing.small),
+                .padding(
+                    start = VaiwuSpacing.screenPadding,
+                    end = VaiwuSpacing.screenPadding,
+                    top = VaiwuSpacing.large,
+                    bottom = VaiwuSpacing.small,
+                ),
         )
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),

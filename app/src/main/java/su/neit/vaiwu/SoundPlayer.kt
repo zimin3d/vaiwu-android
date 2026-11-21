@@ -4,23 +4,24 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Plays the synthesized chiptune effects on a single background thread.
  *
- * A short [AudioTrack] is created per effect. The clips are tiny, and this
- * keeps playback independent from route/sample-rate changes while never
- * touching the UI thread. Requests are queued; when the queue is saturated the
- * oldest request is dropped so the newest feedback (the one the player is
- * waiting for) is still heard.
+ * Effects are rendered off the UI thread on first use and cached in memory
+ * (the 20 short chiptune clips are deterministic and tiny). Requests are
+ * queued; when the queue is saturated the oldest request is dropped so the
+ * newest feedback is still heard.
  */
 class SoundPlayer {
     @Volatile
     var enabled: Boolean = true
 
-    private val pending = ArrayBlockingQueue<ByteArray>(MaxPending)
+    private val pending = ArrayBlockingQueue<Int>(MaxPending)
+    private val cache = ConcurrentHashMap<Int, ByteArray>()
     private val closed = AtomicBoolean(false)
     private val lock = Any()
     private var worker: Thread? = null
@@ -28,16 +29,9 @@ class SoundPlayer {
     /** Queues [effect] for playback. Safe to call from the UI thread. */
     fun play(effect: Int) {
         if (!enabled || closed.get()) return
-        val pcm = try {
-            SoundSynth.render(effect)
-        } catch (_: Throwable) {
-            // A missing native library must degrade to silence, not a crash.
-            null
-        } ?: return
-        if (pcm.isEmpty()) return
-        if (!pending.offer(pcm)) {
+        if (!pending.offer(effect)) {
             pending.poll()
-            pending.offer(pcm)
+            pending.offer(effect)
         }
         ensureWorker()
     }
@@ -66,15 +60,31 @@ class SoundPlayer {
 
     private fun drain() {
         while (!closed.get()) {
-            val pcm = try {
+            val effect = try {
                 pending.poll(WorkerIdleMs, TimeUnit.MILLISECONDS)
             } catch (_: InterruptedException) {
                 return
             } ?: continue
             // The toggle may have been switched off while the request waited.
             if (!enabled) continue
+            val pcm = renderCached(effect) ?: continue
+            if (pcm.isEmpty()) continue
             playNow(pcm)
         }
+    }
+
+    private fun renderCached(effect: Int): ByteArray? {
+        cache[effect]?.let { return it }
+        val rendered = try {
+            SoundSynth.render(effect)
+        } catch (_: Throwable) {
+            // A missing native library must degrade to silence, not a crash.
+            null
+        } ?: return null
+        if (rendered.isNotEmpty()) {
+            cache.putIfAbsent(effect, rendered)
+        }
+        return rendered
     }
 
     private fun playNow(pcm: ByteArray) {

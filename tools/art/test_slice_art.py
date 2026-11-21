@@ -224,6 +224,28 @@ class PngCodecTests(unittest.TestCase):
         with self.assertRaisesRegex(pngio.PngError, "expected 2 rows, got 1"):
             pngio.encode_png(2, 2, [bytearray(8)])
 
+    def test_decode_rejects_oversized_dimensions_and_decompression_bombs(self):
+        huge_header = struct.pack(">IIBBBBB", 20000, 20000, 8, 6, 0, 0, 0)
+        huge_png = b"".join([
+            pngio.PNG_SIGNATURE,
+            chunk(b"IHDR", huge_header),
+            chunk(b"IDAT", zlib.compress(b"\x00" * 16)),
+            chunk(b"IEND", b""),
+        ])
+        with self.assertRaisesRegex(pngio.PngError, "dimensions"):
+            pngio.decode_png(huge_png)
+
+        # A 1x1 RGB PNG expects only 4 decompressed bytes; a larger stream must fail.
+        small_header = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+        bomb_png = b"".join([
+            pngio.PNG_SIGNATURE,
+            chunk(b"IHDR", small_header),
+            chunk(b"IDAT", zlib.compress(b"\x00" * 10000)),
+            chunk(b"IEND", b""),
+        ])
+        with self.assertRaisesRegex(pngio.PngError, "exceeds"):
+            pngio.decode_png(bomb_png)
+
 
 # --- background removal ------------------------------------------------------
 

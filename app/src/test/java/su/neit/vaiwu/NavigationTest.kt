@@ -122,4 +122,34 @@ class NavigationTest {
         assertEquals(true, isRoundActive(AppScreen.MiniGame, rpsResult = null, miniGame = MiniGameState(kind = MiniGameKind.Guess), battle = null))
         assertEquals(false, isRoundActive(AppScreen.MiniGame, rpsResult = null, miniGame = MiniGameState(kind = MiniGameKind.Guess, finished = true), battle = null))
     }
+
+    @Test
+    fun tacticalBattleRoundActiveMatchesSessionLifecycle() {
+        val hero = su.neit.vaiwu.combat.HeroBuild(
+            characterId = 0,
+            customName = "Aoi",
+            level = 1,
+            hp = 30,
+            maxHp = 30,
+            mp = 12,
+            maxMp = 12,
+            strength = 2,
+            vitality = 3,
+            agility = 2,
+            magic = 4,
+            luck = 2,
+            weaponId = su.neit.vaiwu.combat.WeaponId.Fists,
+            armorBonus = 0,
+            hpPotions = 1,
+            mpPotions = 0,
+        )
+        val ongoing = su.neit.vaiwu.combat.EncounterBuilder.startSession(hero, dungeon = false, seed = 1L)
+        assertEquals(true, isTacticalRoundActive(AppScreen.Battle, null, null, ongoing))
+
+        val finished = ongoing.copy(state = ongoing.state.copy(winner = su.neit.vaiwu.combat.CombatWinner.Player))
+        assertEquals(false, isTacticalRoundActive(AppScreen.Battle, null, null, finished))
+
+        val resting = finished.copy(dungeon = true, awaitingRest = true)
+        assertEquals(true, isTacticalRoundActive(AppScreen.Battle, null, null, resting))
+    }
 }

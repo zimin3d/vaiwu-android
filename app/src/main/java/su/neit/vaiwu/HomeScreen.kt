@@ -49,6 +49,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.window.Dialog
@@ -184,8 +185,9 @@ private fun SideStatPanel(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(VaiwuSpacing.small),
-            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.xs),
         ) {
             StatMeter(
                 label = stringResource(R.string.stat_hunger),
@@ -327,7 +329,7 @@ private fun PetStage(
 @Composable
 private fun SpeechBubble(text: String, modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.heightIn(max = 96.dp),
         shape = RoundedCornerShape(VaiwuRadius.card),
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -338,6 +340,8 @@ private fun SpeechBubble(text: String, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(horizontal = VaiwuSpacing.medium, vertical = VaiwuSpacing.small),
             textAlign = TextAlign.Center,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -497,7 +501,7 @@ private fun HomeLinkCard(
                 .fillMaxWidth()
                 .padding(horizontal = VaiwuSpacing.medium, vertical = VaiwuSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
+            horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small, Alignment.CenterHorizontally),
         ) {
             Image(
                 painter = painterResource(iconRes),

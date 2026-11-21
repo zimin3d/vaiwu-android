@@ -37,8 +37,49 @@ data class SpriteAnimation(
     }
 }
 
+/**
+ * Resolves animation frames for [base] against the shipped asset filenames.
+ * Supports both 0-based sequences (`base_00.png`, `base_01.png`, ...) and
+ * 1-based extensions (`base.png`, `base_01.png`, `base_02.png`, ...).
+ */
+internal fun resolveSpriteFrames(base: String, availableAssets: Set<String>): List<String> {
+    val zeroBased = generateSequence(0) { it + 1 }
+        .map { frame -> "${base}_${frame.toString().padStart(2, '0')}.png" }
+        .takeWhile(availableAssets::contains)
+        .toList()
+    if (zeroBased.isNotEmpty()) return zeroBased
+
+    val oneBased = generateSequence(1) { it + 1 }
+        .map { frame -> "${base}_${frame.toString().padStart(2, '0')}.png" }
+        .takeWhile(availableAssets::contains)
+        .toList()
+    val baseFile = "$base.png"
+    if (oneBased.isNotEmpty()) {
+        return if (baseFile in availableAssets) listOf(baseFile) + oneBased else oneBased
+    }
+    return listOf(baseFile)
+}
+
+private object SpriteAssetIndex {
+    @Volatile
+    private var cached: Set<String>? = null
+
+    fun list(context: Context): Set<String> {
+        cached?.let { return it }
+        return synchronized(this) {
+            cached ?: (context.applicationContext.assets.list("")?.toSet().orEmpty()).also {
+                cached = it
+            }
+        }
+    }
+}
+
 private object SpriteBitmapCache {
-    private val bitmaps = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
+    private val maxBytes = maxOf(
+        16 * 1024 * 1024,
+        minOf(32 * 1024 * 1024, (Runtime.getRuntime().maxMemory() / 6L).toInt()),
+    )
+    private val bitmaps = object : LruCache<String, Bitmap>(maxBytes) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
 
@@ -58,16 +99,12 @@ fun PetSprite(
     frameDurationMs: Long = 180L,
 ) {
     val context = LocalContext.current
-    val animation = remember(characterId, emotionId) {
+    val animation = remember(characterId, emotionId, frameDurationMs) {
         val character = characterIds.getOrElse(characterId) { characterIds.first() }
         val emotion = emotionIds.getOrElse(emotionId) { emotionIds.first() }
         val base = "sprite_${character}_${emotion}"
-        val available = context.assets.list("")?.toSet().orEmpty()
-        val frames = generateSequence(0) { it + 1 }
-            .map { frame -> "${base}_${frame.toString().padStart(2, '0')}.png" }
-            .takeWhile(available::contains)
-            .toList()
-        SpriteAnimation(frames.ifEmpty { listOf("$base.png") }, frameDurationMs)
+        val available = SpriteAssetIndex.list(context)
+        SpriteAnimation(resolveSpriteFrames(base, available), frameDurationMs)
     }
     SpriteImage(animation = animation, description = description, modifier = modifier)
 }
@@ -117,6 +154,9 @@ fun AssetImage(
         Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant))
     }
 }
+
+internal fun loadAssetBitmap(context: Context, assetName: String): Bitmap? =
+    decodeAsset(context, assetName)
 
 private fun decodeAsset(context: Context, assetName: String): Bitmap? {
     SpriteBitmapCache.get(assetName)?.let { return it }

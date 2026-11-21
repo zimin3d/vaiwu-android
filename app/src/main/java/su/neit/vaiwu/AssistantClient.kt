@@ -3,7 +3,9 @@ package su.neit.vaiwu
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -11,9 +13,38 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
+/**
+ * Reads at most [maxBytes] from this stream as UTF-8, throwing [IOException]
+ * if the response exceeds the limit instead of exhausting memory.
+ */
+internal fun InputStream.readBoundedUtf8(maxBytes: Int, overflowMessage: String = "Response too large"): String {
+    require(maxBytes > 0)
+    val output = ByteArrayOutputStream()
+    val buffer = ByteArray(8 * 1024)
+    var total = 0
+    while (true) {
+        val count = read(buffer)
+        if (count < 0) break
+        total += count
+        if (total > maxBytes) {
+            throw IOException(overflowMessage)
+        }
+        output.write(buffer, 0, count)
+    }
+    return output.toString(Charsets.UTF_8.name())
+}
+
+/**
+ * Formats coordinates rounded to ~1 km precision (`%.2f`), which is sufficient
+ * for weather forecasts without exposing exact home location.
+ */
+internal fun formatWeatherCoordinates(latitude: Double, longitude: Double): String =
+    "latitude=${String.format(Locale.US, "%.2f", latitude)}&longitude=${String.format(Locale.US, "%.2f", longitude)}"
+
 class AssistantClient(private val context: Context) {
     fun chat(apiKey: String, petName: String, characterName: String, messages: List<ChatMessage>): String {
-        if (apiKey.isBlank()) throw IOException(context.getString(R.string.assistant_key_missing))
+        val cleanKey = sanitizeApiKey(apiKey)
+        if (cleanKey.isBlank()) throw IOException(context.getString(R.string.assistant_key_missing))
         val history = JSONArray()
         messages.takeLast(12).forEach { message ->
             history.put(JSONObject()
@@ -34,14 +65,18 @@ class AssistantClient(private val context: Context) {
         connection.connectTimeout = 15_000
         connection.readTimeout = 30_000
         connection.doOutput = true
-        connection.setRequestProperty("Authorization", "Bearer $apiKey")
+        connection.setRequestProperty("Authorization", "Bearer $cleanKey")
         connection.setRequestProperty("Content-Type", "application/json")
         return try {
             connection.outputStream.bufferedWriter().use { it.write(body.toString()) }
             val code = connection.responseCode
-            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val response = stream.bufferedReader().use { it.readText() }
-            if (code !in 200..299) throw IOException(context.getString(R.string.assistant_http_error, code))
+            if (code !in 200..299) {
+                runCatching { connection.errorStream?.close() }
+                throw IOException(context.getString(R.string.assistant_http_error, code))
+            }
+            val response = connection.inputStream.use {
+                it.readBoundedUtf8(MaxJsonResponseBytes)
+            }
             val content = JSONObject(response).getJSONArray("choices").getJSONObject(0)
                 .getJSONObject("message").getString("content").trim()
             if (content.isEmpty()) throw IOException(context.getString(R.string.assistant_empty_reply))
@@ -52,7 +87,7 @@ class AssistantClient(private val context: Context) {
     }
 
     fun weather(latitude: Double, longitude: Double): String {
-        val coordinates = "latitude=${String.format(Locale.US, "%.5f", latitude)}&longitude=${String.format(Locale.US, "%.5f", longitude)}"
+        val coordinates = formatWeatherCoordinates(latitude, longitude)
         val url = "https://api.open-meteo.com/v1/forecast?$coordinates&current=temperature_2m,apparent_temperature,weather_code&timezone=auto"
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = false
@@ -60,9 +95,12 @@ class AssistantClient(private val context: Context) {
         connection.readTimeout = 15_000
         return try {
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                runCatching { connection.errorStream?.close() }
                 throw IOException(context.getString(R.string.weather_http_error, connection.responseCode))
             }
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            val response = connection.inputStream.use {
+                it.readBoundedUtf8(MaxJsonResponseBytes)
+            }
             val current = JSONObject(response).getJSONObject("current")
             val temperature = current.getDouble("temperature_2m")
             val feels = current.getDouble("apparent_temperature")
@@ -72,6 +110,10 @@ class AssistantClient(private val context: Context) {
         } finally {
             connection.disconnect()
         }
+    }
+
+    private companion object {
+        const val MaxJsonResponseBytes = 256 * 1024
     }
 }
 

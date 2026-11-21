@@ -327,6 +327,16 @@ class ApiTests(_HttpStub):
             image = gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
         self.assertEqual(image, payload)
 
+    def test_non_http_image_url_is_rejected_without_opening(self):
+        for bad_url in ("file:///etc/passwd", "ftp://example.test/a.png", "data:image/png;base64,AA=="):
+            with self.subTest(url=bad_url):
+                body = json.dumps({"data": [{"url": bad_url}]}).encode()
+                with mock.patch("urllib.request.urlopen", return_value=_Response(body)) as urlopen:
+                    with self.assertRaises(gen_art.ArtApiError) as caught:
+                        gen_art.generate_image(self.config, self.asset.prompt, "1024x1536")
+                self.assertFalse(caught.exception.transient)
+                self.assertEqual(urlopen.call_count, 1)
+
     def test_response_format_is_retried_without_on_rejection(self):
         payload = PNG + b"hi"
         rejection = self.http_error(400, "unknown parameter: response_format")

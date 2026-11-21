@@ -54,20 +54,28 @@ class ReminderScheduler(private val context: Context) {
 
     private fun pendingIntent(id: Int, text: String): PendingIntent = PendingIntent.getBroadcast(
         context, id,
-        Intent(context, ReminderReceiver::class.java).putExtra("text", text).putExtra("id", id),
+        Intent(context, ReminderReceiver::class.java)
+            .setAction(ActionReminder)
+            .putExtra("text", text)
+            .putExtra("id", id),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
     companion object {
         const val PreferencesName = "reminders"
+        const val ActionReminder = "su.neit.vaiwu.ACTION_REMINDER"
     }
 }
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            ReminderScheduler(context).restoreAfterBoot()
-            return
+        when (intent.action) {
+            Intent.ACTION_BOOT_COMPLETED -> {
+                ReminderScheduler(context).restoreAfterBoot()
+                return
+            }
+            ReminderScheduler.ActionReminder -> Unit
+            else -> return
         }
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(
@@ -77,15 +85,23 @@ class ReminderReceiver : BroadcastReceiver() {
                 context, android.Manifest.permission.POST_NOTIFICATIONS,
             ) != PackageManager.PERMISSION_GRANTED
         ) return
+        val id = intent.getIntExtra("id", 0)
+        val openApp = PendingIntent.getActivity(
+            context,
+            id,
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         val notification = NotificationCompat.Builder(context, ChannelId)
             .setSmallIcon(R.drawable.ic_launcher)
             .setContentTitle(context.getString(R.string.reminder_notification_title))
             .setContentText(intent.getStringExtra("text") ?: context.getString(R.string.reminder_default_text))
+            .setContentIntent(openApp)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
-        NotificationManagerCompat.from(context).notify(System.currentTimeMillis().toInt(), notification)
-        val id = intent.getIntExtra("id", 0)
+        val notificationId = if (id != 0) id else System.currentTimeMillis().toInt()
+        NotificationManagerCompat.from(context).notify(notificationId, notification)
         if (id != 0) {
             context.getSharedPreferences(ReminderScheduler.PreferencesName, Context.MODE_PRIVATE)
                 .edit().remove("time_$id").remove("text_$id").apply()

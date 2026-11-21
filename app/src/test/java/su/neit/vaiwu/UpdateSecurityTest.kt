@@ -1,7 +1,9 @@
 package su.neit.vaiwu
 
 import java.net.URL
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -40,5 +42,26 @@ class UpdateSecurityTest {
     fun `redirect validation uses the final URL`() {
         assertTrue(isAllowedUpdateUrl(URL("https://release-assets.githubusercontent.com/final.apk")))
         assertFalse(isAllowedUpdateUrl(URL("https://example.com/redirected.apk")))
+    }
+
+    @Test
+    fun `per-hop redirect resolution allows only trusted HTTPS targets`() {
+        val origin = URL("https://github.com/zimin3d/vaiwu-android/releases/download/v1.0.0/vaiwu-android.apk")
+
+        assertEquals(
+            URL("https://release-assets.githubusercontent.com/asset/123"),
+            resolveAllowedRedirect(origin, "https://release-assets.githubusercontent.com/asset/123"),
+        )
+        assertEquals(
+            URL("https://github.com/other/path.apk"),
+            resolveAllowedRedirect(origin, "/other/path.apk"),
+        )
+
+        assertNull(resolveAllowedRedirect(origin, null))
+        assertNull(resolveAllowedRedirect(origin, "   "))
+        assertNull(resolveAllowedRedirect(origin, "http://release-assets.githubusercontent.com/asset/123"))
+        assertNull(resolveAllowedRedirect(origin, "https://evil.example.com/vaiwu-android.apk"))
+        assertNull(resolveAllowedRedirect(origin, "https://github.com.evil.example.com/vaiwu-android.apk"))
+        assertNull(resolveAllowedRedirect(origin, "javascript:alert(1)"))
     }
 }

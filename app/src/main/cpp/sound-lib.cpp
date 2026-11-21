@@ -9,13 +9,15 @@ namespace {
 // Sfx is a small closed enum, so rejecting anything outside it keeps a bad
 // Kotlin id from reaching an out-of-range switch in the synth.
 constexpr int kSfxCount = static_cast<int>(vaiwu::game::Sfx::Encounter) + 1;
+constexpr jint kMinSampleRateHz = 8000;
+constexpr jint kMaxSampleRateHz = 96000;
 
 } // namespace
 
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_su_neit_vaiwu_SoundSynth_nativeRenderSfx(JNIEnv* env, jobject, jint effect, jint sampleRate)
 {
-    if (effect < 0 || effect >= kSfxCount || sampleRate <= 0) {
+    if (effect < 0 || effect >= kSfxCount || sampleRate < kMinSampleRateHz || sampleRate > kMaxSampleRateHz) {
         return nullptr;
     }
     const auto pcm = vaiwu::game::renderSfx(

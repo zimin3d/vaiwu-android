@@ -5,89 +5,198 @@ import java.io.Closeable
 class NativePet : Closeable {
     private var handle: Long = nativeCreate()
 
+    private fun requireHandle(): Long {
+        check(handle != 0L) { "NativePet has been closed" }
+        return handle
+    }
+
     @Synchronized
     fun startNew(characterId: Int, name: String, nowMs: Long) {
+        if (handle == 0L) return
         nativeStartNew(handle, characterId, name, nowMs)
     }
 
     @Synchronized
-    fun load(data: String, nowMs: Long): Boolean = nativeLoad(handle, data, nowMs)
+    fun load(data: String, nowMs: Long): Boolean {
+        if (handle == 0L) return false
+        return nativeLoad(handle, data, nowMs)
+    }
 
     @Synchronized
-    fun save(): String = nativeSave(handle)
+    fun save(): String {
+        if (handle == 0L) return ""
+        return nativeSave(handle)
+    }
 
     @Synchronized
-    fun tick(nowMs: Long) = nativeTick(handle, nowMs)
+    fun tick(nowMs: Long) {
+        if (handle == 0L) return
+        nativeTick(handle, nowMs)
+    }
 
     @Synchronized
-    fun action(action: Int): Int = nativeAction(handle, action)
+    fun action(action: Int): Int {
+        if (handle == 0L) return -1
+        return nativeAction(handle, action)
+    }
 
     @Synchronized
-    fun snapshot(): PetSnapshot = nativeSnapshot(handle)
+    fun snapshot(): PetSnapshot = nativeSnapshot(requireHandle())
 
     @Synchronized
-    fun shop(): Array<ShopItemSnapshot> = nativeShop(handle)
+    fun shop(): Array<ShopItemSnapshot> {
+        if (handle == 0L) return emptyArray()
+        return nativeShop(handle)
+    }
 
     @Synchronized
-    fun buy(itemId: Int): Boolean = nativeBuy(handle, itemId)
+    fun buy(itemId: Int): Boolean {
+        if (handle == 0L) return false
+        return nativeBuy(handle, itemId)
+    }
 
     @Synchronized
-    fun useItem(itemId: Int): Int = nativeUseItem(handle, itemId)
+    fun useItem(itemId: Int): Int {
+        if (handle == 0L) return UseResult.NotOwned
+        return nativeUseItem(handle, itemId)
+    }
 
     /** Feed: `itemId < 0` is free rice, otherwise a dish from the feed menu. */
     @Synchronized
-    fun feedWith(itemId: Int): Int = nativeFeedWith(handle, itemId)
+    fun feedWith(itemId: Int): Int {
+        if (handle == 0L) return UseResult.NotApplicable
+        return nativeFeedWith(handle, itemId)
+    }
 
     @Synchronized
-    fun inventory(): InventorySnapshot = nativeInventory(handle)
+    fun inventory(): InventorySnapshot = nativeInventory(requireHandle())
 
     @Synchronized
-    fun equip(slot: Int, itemId: Int): Boolean = nativeEquip(handle, slot, itemId)
+    fun equip(slot: Int, itemId: Int): Boolean {
+        if (handle == 0L) return false
+        return nativeEquip(handle, slot, itemId)
+    }
 
     @Synchronized
-    fun sell(itemId: Int): Int = nativeSell(handle, itemId)
+    fun sell(itemId: Int): Int {
+        if (handle == 0L) return 0
+        return nativeSell(handle, itemId)
+    }
 
     @Synchronized
-    fun startPlay(): Int = nativeStartPlay(handle)
+    fun startPlay(): Int {
+        if (handle == 0L) return -1
+        return nativeStartPlay(handle)
+    }
 
     @Synchronized
-    fun cancelPlay() = nativeCancelPlay(handle)
+    fun cancelPlay() {
+        if (handle == 0L) return
+        nativeCancelPlay(handle)
+    }
 
     @Synchronized
-    fun playRps(choice: Int): RpsResult? = nativePlayRps(handle, choice)
+    fun playRps(choice: Int): RpsResult? {
+        if (handle == 0L) return null
+        return nativePlayRps(handle, choice)
+    }
 
     @Synchronized
-    fun finishGame(outcome: Int, reward: Int): Boolean = nativeFinishGame(handle, outcome, reward)
+    fun finishGame(outcome: Int, reward: Int): Boolean {
+        if (handle == 0L) return false
+        return nativeFinishGame(handle, outcome, reward)
+    }
 
     @Synchronized
-    fun startBattle(dungeon: Boolean): Int = nativeStartBattle(handle, dungeon)
+    fun startBattle(dungeon: Boolean): Int {
+        if (handle == 0L) return -1
+        return nativeStartBattle(handle, dungeon)
+    }
 
     @Synchronized
-    fun battleSnapshot(): BattleSnapshot? = nativeBattleSnapshot(handle)
+    fun battleSnapshot(): BattleSnapshot? {
+        if (handle == 0L) return null
+        return nativeBattleSnapshot(handle)
+    }
 
     @Synchronized
-    fun battleAction(action: Int): BattleSnapshot? = nativeBattleAction(handle, action)
+    fun battleAction(action: Int): BattleSnapshot? {
+        if (handle == 0L) return null
+        return nativeBattleAction(handle, action)
+    }
 
     @Synchronized
-    fun nextDungeonRoom(): Boolean = nativeDungeonNext(handle)
+    fun nextDungeonRoom(): Boolean {
+        if (handle == 0L) return false
+        return nativeDungeonNext(handle)
+    }
 
     @Synchronized
-    fun leaveBattle() = nativeLeaveBattle(handle)
+    fun leaveBattle() {
+        if (handle == 0L) return
+        nativeLeaveBattle(handle)
+    }
 
     @Synchronized
-    fun allocateStat(stat: Int) = nativeAllocateStat(handle, stat)
+    fun allocateStat(stat: Int) {
+        if (handle == 0L) return
+        nativeAllocateStat(handle, stat)
+    }
 
     @Synchronized
-    fun phrase(context: Int): String? = nativePhrase(handle, context)
+    fun settleTacticalBattle(
+        outcome: Int,
+        hpLeft: Int,
+        mpLeft: Int,
+        potionsLeft: Int,
+        mpPotionsLeft: Int,
+        xpGained: Int,
+        goldDelta: Int,
+        applyPlayOutcome: Boolean,
+    ): Int {
+        if (handle == 0L) return -1
+        return nativeSettleTacticalBattle(
+            handle,
+            outcome,
+            hpLeft,
+            mpLeft,
+            potionsLeft,
+            mpPotionsLeft,
+            xpGained,
+            goldDelta,
+            applyPlayOutcome,
+        )
+    }
 
     @Synchronized
-    fun characterProfile(characterId: Int): CharacterProfile? = nativeCharacterProfile(handle, characterId)
+    fun restDungeonRoom(): Boolean {
+        if (handle == 0L) return false
+        return nativeRestDungeonRoom(handle)
+    }
 
     @Synchronized
-    fun parseIntent(text: String): AssistantIntent? = nativeParseIntent(handle, text)
+    fun phrase(context: Int): String? {
+        if (handle == 0L) return null
+        return nativePhrase(handle, context)
+    }
 
     @Synchronized
-    fun joke(): String = nativeJoke(handle)
+    fun characterProfile(characterId: Int): CharacterProfile? {
+        if (handle == 0L) return null
+        return nativeCharacterProfile(handle, characterId)
+    }
+
+    @Synchronized
+    fun parseIntent(text: String): AssistantIntent? {
+        if (handle == 0L) return null
+        return nativeParseIntent(handle, text)
+    }
+
+    @Synchronized
+    fun joke(): String {
+        if (handle == 0L) return ""
+        return nativeJoke(handle)
+    }
 
     @Synchronized
     override fun close() {
@@ -122,6 +231,18 @@ class NativePet : Closeable {
     private external fun nativeDungeonNext(handle: Long): Boolean
     private external fun nativeLeaveBattle(handle: Long)
     private external fun nativeAllocateStat(handle: Long, stat: Int)
+    private external fun nativeSettleTacticalBattle(
+        handle: Long,
+        outcome: Int,
+        hpLeft: Int,
+        mpLeft: Int,
+        potionsLeft: Int,
+        mpPotionsLeft: Int,
+        xpGained: Int,
+        goldDelta: Int,
+        applyPlayOutcome: Boolean,
+    ): Int
+    private external fun nativeRestDungeonRoom(handle: Long): Boolean
     private external fun nativePhrase(handle: Long, context: Int): String?
     private external fun nativeCharacterProfile(handle: Long, characterId: Int): CharacterProfile?
     private external fun nativeParseIntent(handle: Long, text: String): AssistantIntent?

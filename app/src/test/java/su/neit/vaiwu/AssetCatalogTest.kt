@@ -37,4 +37,15 @@ class AssetCatalogTest {
         }
         assertEquals(emptyList<String>(), missing(names))
     }
+
+    @Test
+    fun everyTacticalCoverAndArenaAssetExists() {
+        val coverNames = su.neit.vaiwu.combat.CoverKind.entries.map {
+            su.neit.vaiwu.combat.coverAssetName(it)
+        }
+        val arenaNames = su.neit.vaiwu.combat.ArenaTheme.entries.mapNotNull {
+            su.neit.vaiwu.combat.arenaBackdropAssetName(it)
+        }
+        assertEquals(emptyList<String>(), missing(coverNames + arenaNames))
+    }
 }

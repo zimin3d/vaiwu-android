@@ -80,21 +80,23 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
     val inventory by viewModel.inventory.collectAsStateWithLifecycle()
     val rpsResult by viewModel.rpsResult.collectAsStateWithLifecycle()
     val miniGame by viewModel.miniGame.collectAsStateWithLifecycle()
-    val battle by viewModel.battle.collectAsStateWithLifecycle()
+    val tacticalBattle by viewModel.tacticalBattle.collectAsStateWithLifecycle()
+    val coachEnabled by viewModel.coachEnabled.collectAsStateWithLifecycle()
+    val battleFastMode by viewModel.battleFastMode.collectAsStateWithLifecycle()
     val chatMessages by viewModel.chatMessages.collectAsStateWithLifecycle()
     val chatBusy by viewModel.chatBusy.collectAsStateWithLifecycle()
     val assistantSettings by viewModel.assistantSettings.collectAsStateWithLifecycle()
     val soundEnabled by viewModel.soundEnabled.collectAsStateWithLifecycle()
     val shopCategory by viewModel.shopCategory.collectAsStateWithLifecycle()
     val feedMenuOpen by viewModel.feedMenuOpen.collectAsStateWithLifecycle()
+    val hour by viewModel.hour.collectAsStateWithLifecycle()
 
     var confirmingReset by remember { mutableStateOf(false) }
     var confirmingExit by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val hour = remember { currentHour() }
     val pet = snapshot
     val currentTab = screen.tab
-    val roundActive = isRoundActive(screen, rpsResult, miniGame, battle)
+    val roundActive = isTacticalRoundActive(screen, rpsResult, miniGame, tacticalBattle)
 
     LaunchedEffect(systemMessage?.id) {
         val message = systemMessage ?: return@LaunchedEffect
@@ -119,7 +121,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
         VaiwuScaffold(
             topBar = {
                 VaiwuTopBar(
-                    title = { AppTopBarTitle(screen = screen, pet = pet, battle = battle) },
+                    title = { AppTopBarTitle(screen = screen, pet = pet, tacticalBattle = tacticalBattle) },
                     onBack = if (screen.isFocusScreen) {
                         {
                             // Same guard as BackHandler: leaving a live round
@@ -155,9 +157,6 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
             snackbarHostState = snackbarHostState,
         ) { padding ->
             Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-                if (updateState == UpdateUiState.NoUpdate) {
-                    NoUpdatesBanner(modifier = Modifier.fillMaxWidth())
-                }
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when (screen) {
                         AppScreen.Home -> HomeScreen(
@@ -209,7 +208,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                             onChoice = viewModel::playRps,
                             onAgain = { viewModel.startRps() },
                             onExit = {
-                                if (isRoundActive(AppScreen.Rps, rpsResult, miniGame, battle)) {
+                                if (isTacticalRoundActive(AppScreen.Rps, rpsResult, miniGame, tacticalBattle)) {
                                     confirmingExit = true
                                 } else {
                                     viewModel.openHome()
@@ -224,7 +223,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                                 onNote = viewModel::playNote,
                                 onAgain = { viewModel.startMiniGame(game.kind, game.sequence.size) },
                                 onExit = {
-                                    if (isRoundActive(AppScreen.MiniGame, rpsResult, miniGame, battle)) {
+                                    if (isTacticalRoundActive(AppScreen.MiniGame, rpsResult, miniGame, tacticalBattle)) {
                                         confirmingExit = true
                                     } else {
                                         viewModel.openHome()
@@ -232,19 +231,27 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                                 },
                             )
                         }
-                        AppScreen.Battle -> battle?.let { currentBattle ->
-                            BattleScreen(
-                                battle = currentBattle,
+                        AppScreen.Battle -> tacticalBattle?.let { currentSession ->
+                            su.neit.vaiwu.combat.TacticalBattleScreen(
+                                session = currentSession,
                                 hour = hour,
-                                onAction = viewModel::battleAction,
-                                onNextRoom = { viewModel.nextDungeonRoom() },
+                                coachEnabled = coachEnabled,
+                                fastMode = battleFastMode,
+                                onAction = viewModel::performTacticalAction,
+                                onUndo = viewModel::undoTacticalAction,
+                                onNextRoom = viewModel::nextDungeonRoom,
                                 onExit = {
-                                    if (isRoundActive(AppScreen.Battle, rpsResult, miniGame, battle)) {
+                                    if (isTacticalRoundActive(AppScreen.Battle, rpsResult, miniGame, tacticalBattle) &&
+                                        !currentSession.awaitingRest
+                                    ) {
                                         confirmingExit = true
                                     } else {
                                         viewModel.openHome()
                                     }
                                 },
+                                onToggleCoach = viewModel::setCoachEnabled,
+                                onToggleFast = viewModel::setBattleFastMode,
+                                onEventSound = viewModel::playCombatEventSfx,
                             )
                         }
                         AppScreen.Settings -> SettingsScreen(
@@ -252,10 +259,13 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                             soundEnabled = soundEnabled,
                             voice = voice,
                             onSoundEnabled = viewModel::setSoundEnabled,
-                            onSave = { apiKey, speech, lat, lon -> viewModel.saveAssistantSettings(apiKey, speech, lat, lon) },
+                            onSpeechEnabled = viewModel::setSpeechEnabled,
+                            onClearApiKey = viewModel::clearApiKey,
+                            onSave = { apiKey, lat, lon -> viewModel.saveAssistantSettings(apiKey, lat, lon) },
                             onUpdate = viewModel::checkForUpdates,
                             onHelp = viewModel::openHelp,
-                            onReset = { confirmingReset = true },                    )
+                            onReset = { confirmingReset = true },
+                        )
                         AppScreen.Help -> HelpScreen()
                     }
                     // System messages float OVER the content at the top: an
@@ -315,7 +325,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
 private fun AppTopBarTitle(
     screen: AppScreen,
     pet: PetSnapshot,
-    battle: BattleSnapshot?,
+    tacticalBattle: su.neit.vaiwu.combat.TacticalBattleSession?,
 ) {
     if (screen == AppScreen.Home) {
         Column {
@@ -331,20 +341,16 @@ private fun AppTopBarTitle(
             )
         }
     } else {
-        val title = when (screen) {
-            AppScreen.Rps -> stringResource(R.string.rps_title)
-            AppScreen.MiniGame -> stringResource(R.string.mini_title)
-            AppScreen.Battle -> battle?.let { b ->
+        val title = if (screen == AppScreen.Battle) {
+            tacticalBattle?.let { b ->
                 if (b.dungeon) {
                     stringResource(R.string.battle_dungeon, b.room, b.rooms)
                 } else {
                     stringResource(R.string.battle_adventure)
                 }
             } ?: stringResource(R.string.battle_adventure)
-            AppScreen.Shop -> stringResource(R.string.shop_title)
-            AppScreen.Settings -> stringResource(R.string.settings_title)
-            AppScreen.Help -> stringResource(R.string.help_title)
-            else -> stringResource(R.string.nav_home)
+        } else {
+            stringResource(screenTitleRes(screen))
         }
         Text(
             text = title,
@@ -352,6 +358,19 @@ private fun AppTopBarTitle(
             fontWeight = FontWeight.Bold,
         )
     }
+}
+
+internal fun screenTitleRes(screen: AppScreen): Int = when (screen) {
+    AppScreen.Home -> R.string.nav_home
+    AppScreen.Games -> R.string.nav_games
+    AppScreen.Pet -> R.string.nav_pet
+    AppScreen.Chat -> R.string.nav_chat
+    AppScreen.Shop -> R.string.shop_title
+    AppScreen.Rps -> R.string.rps_title
+    AppScreen.MiniGame -> R.string.mini_title
+    AppScreen.Battle -> R.string.battle_adventure
+    AppScreen.Settings -> R.string.settings_title
+    AppScreen.Help -> R.string.help_title
 }
 
 @Composable
@@ -408,25 +427,6 @@ private fun UpdateDialog(state: UpdateUiState, onDownload: () -> Unit, onDismiss
                     Text(stringResource(R.string.update_close))
                 }
             },
-        )
-    }
-}
-
-/**
- * Сообщение о том, что новых версий нет. Вешается в верхнюю часть экрана;
- * при включённой нижней навигации (кнопки) поднимается выше зоны навигации.
- */
-@Composable
-private fun NoUpdatesBanner(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.update_none),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
         )
     }
 }

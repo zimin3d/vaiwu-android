@@ -5,12 +5,13 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@11d5960a326750d1f99cc633dbcf757c94c7933a
         with:
           submodules: recursive
 
@@ -30,14 +31,24 @@ jobs:
             --write-verification-metadata sha256 \
             :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest
 
-      - name: Commit refreshed files
+      - name: Open pull request with refreshed files
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if git diff --quiet -- app/gradle.lockfile gradle/verification-metadata.xml; then
             echo "Nothing to update."
             exit 0
           fi
+          BRANCH="chore/refresh-dependencies"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
           git add app/gradle.lockfile gradle/verification-metadata.xml
           git commit -m "Refresh dependency locks and verification metadata"
-          git push
+          git push --force-with-lease origin "$BRANCH"
+          gh pr create \
+            --head "$BRANCH" \
+            --base main \
+            --title "Refresh dependency locks and verification metadata" \
+            --body "Automated refresh of Gradle lockfile and SHA-256 verification metadata." \
+            || gh pr edit "$BRANCH" --title "Refresh dependency locks and verification metadata"

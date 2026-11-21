@@ -34,6 +34,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -281,6 +282,12 @@ def extract_image(data: dict, timeout: float) -> bytes:
         return base64.b64decode(encoded)
     url = entry.get("url")
     if url:
+        parsed = urllib.parse.urlparse(str(url))
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ArtApiError(
+                f"refusing unsupported image URL scheme: {parsed.scheme or '<empty>'}",
+                transient=False,
+            )
         request = urllib.request.Request(
             url, headers={"User-Agent": "vaiwu-art/1.0"}
         )
