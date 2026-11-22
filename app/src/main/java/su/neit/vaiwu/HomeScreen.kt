@@ -67,9 +67,6 @@ private val STAGE_MIN_HEIGHT = 280.dp
 /** Fixed width of the vertical stat bar panel beside the stage. */
 private val SIDE_STAT_PANEL_WIDTH = 132.dp
 
-/** Energy ceiling below which manual sleep is enabled (must match `kManualSleepMaxEnergy` in `VaiwuPet.cpp`). */
-private const val MANUAL_SLEEP_MAX_ENERGY = 90f
-
 /** Semi-opaque backdrop alpha for the side stat card so room art softly shows through. */
 private const val SIDE_PANEL_ALPHA = 0.9f
 
@@ -183,7 +180,7 @@ fun HomeScreen(
                         VaiwuSecondaryButton(
                             text = stringResource(R.string.action_sleep),
                             onClick = { onAction(PetAction.Sleep) },
-                            enabled = pet.energy < MANUAL_SLEEP_MAX_ENERGY,
+                            enabled = pet.canSleep,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }

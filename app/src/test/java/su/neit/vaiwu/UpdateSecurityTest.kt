@@ -64,4 +64,23 @@ class UpdateSecurityTest {
         assertNull(resolveAllowedRedirect(origin, "https://github.com.evil.example.com/vaiwu-android.apk"))
         assertNull(resolveAllowedRedirect(origin, "javascript:alert(1)"))
     }
+
+    @Test
+    fun `release download URL must belong to the official repository releases`() {
+        assertTrue(
+            isAllowedReleaseDownloadUrl(
+                "https://github.com/zimin3d/vaiwu-android/releases/download/v1.0.0/vaiwu-android.apk"
+            )
+        )
+        assertFalse(
+            isAllowedReleaseDownloadUrl(
+                "https://github.com/attacker/malicious/releases/download/v1.0.0/vaiwu-android.apk"
+            )
+        )
+        assertFalse(
+            isAllowedReleaseDownloadUrl(
+                "https://evil.com/releases/download/v1.0.0/vaiwu-android.apk"
+            )
+        )
+    }
 }

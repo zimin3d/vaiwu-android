@@ -15,3 +15,8 @@ data class PetSnapshot(
     val lifeState: Int,
     val isSick: Boolean,
 )
+
+val PetSnapshot.isAlive: Boolean get() = lifeState != LifeState.Dead
+val PetSnapshot.isSleeping: Boolean get() = lifeState == LifeState.Sleeping
+val PetSnapshot.canSleep: Boolean get() = isAlive && !isSleeping && energy < MANUAL_SLEEP_MAX_ENERGY
+val PetSnapshot.canPlay: Boolean get() = isAlive && !isSleeping && energy > PLAY_MIN_ENERGY_THRESHOLD

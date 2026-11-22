@@ -88,3 +88,9 @@ object RpsOutcome {
     const val Draw = 0
     const val Loss = -1
 }
+
+/** Minimum energy required to start a mini-game or combat session (mirrors `VaiwuPet::startPlay`). */
+const val PLAY_MIN_ENERGY_THRESHOLD = 23f
+
+/** Maximum energy threshold under which manual sleep action is allowed (mirrors `VaiwuPet::kManualSleepMaxEnergy`). */
+const val MANUAL_SLEEP_MAX_ENERGY = 90f

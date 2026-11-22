@@ -31,8 +31,8 @@ android {
             create("release") {
                 storeFile = file(System.getenv("KEYSTORE_FILE"))
                 storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = "filament"
-                keyPassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEYSTORE_ALIAS") ?: "filament"
+                keyPassword = System.getenv("KEYSTORE_KEY_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
                 storeType = "pkcs12"
             }
         }
@@ -43,11 +43,17 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (System.getenv("KEYSTORE_FILE").isNullOrEmpty()) {
+            val keystoreFile = System.getenv("KEYSTORE_FILE")
+            val isCi = System.getenv("CI") == "true"
+            val isTag = System.getenv("GITHUB_REF_TYPE") == "tag"
+            if (keystoreFile.isNullOrEmpty()) {
+                if (isCi && isTag) {
+                    throw GradleException("Release builds for tagged releases on CI must configure KEYSTORE_FILE.")
+                }
                 logger.warn("KEYSTORE_FILE is not set: release build will use debug signing")
             }
             signingConfig = signingConfigs.getByName(
-                if (System.getenv("KEYSTORE_FILE").isNullOrEmpty()) "debug" else "release",
+                if (keystoreFile.isNullOrEmpty()) "debug" else "release",
             )
         }
     }

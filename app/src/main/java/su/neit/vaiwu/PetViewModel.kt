@@ -15,6 +15,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import su.neit.vaiwu.combat.CombatAction
+import su.neit.vaiwu.combat.CombatActionException
+import su.neit.vaiwu.combat.CombatEvent
+import su.neit.vaiwu.combat.CombatState
+import su.neit.vaiwu.combat.CombatWinner
+import su.neit.vaiwu.combat.EncounterBuilder
+import su.neit.vaiwu.combat.TacticalBattleSession
+import su.neit.vaiwu.combat.TacticalCombat
 import java.io.File
 import java.io.FileNotFoundException
 import java.text.DateFormat
@@ -116,8 +124,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val _battle = MutableStateFlow<BattleSnapshot?>(null)
     val battle: StateFlow<BattleSnapshot?> = _battle.asStateFlow()
 
-    private val _tacticalBattle = MutableStateFlow<su.neit.vaiwu.combat.TacticalBattleSession?>(null)
-    val tacticalBattle: StateFlow<su.neit.vaiwu.combat.TacticalBattleSession?> = _tacticalBattle.asStateFlow()
+    private val _tacticalBattle = MutableStateFlow<TacticalBattleSession?>(null)
+    val tacticalBattle: StateFlow<TacticalBattleSession?> = _tacticalBattle.asStateFlow()
 
     private val _coachEnabled = MutableStateFlow(settingsStore.getBoolean(CoachPreference, true))
     val coachEnabled: StateFlow<Boolean> = _coachEnabled.asStateFlow()
@@ -449,8 +457,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             val inv = pet.inventory()
             _inventory.value = inv
-            val hero = su.neit.vaiwu.combat.EncounterBuilder.heroBuildFromSnapshots(currentPet, inv)
-            _tacticalBattle.value = su.neit.vaiwu.combat.EncounterBuilder.startSession(
+            val hero = EncounterBuilder.heroBuildFromSnapshots(currentPet, inv)
+            _tacticalBattle.value = EncounterBuilder.startSession(
                 hero = hero,
                 dungeon = dungeon,
                 seed = System.nanoTime(),
@@ -466,14 +474,14 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Executes a player tactical combat action, resolves enemy AI turns, and settles the room if finished. */
-    fun performTacticalAction(action: su.neit.vaiwu.combat.CombatAction) {
+    fun performTacticalAction(action: CombatAction) {
         if (_screen.value != AppScreen.Battle) return
         val session = _tacticalBattle.value ?: return
         if (session.isOver || !session.state.isPlayerTurn) return
 
         val nextState = try {
-            su.neit.vaiwu.combat.TacticalCombat.performAndResolve(session.state, action)
-        } catch (_: su.neit.vaiwu.combat.CombatActionException) {
+            TacticalCombat.performAndResolve(session.state, action)
+        } catch (_: CombatActionException) {
             playSfx(Sfx.Tap)
             return
         }
@@ -484,7 +492,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             refreshEconomy()
             savePet()
         } else {
-            val nextUndo = if (action is su.neit.vaiwu.combat.CombatAction.EndTurn) {
+            val nextUndo = if (action is CombatAction.EndTurn) {
                 emptyList()
             } else {
                 session.undoStack + session.state
@@ -516,22 +524,22 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         playSfx(Sfx.Tap)
     }
 
-    fun playCombatEventSfx(event: su.neit.vaiwu.combat.CombatEvent) {
+    fun playCombatEventSfx(event: CombatEvent) {
         playSfx(sfxForCombatEvent(event))
     }
 
     /** Commits a finished tactical room's HP/MP, potions, XP, gold, and dungeon chest rewards to native state. */
     private fun settleTacticalRoom(
-        session: su.neit.vaiwu.combat.TacticalBattleSession,
-        finished: su.neit.vaiwu.combat.CombatState,
-    ): su.neit.vaiwu.combat.TacticalBattleSession {
+        session: TacticalBattleSession,
+        finished: CombatState,
+    ): TacticalBattleSession {
         val player = finished.player
         val winner = finished.winner ?: return session
         return when (winner) {
-            su.neit.vaiwu.combat.CombatWinner.Player -> {
+            CombatWinner.Player -> {
                 val isFinalDungeonRoom = session.dungeon && session.room >= session.rooms
                 val chest = if (isFinalDungeonRoom) {
-                    su.neit.vaiwu.combat.EncounterBuilder.computeDungeonChestGold(
+                    EncounterBuilder.computeDungeonChestGold(
                         rooms = session.rooms,
                         seed = finished.rng.seed xor DungeonChestSeedSalt,
                     )
@@ -568,7 +576,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                     settled = true,
                 )
             }
-            su.neit.vaiwu.combat.CombatWinner.Enemy -> {
+            CombatWinner.Enemy -> {
                 val defeatPenalty = -(DefeatGoldPenaltyBase + player.level * DefeatGoldPenaltyPerLevel)
                 val netGold = (finished.goldDelta + defeatPenalty).coerceAtMost(0)
                 pet.settleTacticalBattle(
@@ -593,7 +601,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                     settled = true,
                 )
             }
-            su.neit.vaiwu.combat.CombatWinner.Escaped -> {
+            CombatWinner.Escaped -> {
                 pet.settleTacticalBattle(
                     outcome = BattleOutcome.Escaped,
                     hpLeft = player.hp.coerceAtLeast(1),
@@ -668,8 +676,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         val inv = pet.inventory()
         _inventory.value = inv
         val nextRoom = session.room + 1
-        val hero = su.neit.vaiwu.combat.EncounterBuilder.heroBuildFromSnapshots(currentPet, inv)
-        val nextState = su.neit.vaiwu.combat.EncounterBuilder.buildRoomCombat(
+        val hero = EncounterBuilder.heroBuildFromSnapshots(currentPet, inv)
+        val nextState = EncounterBuilder.buildRoomCombat(
             hero = hero,
             dungeon = true,
             room = nextRoom,
@@ -727,7 +735,10 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             existing = secretStore.readApiKey(),
         )
         if (apiKey.isNotBlank()) {
-            secretStore.writeApiKey(nextKey)
+            if (!secretStore.writeApiKey(nextKey)) {
+                postSystemMessage(text(R.string.settings_api_save_failed))
+                return false
+            }
         }
         settingsStore.edit()
             .putString("latitude", latitude.toString())

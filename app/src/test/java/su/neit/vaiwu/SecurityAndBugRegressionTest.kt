@@ -49,6 +49,27 @@ class SecurityAndBugRegressionTest {
     }
 
     @Test
+    fun inSampleSizeDownsamplesLargeSpritesToPreventOOM() {
+        val largeOptions = android.graphics.BitmapFactory.Options().apply {
+            outWidth = 1254
+            outHeight = 1254
+        }
+        assertEquals(2, calculateInSampleSize(largeOptions, maxDimension = 640))
+
+        val smallOptions = android.graphics.BitmapFactory.Options().apply {
+            outWidth = 300
+            outHeight = 300
+        }
+        assertEquals(1, calculateInSampleSize(smallOptions, maxDimension = 640))
+
+        val hugeOptions = android.graphics.BitmapFactory.Options().apply {
+            outWidth = 2500
+            outHeight = 2500
+        }
+        assertEquals(4, calculateInSampleSize(hugeOptions, maxDimension = 640))
+    }
+
+    @Test
     fun apiKeySanitizationStripsControlCharsAndPreservesExistingOnBlankSave() {
         assertEquals("sk-or-v1-abc123", sanitizeApiKey("  sk-or-v1-abc123\r\nX-Injected: bad "))
         assertEquals("existing-key", resolveApiKeyUpdate("", clearRequested = false, existing = "existing-key"))

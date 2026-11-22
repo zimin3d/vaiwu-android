@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
     <!-- Downloaded APKs live in cacheDir/updates/, which the OS excludes automatically. -->
+    <!--
+      Security model for pet save state:
+      'pet.save' in filesDir is intentionally included in backups to preserve offline player progress
+      across device transfers. Integrity and anti-tampering are enforced at load time by strict schema
+      parsing and bounds clamping (normalizeRpg, stats clamping, fixed sscanf format) in native C++.
+    -->
     <exclude domain="sharedpref" path="settings.xml" />
     <exclude domain="sharedpref" path="reminders.xml" />
 </full-backup-content>

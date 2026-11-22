@@ -267,15 +267,48 @@ fun AssetImage(
     }
 }
 
+/** Maximum pixel dimension (width or height) to decode into memory to prevent OOMs on large source art. */
+private const val MAX_DECODED_SPRITE_DIMENSION = 640
+
+/** Calculates power-of-two `inSampleSize` for [options] downsampling towards [maxDimension]. */
+internal fun calculateInSampleSize(options: BitmapFactory.Options, maxDimension: Int): Int {
+    val height = options.outHeight
+    val width = options.outWidth
+    var inSampleSize = 1
+    if (height > maxDimension || width > maxDimension) {
+        val halfHeight = height / 2
+        val halfWidth = width / 2
+        while ((halfHeight / inSampleSize) >= maxDimension || (halfWidth / inSampleSize) >= maxDimension) {
+            inSampleSize *= 2
+        }
+    }
+    return inSampleSize
+}
+
 /** Synchronous cache-backed bitmap loader used by Canvas renderers on [Dispatchers.IO]. */
 internal fun loadAssetBitmap(context: Context, assetName: String): Bitmap? =
     decodeAsset(context, assetName)
 
-/** Reads [assetName] from [SpriteBitmapCache], decoding from `assets/` on a cache miss. */
-private fun decodeAsset(context: Context, assetName: String): Bitmap? {
+/** Reads [assetName] from [SpriteBitmapCache], decoding from `assets/` with bounded memory on a cache miss. */
+private fun decodeAsset(
+    context: Context,
+    assetName: String,
+    maxDimension: Int = MAX_DECODED_SPRITE_DIMENSION,
+): Bitmap? {
     SpriteBitmapCache.get(assetName)?.let { return it }
     val bitmap = runCatching {
-        context.assets.open(assetName).use(BitmapFactory::decodeStream)
+        val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.assets.open(assetName).use { stream ->
+            BitmapFactory.decodeStream(stream, null, boundsOptions)
+        }
+        val sampleSize = calculateInSampleSize(boundsOptions, maxDimension)
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        context.assets.open(assetName).use { stream ->
+            BitmapFactory.decodeStream(stream, null, decodeOptions)
+        }
     }.getOrNull() ?: return null
     SpriteBitmapCache.put(assetName, bitmap)
     return bitmap

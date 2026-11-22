@@ -41,9 +41,6 @@ import androidx.compose.ui.unit.sp
 /** Number of columns in the Games hub card grid. */
 private const val GAMES_GRID_COLUMNS = 2
 
-/** Matches `VaiwuPet::startPlay()`: energy >= 20 and energy - 8 > 15 (forced-sleep threshold). */
-private const val PlayEnergyThreshold = 23f
-
 /** Percentage coordinate upper bound used by [heartOffsetPx]. */
 private const val PLAYFIELD_PERCENT_MAX = 100
 
@@ -156,8 +153,7 @@ fun GamesScreen(
 }
 
 /** Returns true when [pet] is awake and has enough energy to survive the upfront play cost. */
-internal fun canPlayGames(pet: PetSnapshot): Boolean =
-    pet.lifeState == LifeState.Awake && pet.energy > PlayEnergyThreshold
+internal fun canPlayGames(pet: PetSnapshot): Boolean = pet.canPlay
 
 /**
  * Maps percentage coordinates (`heartX`, `heartY` in 0..100) into pixel offsets

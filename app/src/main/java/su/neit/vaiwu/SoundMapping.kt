@@ -1,5 +1,8 @@
 package su.neit.vaiwu
 
+import su.neit.vaiwu.combat.CombatEvent
+import su.neit.vaiwu.combat.PLAYER_ID
+
 /**
  * Pure mapping from game events to synthesizer effects.
  *
@@ -80,22 +83,22 @@ internal fun sfxForBattleAction(
 internal fun sfxForNote(note: Int): Int = Sfx.Note.getOrElse(note) { Sfx.Tap }
 
 /** Maps a tactical combat playback event to a synthesized sound effect. */
-internal fun sfxForCombatEvent(event: su.neit.vaiwu.combat.CombatEvent): Int? = when (event) {
-    is su.neit.vaiwu.combat.CombatEvent.Move -> if (event.teleport) Sfx.Magic else Sfx.Tap
-    is su.neit.vaiwu.combat.CombatEvent.SkillCast -> Sfx.Magic
-    is su.neit.vaiwu.combat.CombatEvent.WeaponStrike -> Sfx.Hit
-    is su.neit.vaiwu.combat.CombatEvent.ShieldUp -> Sfx.Magic
-    is su.neit.vaiwu.combat.CombatEvent.Blocked -> Sfx.Tap
-    is su.neit.vaiwu.combat.CombatEvent.Damage -> when {
-        event.targetId == su.neit.vaiwu.combat.PLAYER_ID -> Sfx.Hurt
+internal fun sfxForCombatEvent(event: CombatEvent): Int? = when (event) {
+    is CombatEvent.Move -> if (event.teleport) Sfx.Magic else Sfx.Tap
+    is CombatEvent.SkillCast -> Sfx.Magic
+    is CombatEvent.WeaponStrike -> Sfx.Hit
+    is CombatEvent.ShieldUp -> Sfx.Magic
+    is CombatEvent.Blocked -> Sfx.Tap
+    is CombatEvent.Damage -> when {
+        event.targetId == PLAYER_ID -> Sfx.Hurt
         event.crit -> Sfx.Crit
         else -> Sfx.Hit
     }
-    is su.neit.vaiwu.combat.CombatEvent.Heal -> Sfx.Magic
-    is su.neit.vaiwu.combat.CombatEvent.MpRestore -> Sfx.Magic
-    is su.neit.vaiwu.combat.CombatEvent.StatusApplied -> Sfx.Tap
-    is su.neit.vaiwu.combat.CombatEvent.CommandMark -> Sfx.Encounter
-    is su.neit.vaiwu.combat.CombatEvent.Down ->
-        if (event.targetId == su.neit.vaiwu.combat.PLAYER_ID) Sfx.Lose else Sfx.Win
-    is su.neit.vaiwu.combat.CombatEvent.FleeAttempt -> if (event.success) Sfx.Tap else Sfx.Hurt
+    is CombatEvent.Heal -> Sfx.Magic
+    is CombatEvent.MpRestore -> Sfx.Magic
+    is CombatEvent.StatusApplied -> Sfx.Tap
+    is CombatEvent.CommandMark -> Sfx.Encounter
+    is CombatEvent.Down ->
+        if (event.targetId == PLAYER_ID) Sfx.Lose else Sfx.Win
+    is CombatEvent.FleeAttempt -> if (event.success) Sfx.Tap else Sfx.Hurt
 }

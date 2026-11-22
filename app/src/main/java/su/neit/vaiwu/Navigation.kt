@@ -1,5 +1,7 @@
 package su.neit.vaiwu
 
+import su.neit.vaiwu.combat.TacticalBattleSession
+
 /**
  * Top level tabs of the application. Every tab owns exactly one screen, so
  * the bottom bar can never point at a screen that does not exist.
@@ -96,7 +98,7 @@ fun isTacticalRoundActive(
     screen: AppScreen,
     rpsResult: RpsResult?,
     miniGame: MiniGameState?,
-    tacticalBattle: su.neit.vaiwu.combat.TacticalBattleSession?,
+    tacticalBattle: TacticalBattleSession?,
 ): Boolean = when (screen) {
     AppScreen.Rps -> rpsResult == null
     AppScreen.MiniGame -> miniGame != null && !miniGame.finished

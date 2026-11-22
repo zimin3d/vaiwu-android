@@ -35,6 +35,14 @@ private val AllowedUpdateHosts = setOf(
     "release-assets.githubusercontent.com",
 )
 
+/** Prefix required for initial release APK download URLs before any CDN redirects. */
+internal const val RELEASE_DOWNLOAD_PREFIX =
+    "https://github.com/zimin3d/vaiwu-android/releases/download/"
+
+/** Returns true only when [url] points to an official vaiwu-android GitHub release download. */
+internal fun isAllowedReleaseDownloadUrl(url: String): Boolean =
+    url.startsWith(RELEASE_DOWNLOAD_PREFIX)
+
 /** Returns true only when [url] uses HTTPS and points to one of [AllowedUpdateHosts]. */
 internal fun isAllowedUpdateUrl(url: URL): Boolean =
     url.protocol == "https" && url.host in AllowedUpdateHosts
@@ -55,9 +63,14 @@ internal fun resolveAllowedRedirect(current: URL, location: String?): URL? {
 }
 
 /**
- * Handles in-app self-updates from GitHub Releases with strict security checks:
- * HTTPS host allowlisting on every redirect hop, SHA-256 digest verification,
- * APK zip sanity check, anti-downgrade check, and signing-certificate pinning.
+ * Handles in-app self-updates from GitHub Releases with strict defense-in-depth:
+ * - Direct release download URL prefix-pinned to [RELEASE_DOWNLOAD_PREFIX].
+ * - HTTPS host allowlisting on every redirect hop (GitHub CDN / release assets).
+ * - Release asset SHA-256 digest verification during streaming download (guards against transmission corruption).
+ * - Trust Model: The primary cryptographic security guarantee is enforced by [install], which verifies
+ *   the package name, rejects downgrades, and verifies that the downloaded APK's signing certificate
+ *   matches the currently installed app's certificate history.
+ * - APK zip sanity check and non-exported FileProvider.
  */
 class GitHubUpdateManager(private val context: Context) {
 
@@ -312,11 +325,15 @@ class GitHubUpdateManager(private val context: Context) {
         if (!sha256.matches(Regex("[0-9a-fA-F]{$Sha256HexLength}"))) {
             throw IOException(context.getString(R.string.update_no_sha256))
         }
+        val apkUrl = asset.getString("browser_download_url")
+        if (!isAllowedReleaseDownloadUrl(apkUrl)) {
+            throw IOException(context.getString(R.string.update_bad_url))
+        }
         return ReleaseInfo(
             version = json.getString("tag_name").removePrefix("v"),
             title = json.optString("name").ifBlank { json.getString("tag_name") },
             notes = json.optString("body"),
-            apkUrl = asset.getString("browser_download_url"),
+            apkUrl = apkUrl,
             sizeBytes = asset.optLong("size"),
             sha256 = sha256,
         )

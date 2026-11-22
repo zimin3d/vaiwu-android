@@ -81,22 +81,21 @@ class SecretStore(private val preferences: SharedPreferences) {
         return ""
     }
 
-    fun writeApiKey(rawKey: String) {
+    fun writeApiKey(rawKey: String): Boolean {
         val clean = sanitizeApiKey(rawKey)
         if (clean.isEmpty()) {
             preferences.edit()
                 .remove(EncryptedKeyPref)
                 .remove(LegacyPlaintextKeyPref)
                 .apply()
-            return
+            return true
         }
-        val encrypted = encrypt(clean)
-        if (encrypted != null) {
-            preferences.edit()
-                .putString(EncryptedKeyPref, encrypted)
-                .remove(LegacyPlaintextKeyPref)
-                .apply()
-        }
+        val encrypted = encrypt(clean) ?: return false
+        preferences.edit()
+            .putString(EncryptedKeyPref, encrypted)
+            .remove(LegacyPlaintextKeyPref)
+            .apply()
+        return true
     }
 
     private fun encrypt(plaintext: String): String? = runCatching {

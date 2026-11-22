@@ -31,7 +31,7 @@ class NativePet : Closeable {
     @Synchronized
     fun save(): String {
         if (handle == 0L) return ""
-        return nativeSave(handle)
+        return nativeSave(handle).orEmpty()
     }
 
     @Synchronized
@@ -47,12 +47,15 @@ class NativePet : Closeable {
     }
 
     @Synchronized
-    fun snapshot(): PetSnapshot = nativeSnapshot(requireHandle())
+    fun snapshot(): PetSnapshot {
+        if (handle == 0L) return fallbackSnapshot()
+        return nativeSnapshot(handle) ?: fallbackSnapshot()
+    }
 
     @Synchronized
     fun shop(): Array<ShopItemSnapshot> {
         if (handle == 0L) return emptyArray()
-        return nativeShop(handle)
+        return nativeShop(handle) ?: emptyArray()
     }
 
     @Synchronized
@@ -75,7 +78,10 @@ class NativePet : Closeable {
     }
 
     @Synchronized
-    fun inventory(): InventorySnapshot = nativeInventory(requireHandle())
+    fun inventory(): InventorySnapshot {
+        if (handle == 0L) return fallbackInventory()
+        return nativeInventory(handle) ?: fallbackInventory()
+    }
 
     @Synchronized
     fun equip(slot: Int, itemId: Int): Boolean {
@@ -201,8 +207,43 @@ class NativePet : Closeable {
     @Synchronized
     fun joke(): String {
         if (handle == 0L) return ""
-        return nativeJoke(handle)
+        return nativeJoke(handle).orEmpty()
     }
+
+    private fun fallbackSnapshot() = PetSnapshot(
+        characterId = 0,
+        characterName = "",
+        petName = "",
+        hunger = 0f,
+        happiness = 0f,
+        energy = 0f,
+        discipline = 0f,
+        weightKg = 0f,
+        ageSeconds = 0,
+        coins = 0,
+        emotionId = Emotion.Idle,
+        lifeState = LifeState.Dead,
+        isSick = false,
+    )
+
+    private fun fallbackInventory() = InventorySnapshot(
+        level = 1,
+        xp = 0,
+        nextLevelXp = 100,
+        hp = 100,
+        maxHp = 100,
+        mp = 50,
+        maxMp = 50,
+        potions = 0,
+        mpPotions = 0,
+        strength = 10,
+        vitality = 10,
+        agility = 10,
+        magic = 10,
+        luck = 10,
+        statPoints = 0,
+        equipment = emptyArray(),
+    )
 
     @Synchronized
     override fun close() {
@@ -216,15 +257,15 @@ class NativePet : Closeable {
     private external fun nativeDestroy(handle: Long)
     private external fun nativeStartNew(handle: Long, characterId: Int, name: String, nowMs: Long)
     private external fun nativeLoad(handle: Long, data: String, nowMs: Long): Boolean
-    private external fun nativeSave(handle: Long): String
+    private external fun nativeSave(handle: Long): String?
     private external fun nativeTick(handle: Long, nowMs: Long)
     private external fun nativeAction(handle: Long, action: Int): Int
-    private external fun nativeSnapshot(handle: Long): PetSnapshot
-    private external fun nativeShop(handle: Long): Array<ShopItemSnapshot>
+    private external fun nativeSnapshot(handle: Long): PetSnapshot?
+    private external fun nativeShop(handle: Long): Array<ShopItemSnapshot>?
     private external fun nativeBuy(handle: Long, itemId: Int): Boolean
     private external fun nativeUseItem(handle: Long, itemId: Int): Int
     private external fun nativeFeedWith(handle: Long, itemId: Int): Int
-    private external fun nativeInventory(handle: Long): InventorySnapshot
+    private external fun nativeInventory(handle: Long): InventorySnapshot?
     private external fun nativeEquip(handle: Long, slot: Int, itemId: Int): Boolean
     private external fun nativeSell(handle: Long, itemId: Int): Int
     private external fun nativeStartPlay(handle: Long): Int
@@ -252,7 +293,7 @@ class NativePet : Closeable {
     private external fun nativePhrase(handle: Long, context: Int): String?
     private external fun nativeCharacterProfile(handle: Long, characterId: Int): CharacterProfile?
     private external fun nativeParseIntent(handle: Long, text: String): AssistantIntent?
-    private external fun nativeJoke(handle: Long): String
+    private external fun nativeJoke(handle: Long): String?
 
     companion object {
         /** Sentinel handle value after [close] destroys the native C++ state. */

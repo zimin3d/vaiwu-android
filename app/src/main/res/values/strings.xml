@@ -277,6 +277,7 @@
     <string name="settings_api_label">API-ключ</string>
     <string name="settings_api_clear">Удалить сохранённый ключ</string>
     <string name="settings_api_cleared">API-ключ удалён</string>
+    <string name="settings_api_save_failed">Не удалось сохранить ключ в защищённое хранилище</string>
     <string name="settings_location_title">Геолокация</string>
     <string name="settings_latitude_label">Широта</string>
     <string name="settings_longitude_label">Долгота</string>

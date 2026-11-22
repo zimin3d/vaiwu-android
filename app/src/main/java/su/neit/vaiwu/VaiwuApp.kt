@@ -1,5 +1,8 @@
 package su.neit.vaiwu
 
+import su.neit.vaiwu.combat.TacticalBattleScreen
+import su.neit.vaiwu.combat.TacticalBattleSession
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -245,7 +248,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                             )
                         }
                         AppScreen.Battle -> tacticalBattle?.let { currentSession ->
-                            su.neit.vaiwu.combat.TacticalBattleScreen(
+                            TacticalBattleScreen(
                                 session = currentSession,
                                 hour = hour,
                                 coachEnabled = coachEnabled,
@@ -339,7 +342,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
 private fun AppTopBarTitle(
     screen: AppScreen,
     pet: PetSnapshot,
-    tacticalBattle: su.neit.vaiwu.combat.TacticalBattleSession?,
+    tacticalBattle: TacticalBattleSession?,
 ) {
     if (screen == AppScreen.Home) {
         Column {
