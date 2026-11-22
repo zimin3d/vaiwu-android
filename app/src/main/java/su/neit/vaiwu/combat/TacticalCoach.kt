@@ -43,11 +43,32 @@ data class CoachHint(
 )
 
 /**
+ * Tactical coach heuristic thresholds. Tuning these adjusts how conservative
+ * or aggressive the coach's recommendations are without changing combat rules.
+ */
+private const val HEAL_HP_RATIO_LETHAL = 0.60      // Recommend emergency heal below 60% HP when facing lethal damage.
+private const val HEAL_HP_RATIO_NORMAL = 0.35      // Recommend proactive heal below 35% HP even when not lethal.
+private const val DODGE_INCOMING_HP_RATIO = 0.25   // Consider stepping to cover when incoming damage >= 25% max HP.
+private const val DODGE_MIN_SAVED_HP = 4           // Minimum flat HP a dodge step must save to be worth 1 AP.
+private const val DODGE_MIN_SAVED_RATIO = 0.20     // Minimum fraction of max HP a dodge step must save.
+private const val SHIELD_LOW_HP_RATIO = 0.50       // Below 50% HP, lower the bar for raising a shield.
+private const val SHIELD_MIN_SAVED_LETHAL = 3      // Minimum HP saved for a lethal-preventing shield suggestion.
+private const val SHIELD_MIN_SAVED_LOW_HP = 4      // Minimum HP saved to suggest shielding when below 50% HP.
+private const val SHIELD_MIN_SAVED_NORMAL = 5      // Minimum flat HP saved to prefer shielding over attacking at high HP.
+private const val SHIELD_MIN_SAVED_RATIO = 0.15    // Minimum fraction of max HP saved to prefer shielding at high HP.
+private const val PREEMPTIVE_SHIELD_MAX_DIST = 6   // Max enemy distance (cells) to suggest a preemptive shield when idle.
+
+/**
  * Pure tactical advisor inspired by `coach.ts`. Inspects enemy intents, HP/MP,
  * potions, cover positions, and lethal lines to highlight the smartest play.
  */
 object TacticalCoach {
 
+    /**
+     * Evaluates the current player turn in priority order (finish lethal target,
+     * survive incoming burst, stop healer, step to cover, shield, stun, attack,
+     * restore MP, reposition, end turn) and returns the highest-value [CoachHint].
+     */
     fun advise(state: CombatState, selectedTargetId: String?): CoachHint? {
         if (state.winner != null || !state.isPlayerTurn) return null
         val me = state.player
@@ -147,7 +168,7 @@ object TacticalCoach {
 
         // 2. Emergency heal or HP potion when facing lethal damage or low HP
         val lethal = incoming >= me.hp
-        val lowHpThreshold = (me.maxHp * if (lethal) 0.60 else 0.35).roundToInt()
+        val lowHpThreshold = (me.maxHp * if (lethal) HEAL_HP_RATIO_LETHAL else HEAL_HP_RATIO_NORMAL).roundToInt()
         if (me.hp < lowHpThreshold) {
             if (healSkill != null && me.hp < me.maxHp) {
                 return CoachHint(
@@ -181,7 +202,7 @@ object TacticalCoach {
 
         // 4. Step to cover / dodge out of heavy incoming damage
         val occupied = TacticalCombat.occupiedBy(state, me)
-        if (incoming >= me.maxHp * 0.25 && me.ap > 1) {
+        if (incoming >= me.maxHp * DODGE_INCOMING_HP_RATIO && me.ap > 1) {
             var bestSpot: Pair<Pos, Int>? = null
             for (dx in -me.cellsPerAp..me.cellsPerAp) {
                 for (dy in -me.cellsPerAp..me.cellsPerAp) {
@@ -198,7 +219,8 @@ object TacticalCoach {
                     }
                 }
             }
-            if (bestSpot != null && incoming - bestSpot.second >= max(4, (me.maxHp * 0.20).roundToInt())) {
+            val minWorthSaving = max(DODGE_MIN_SAVED_HP, (me.maxHp * DODGE_MIN_SAVED_RATIO).roundToInt())
+            if (bestSpot != null && incoming - bestSpot.second >= minWorthSaving) {
                 return CoachHint(
                     message = CoachMessage.DodgeToCover(topThreatId, incoming, bestSpot.second),
                     pick = CoachPick.Field(to = bestSpot.first),
@@ -214,8 +236,12 @@ object TacticalCoach {
             val saved = incoming - after
             val bestAttack = foes.maxOfOrNull { bestDamageOn(it) } ?: 0
             val survives = lethal && after < me.hp
-            val lowHp = me.hp < me.maxHp * 0.5
-            if (survives && saved >= 3 || (lowHp && saved >= 4) || (saved >= max(5, (me.maxHp * 0.15).roundToInt()) && saved > bestAttack)) {
+            val lowHp = me.hp < me.maxHp * SHIELD_LOW_HP_RATIO
+            val minNormalSave = max(SHIELD_MIN_SAVED_NORMAL, (me.maxHp * SHIELD_MIN_SAVED_RATIO).roundToInt())
+            if (survives && saved >= SHIELD_MIN_SAVED_LETHAL ||
+                (lowHp && saved >= SHIELD_MIN_SAVED_LOW_HP) ||
+                (saved >= minNormalSave && saved > bestAttack)
+            ) {
                 return CoachHint(
                     message = CoachMessage.RaiseShield(topThreatId, incoming, saved, shieldSkill.id, survives),
                     pick = CoachPick.Skill(shieldSkill.id),
@@ -302,7 +328,7 @@ object TacticalCoach {
         }
 
         // 12. Preemptive shield if unable to hit and enemy is fairly close
-        if (shieldSkill != null && me.shield == null && dist <= 6) {
+        if (shieldSkill != null && me.shield == null && dist <= PREEMPTIVE_SHIELD_MAX_DIST) {
             return CoachHint(
                 message = CoachMessage.PreemptiveShield(target.id, shieldSkill.id),
                 pick = CoachPick.Skill(shieldSkill.id),
@@ -317,6 +343,7 @@ object TacticalCoach {
         )
     }
 
+    /** Returns true when [hint] currently highlights the UI control identified by [pick]. */
     fun isPicked(hint: CoachHint?, pick: CoachPick): Boolean {
         val p = hint?.pick ?: return false
         return p == pick

@@ -32,12 +32,52 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
+/** Ordered character slugs matching native `CharacterId` values (0..7). */
 internal val characterIds = listOf("aoi", "hina", "rin", "yuki", "akane", "unicorn", "kolobok", "vesper")
+
+/** Ordered emotion slugs matching native `Emotion` values (0..6). */
 internal val emotionIds = listOf("idle", "happy", "sad", "angry", "sleepy", "sick", "dead")
 
+/** Fallback delay between animation frames when the caller does not override it. */
+private const val DEFAULT_FRAME_DURATION_MS = 180L
+
+/** Lower bound for the in-memory sprite LRU cache (bytes). */
+private const val CACHE_MIN_BYTES = 16 * 1024 * 1024
+
+/** Upper bound for the in-memory sprite LRU cache (bytes) so sprites do not crowd out the UI heap. */
+private const val CACHE_MAX_BYTES = 32 * 1024 * 1024
+
+/** Fraction denominator of the JVM max heap allotted to [SpriteBitmapCache] (`maxMemory / 6`). */
+private const val CACHE_HEAP_DIVISOR = 6L
+
+/** Neutral vertical scale at the bottom of the breathing cycle. */
+private const val BREATH_SCALE_BASE = 1.0f
+
+/** Peak vertical scale for awake breathing (+1.5% height stretch anchored at the feet). */
+private const val BREATH_SCALE_AWAKE = 1.015f
+
+/** Peak vertical scale while sleepy (+2.2% deeper inhale). */
+private const val BREATH_SCALE_SLEEPY = 1.022f
+
+/** Half-cycle duration (inhale or exhale) for normal awake breathing in milliseconds. */
+private const val BREATH_PERIOD_AWAKE_MS = 1800
+
+/** Half-cycle duration for slower, deeper sleepy breathing in milliseconds. */
+private const val BREATH_PERIOD_SLEEPY_MS = 2400
+
+/** Horizontal pivot (center) and vertical pivot (feet) so breathing expands upward without floating. */
+private const val BREATH_PIVOT_X = 0.5f
+private const val BREATH_PIVOT_Y = 1.0f
+
+/**
+ * Immutable frame sequence and playback cadence for a sprite animation.
+ *
+ * @property frames Ordered asset filenames inside `app/src/main/assets/`.
+ * @property frameDurationMs Time each frame remains on screen before advancing.
+ */
 data class SpriteAnimation(
     val frames: List<String>,
-    val frameDurationMs: Long = 180,
+    val frameDurationMs: Long = DEFAULT_FRAME_DURATION_MS,
 ) {
     init {
         require(frames.isNotEmpty())
@@ -47,8 +87,10 @@ data class SpriteAnimation(
 
 /**
  * Resolves animation frames for [base] against the shipped asset filenames.
+ *
  * Supports both 0-based sequences (`base_00.png`, `base_01.png`, ...) and
- * 1-based extensions (`base.png`, `base_01.png`, `base_02.png`, ...).
+ * 1-based extensions (`base.png`, `base_01.png`, `base_02.png`, ...), falling
+ * back to `[base.png]` when no extra frames exist.
  */
 internal fun resolveSpriteFrames(base: String, availableAssets: Set<String>): List<String> {
     val zeroBased = generateSequence(0) { it + 1 }
@@ -68,6 +110,7 @@ internal fun resolveSpriteFrames(base: String, availableAssets: Set<String>): Li
     return listOf(baseFile)
 }
 
+/** Lazily caches the root `assets/` directory listing so frame lookup never hits disk repeatedly. */
 private object SpriteAssetIndex {
     @Volatile
     private var cached: Set<String>? = null
@@ -82,10 +125,11 @@ private object SpriteAssetIndex {
     }
 }
 
+/** Process-wide LRU bitmap cache sized between [CACHE_MIN_BYTES] and [CACHE_MAX_BYTES]. */
 private object SpriteBitmapCache {
     private val maxBytes = maxOf(
-        16 * 1024 * 1024,
-        minOf(32 * 1024 * 1024, (Runtime.getRuntime().maxMemory() / 6L).toInt()),
+        CACHE_MIN_BYTES,
+        minOf(CACHE_MAX_BYTES, (Runtime.getRuntime().maxMemory() / CACHE_HEAP_DIVISOR).toInt()),
     )
     private val bitmaps = object : LruCache<String, Bitmap>(maxBytes) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
@@ -98,13 +142,20 @@ private object SpriteBitmapCache {
     }
 }
 
+/**
+ * Renders the active pet's sprite for [characterId] and [emotionId].
+ *
+ * Automatically cycles through multi-frame assets when available and layers a
+ * subtle 60-FPS vertical breathing scale anchored at the feet for all living
+ * emotions (`emotionId != Emotion.Dead`).
+ */
 @Composable
 fun PetSprite(
     characterId: Int,
     emotionId: Int,
     description: String,
     modifier: Modifier,
-    frameDurationMs: Long = 180L,
+    frameDurationMs: Long = DEFAULT_FRAME_DURATION_MS,
 ) {
     val context = LocalContext.current
     val animation = remember(characterId, emotionId, frameDurationMs) {
@@ -118,11 +169,11 @@ fun PetSprite(
     val breathingModifier = if (alive) {
         val transition = rememberInfiniteTransition(label = "pet-breathing")
         val breathScaleY by transition.animateFloat(
-            initialValue = 1.0f,
-            targetValue = if (emotionId == Emotion.Sleepy) 1.022f else 1.015f,
+            initialValue = BREATH_SCALE_BASE,
+            targetValue = if (emotionId == Emotion.Sleepy) BREATH_SCALE_SLEEPY else BREATH_SCALE_AWAKE,
             animationSpec = infiniteRepeatable(
                 animation = tween(
-                    durationMillis = if (emotionId == Emotion.Sleepy) 2400 else 1800,
+                    durationMillis = if (emotionId == Emotion.Sleepy) BREATH_PERIOD_SLEEPY_MS else BREATH_PERIOD_AWAKE_MS,
                     easing = FastOutSlowInEasing,
                 ),
                 repeatMode = RepeatMode.Reverse,
@@ -131,7 +182,7 @@ fun PetSprite(
         )
         modifier.graphicsLayer {
             scaleY = breathScaleY
-            transformOrigin = TransformOrigin(0.5f, 1.0f)
+            transformOrigin = TransformOrigin(BREATH_PIVOT_X, BREATH_PIVOT_Y)
         }
     } else {
         modifier
@@ -139,6 +190,12 @@ fun PetSprite(
     SpriteImage(animation = animation, description = description, modifier = breathingModifier)
 }
 
+/**
+ * Decodes and cycles [animation] frames without layout jitter or placeholder flashes.
+ *
+ * Frame 0 is decoded and painted immediately so emotion transitions feel instant;
+ * remaining frames preload on [Dispatchers.IO] before the playback loop begins.
+ */
 @Composable
 fun SpriteImage(animation: SpriteAnimation, description: String, modifier: Modifier) {
     val context = LocalContext.current.applicationContext
@@ -147,8 +204,6 @@ fun SpriteImage(animation: SpriteAnimation, description: String, modifier: Modif
         mutableStateOf(SpriteBitmapCache.get(animation.frames.first()))
     }
     LaunchedEffect(animation) {
-        // Show frame 0 immediately, then preload remaining frames on IO before
-        // cycling so emotion switches feel instant and frame swaps never flash.
         val first = withContext(Dispatchers.IO) { decodeAsset(context, animation.frames.first()) }
         if (first != null) currentBitmap = first
         if (animation.frames.size > 1) {
@@ -180,6 +235,10 @@ fun SpriteImage(animation: SpriteAnimation, description: String, modifier: Modif
     }
 }
 
+/**
+ * Asynchronously loads and displays a single static image from `assets/[assetName]`,
+ * reserving its layout bounds with a tinted placeholder until decoding finishes.
+ */
 @Composable
 fun AssetImage(
     assetName: String,
@@ -208,9 +267,11 @@ fun AssetImage(
     }
 }
 
+/** Synchronous cache-backed bitmap loader used by Canvas renderers on [Dispatchers.IO]. */
 internal fun loadAssetBitmap(context: Context, assetName: String): Bitmap? =
     decodeAsset(context, assetName)
 
+/** Reads [assetName] from [SpriteBitmapCache], decoding from `assets/` on a cache miss. */
 private fun decodeAsset(context: Context, assetName: String): Bitmap? {
     SpriteBitmapCache.get(assetName)?.let { return it }
     val bitmap = runCatching {

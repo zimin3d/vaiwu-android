@@ -4,10 +4,19 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 
+/** Number of columns on the tactical arena grid (x in `0 until GRID_WIDTH`). */
 const val GRID_WIDTH = 9
+
+/** Number of rows on the tactical arena grid (y in `0 until GRID_HEIGHT`). */
 const val GRID_HEIGHT = 5
+
+/** Default movement speed: grid cells traversed per 1 AP spent. */
 const val CELLS_PER_AP = 2
 
+/** Fallback connectivity anchor when [generateArenaGrid] receives an empty reserved set. */
+private val DEFAULT_ARENA_ANCHOR = Pos(1, 2)
+
+/** Discrete cell coordinate on [TacticalGrid]. */
 data class Pos(val x: Int, val y: Int)
 
 enum class ArenaTheme {
@@ -81,6 +90,7 @@ fun cellsBetween(a: Pos, b: Pos): List<Pos> {
 fun hasCover(grid: TacticalGrid, from: Pos, to: Pos): Boolean =
     cellsBetween(from, to).any { c -> grid.isCover(c) && distance(c, to) <= 1 }
 
+/** Minimum AP needed to walk from [from] to [to] using unobstructed Chebyshev distance. */
 fun moveCost(from: Pos, to: Pos, cellsPerAp: Int = CELLS_PER_AP): Int {
     val step = cellsPerAp.coerceAtLeast(1)
     return ceil(distance(from, to).toDouble() / step).toInt()
@@ -216,7 +226,7 @@ fun generateArenaGrid(
         ArenaTheme.BossHall -> listOf(CoverKind.Pillar, CoverKind.Crystal)
     }
     val accepted = mutableListOf<CoverTile>()
-    val anchor = reserved.firstOrNull() ?: Pos(1, 2)
+    val anchor = reserved.firstOrNull() ?: DEFAULT_ARENA_ANCHOR
     val targets = reserved.filter { it != anchor }
 
     for ((i, pos) in templates[index].withIndex()) {

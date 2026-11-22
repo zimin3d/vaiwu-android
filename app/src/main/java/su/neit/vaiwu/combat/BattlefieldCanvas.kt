@@ -60,6 +60,46 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
+/** Horizontal pixel shake keyframes and per-step duration (ms) on heavy hits or defeats. */
+private val SHAKE_OFFSETS_PX = listOf(-8f, 8f, -5f, 5f, -2f, 0f)
+private const val SHAKE_STEP_MS = 36
+
+/** Opacity of the illustrated arena backdrop and the checkerboard grid overlay above it. */
+private const val ARENA_BACKDROP_ALPHA = 0.52f
+private const val FLOOR_TILE_OVER_BACKDROP_ALPHA = 0.56f
+
+/** HP fraction below which the heroine's on-grid sprite switches to her Sad expression. */
+private const val HERO_SAD_HP_RATIO = 0.35
+
+/** Opacity applied to defeated combatant sprites before the battle ends. */
+private const val DEFEATED_SPRITE_ALPHA = 0.32f
+
+/** Sprite sizing proportions relative to a single grid cell (`cellW`, `cellH`). */
+private const val COVER_SPRITE_CELL_RATIO = 0.88f
+private const val COMBATANT_SPRITE_HEIGHT_RATIO = 0.86f
+private const val COMBATANT_SPRITE_MAX_WIDTH_RATIO = 0.92f
+private const val MIN_SPRITE_SIZE_PX = 16
+
+/** In-cell HP bar proportions and pixel height bounds. */
+private const val HP_BAR_WIDTH_RATIO = 0.78f
+private const val HP_BAR_HEIGHT_RATIO = 0.11f
+private const val HP_BAR_MIN_HEIGHT_PX = 4f
+private const val HP_BAR_MAX_HEIGHT_PX = 8f
+
+/** Status indicator dot radius and horizontal spacing above the HP bar. */
+private const val STATUS_DOT_RADIUS_PX = 3.5f
+private const val STATUS_DOT_SPACING_PX = 9f
+
+/** Non-crit damage threshold that enlarges the floating hit number for visual emphasis. */
+private const val BIG_DAMAGE_LABEL_THRESHOLD = 10
+
+/** Pixel size clamp for floating combat text (`-12!`, `+8`, `BLOCKED`). */
+private const val FLOATING_TEXT_MIN_PX = 14f
+private const val FLOATING_TEXT_MAX_PX = 34f
+
+/** Number of radial burst rays drawn around a spell impact point. */
+private const val SPELL_BURST_RAY_COUNT = 8
+
 /**
  * Interactive 9x5 tactical arena rendered on Compose [Canvas] with:
  * - 2-tap movement preview (1st tap highlights BFS path + AP cost, 2nd tap moves)
@@ -108,9 +148,8 @@ fun BattlefieldCanvas(
     val shakeAnim = remember { Animatable(0f) }
     LaunchedEffect(playback.shakeCount) {
         if (playback.shakeCount == 0) return@LaunchedEffect
-        val offsets = listOf(-8f, 8f, -5f, 5f, -2f, 0f)
-        for (v in offsets) {
-            shakeAnim.animateTo(v, tween(durationMillis = 36))
+        for (v in SHAKE_OFFSETS_PX) {
+            shakeAnim.animateTo(v, tween(durationMillis = SHAKE_STEP_MS))
         }
     }
 
@@ -199,10 +238,10 @@ fun BattlefieldCanvas(
                     image = backdropBmp.asImageBitmap(),
                     dstOffset = IntOffset.Zero,
                     dstSize = IntSize(size.width.roundToInt().coerceAtLeast(1), size.height.roundToInt().coerceAtLeast(1)),
-                    alpha = 0.52f,
+                    alpha = ARENA_BACKDROP_ALPHA,
                 )
             }
-            val tileAlpha = if (backdropBmp != null) 0.56f else 1f
+            val tileAlpha = if (backdropBmp != null) FLOOR_TILE_OVER_BACKDROP_ALPHA else 1f
             val (tileA, tileB, gridLine) = floorPalette(grid.theme)
             for (y in 0 until grid.height) {
                 for (x in 0 until grid.width) {
@@ -408,6 +447,7 @@ fun BattlefieldCanvas(
     }
 }
 
+/** Returns the shipped transparent PNG asset filename for a cover obstacle [kind]. */
 internal fun coverAssetName(kind: CoverKind): String = when (kind) {
     CoverKind.Boulder -> "cover_boulder.png"
     CoverKind.TreeStump -> "cover_stump.png"
@@ -415,18 +455,20 @@ internal fun coverAssetName(kind: CoverKind): String = when (kind) {
     CoverKind.Crystal -> "cover_crystal.png"
 }
 
+/** Returns the illustrated arena backdrop PNG for dungeon/boss themes, or null for outdoor themes. */
 internal fun arenaBackdropAssetName(theme: ArenaTheme): String? = when (theme) {
     ArenaTheme.Dungeon -> "arena_dungeon.png"
     ArenaTheme.BossHall -> "arena_boss.png"
     ArenaTheme.Meadow, ArenaTheme.Forest -> null
 }
 
+/** Selects the sprite asset for [c], reflecting death, stun, or low-HP sadness for the player. */
 private fun combatantAssetName(c: Combatant): String = if (c.side == Side.Player) {
     val ch = characterIds.getOrElse(c.characterId) { characterIds.first() }
     val emotion = when {
         !c.isAlive -> emotionIds[Emotion.Dead]
         c.stunned > 0 -> emotionIds[Emotion.Sleepy]
-        c.hp < c.maxHp * 0.35 -> emotionIds[Emotion.Sad]
+        c.hp < c.maxHp * HERO_SAD_HP_RATIO -> emotionIds[Emotion.Sad]
         else -> emotionIds[Emotion.Idle]
     }
     "sprite_${ch}_$emotion.png"
@@ -434,6 +476,7 @@ private fun combatantAssetName(c: Combatant): String = if (c.side == Side.Player
     monsterAsset(c.monsterKind?.nativeId ?: 0)
 }
 
+/** Returns the `(evenTile, oddTile, gridLine)` checkerboard palette for [theme]. */
 private fun floorPalette(theme: ArenaTheme): Triple<Color, Color, Color> = when (theme) {
     ArenaTheme.Meadow -> Triple(Color(0xFF2B3B36), Color(0xFF25342F), Color(0x28FFFFFF))
     ArenaTheme.Forest -> Triple(Color(0xFF22332F), Color(0xFF1C2B27), Color(0x24FFFFFF))
@@ -441,6 +484,7 @@ private fun floorPalette(theme: ArenaTheme): Triple<Color, Color, Color> = when 
     ArenaTheme.BossHall -> Triple(Color(0xFF331E36), Color(0xFF29172C), Color(0x30FF6B7A))
 }
 
+/** Draws a single obstacle tile using its raster [sprite] when decoded, or a shaded vector block otherwise. */
 private fun DrawScope.drawCoverTile(
     cover: CoverTile,
     cellW: Float,
@@ -456,7 +500,7 @@ private fun DrawScope.drawCoverTile(
             topLeft = Offset(cx - minDim * 0.36f, cy + minDim * 0.22f),
             size = Size(minDim * 0.72f, minDim * 0.18f),
         )
-        val sizePx = (minDim * 0.88f).roundToInt().coerceAtLeast(16)
+        val sizePx = (minDim * COVER_SPRITE_CELL_RATIO).roundToInt().coerceAtLeast(MIN_SPRITE_SIZE_PX)
         val dstLeft = (cx - sizePx / 2f).roundToInt()
         val dstTop = (cy - sizePx * 0.54f).roundToInt()
         drawImage(
@@ -503,6 +547,7 @@ private fun DrawScope.drawCoverTile(
     )
 }
 
+/** Renders one combatant's shadow, rings, shield halo, sprite, HP bar, status dots, and enemy intent pill. */
 private fun DrawScope.drawCombatant(
     combatant: Combatant,
     center: Offset,
@@ -517,7 +562,7 @@ private fun DrawScope.drawCombatant(
     paint: Paint,
 ) {
     val minDim = min(cellW, cellH)
-    val alpha = if (combatant.isAlive) 1f else 0.32f
+    val alpha = if (combatant.isAlive) 1f else DEFEATED_SPRITE_ALPHA
 
     // Ground shadow
     drawOval(
@@ -563,9 +608,11 @@ private fun DrawScope.drawCombatant(
 
     // Sprite or fallback token
     if (bitmap != null) {
-        val spriteH = (cellH * 0.86f).roundToInt().coerceAtLeast(16)
+        val spriteH = (cellH * COMBATANT_SPRITE_HEIGHT_RATIO).roundToInt().coerceAtLeast(MIN_SPRITE_SIZE_PX)
         val aspect = bitmap.width.toFloat() / bitmap.height.coerceAtLeast(1)
-        val spriteW = (spriteH * aspect).roundToInt().coerceAtMost((cellW * 0.92f).roundToInt()).coerceAtLeast(16)
+        val spriteW = (spriteH * aspect).roundToInt()
+            .coerceAtMost((cellW * COMBATANT_SPRITE_MAX_WIDTH_RATIO).roundToInt())
+            .coerceAtLeast(MIN_SPRITE_SIZE_PX)
         val dstLeft = (center.x - spriteW / 2f).roundToInt()
         val dstTop = (center.y - spriteH * 0.56f).roundToInt()
         drawImage(
@@ -585,8 +632,8 @@ private fun DrawScope.drawCombatant(
     if (!combatant.isAlive) return
 
     // HP bar at bottom of cell
-    val barW = cellW * 0.78f
-    val barH = (cellH * 0.11f).coerceIn(4f, 8f)
+    val barW = cellW * HP_BAR_WIDTH_RATIO
+    val barH = (cellH * HP_BAR_HEIGHT_RATIO).coerceIn(HP_BAR_MIN_HEIGHT_PX, HP_BAR_MAX_HEIGHT_PX)
     val barLeft = center.x - barW / 2f
     val barTop = center.y + cellH * 0.31f
     drawRoundRect(
@@ -608,27 +655,27 @@ private fun DrawScope.drawCombatant(
     var dotX = barLeft + 3f
     val dotY = barTop - 4f
     if (covered) {
-        drawCircle(Color(Palette.Info), radius = 3.5f, center = Offset(dotX, dotY))
-        dotX += 9f
+        drawCircle(Color(Palette.Info), radius = STATUS_DOT_RADIUS_PX, center = Offset(dotX, dotY))
+        dotX += STATUS_DOT_SPACING_PX
     }
     if (combatant.burn > 0) {
-        drawCircle(Color(0xFFFF8A3D), radius = 3.5f, center = Offset(dotX, dotY))
-        dotX += 9f
+        drawCircle(Color(0xFFFF8A3D), radius = STATUS_DOT_RADIUS_PX, center = Offset(dotX, dotY))
+        dotX += STATUS_DOT_SPACING_PX
     }
     if (combatant.poisonTurns > 0) {
-        drawCircle(Color(0xFF7BE8B4), radius = 3.5f, center = Offset(dotX, dotY))
-        dotX += 9f
+        drawCircle(Color(0xFF7BE8B4), radius = STATUS_DOT_RADIUS_PX, center = Offset(dotX, dotY))
+        dotX += STATUS_DOT_SPACING_PX
     }
     if (combatant.stunned > 0) {
-        drawCircle(Color(Palette.Accent), radius = 3.5f, center = Offset(dotX, dotY))
-        dotX += 9f
+        drawCircle(Color(Palette.Accent), radius = STATUS_DOT_RADIUS_PX, center = Offset(dotX, dotY))
+        dotX += STATUS_DOT_SPACING_PX
     }
     if (combatant.marked > 0) {
-        drawCircle(Color(Palette.Danger), radius = 3.5f, center = Offset(dotX, dotY))
-        dotX += 9f
+        drawCircle(Color(Palette.Danger), radius = STATUS_DOT_RADIUS_PX, center = Offset(dotX, dotY))
+        dotX += STATUS_DOT_SPACING_PX
     }
     if (combatant.veiled > 0) {
-        drawCircle(Color(Palette.Primary), radius = 3.5f, center = Offset(dotX, dotY))
+        drawCircle(Color(Palette.Primary), radius = STATUS_DOT_RADIUS_PX, center = Offset(dotX, dotY))
     }
 
     // Enemy intent badge at top-right of cell
@@ -671,6 +718,7 @@ private fun DrawScope.drawCombatant(
     }
 }
 
+/** Renders an active transient combat effect (beam, slash, shield ring, or floating damage/heal). */
 private fun DrawScope.drawCombatFx(
     fx: FxItem,
     state: CombatState,
@@ -701,8 +749,8 @@ private fun DrawScope.drawCombatFx(
                 drawLine(color.copy(alpha = 0.75f), start = from, end = to, strokeWidth = 6f, cap = StrokeCap.Round)
                 drawCircle(color.copy(alpha = 0.35f), radius = minDim * 0.45f, center = to)
                 drawCircle(Color.White, radius = minDim * 0.16f, center = to)
-                for (i in 0 until 8) {
-                    val a = i * (Math.PI / 4.0)
+                for (i in 0 until SPELL_BURST_RAY_COUNT) {
+                    val a = i * (2.0 * Math.PI / SPELL_BURST_RAY_COUNT)
                     val p1 = Offset(to.x + (cos(a) * minDim * 0.18f).toFloat(), to.y + (sin(a) * minDim * 0.18f).toFloat())
                     val p2 = Offset(to.x + (cos(a) * minDim * 0.52f).toFloat(), to.y + (sin(a) * minDim * 0.52f).toFloat())
                     drawLine(color, start = p1, end = p2, strokeWidth = 3f, cap = StrokeCap.Round)
@@ -743,7 +791,7 @@ private fun DrawScope.drawCombatFx(
                 DamageKind.Hit -> if (e.crit) android.graphics.Color.rgb(255, 214, 102) else android.graphics.Color.rgb(255, 107, 122)
             }
             val label = if (e.crit) "-${e.amount}!" else "-${e.amount}"
-            val sizeFactor = if (e.crit || e.amount >= 10) 0.36f else 0.30f
+            val sizeFactor = if (e.crit || e.amount >= BIG_DAMAGE_LABEL_THRESHOLD) 0.36f else 0.30f
             drawFloatingText(label, p.x, p.y - minDim * 0.30f, textColor, minDim * sizeFactor, paint)
         }
         is CombatEvent.Heal -> {
@@ -777,6 +825,7 @@ private fun DrawScope.drawCombatFx(
     }
 }
 
+/** Draws drop-shadowed floating text centered at `(x, y)`, clamped to readable pixel bounds. */
 private fun DrawScope.drawFloatingText(
     text: String,
     x: Float,
@@ -785,7 +834,7 @@ private fun DrawScope.drawFloatingText(
     textSizePx: Float,
     paint: Paint,
 ) {
-    paint.textSize = textSizePx.coerceIn(14f, 34f)
+    paint.textSize = textSizePx.coerceIn(FLOATING_TEXT_MIN_PX, FLOATING_TEXT_MAX_PX)
     paint.color = android.graphics.Color.argb(210, 18, 12, 32)
     drawContext.canvas.nativeCanvas.drawText(text, x + 1.5f, y + 1.5f, paint)
     paint.color = color

@@ -57,6 +57,30 @@ import su.neit.vaiwu.VaiwuSpacing
 import su.neit.vaiwu.battleBackgroundForHour
 import kotlin.math.roundToInt
 
+/** Viewport width at which the battle switches from portrait stack to 2-column landscape layout. */
+private val WIDE_LAYOUT_BREAKPOINT = 680.dp
+
+/** Column weights in wide/landscape layout: arena gets 1.25x the width of the action controls. */
+private const val WIDE_ARENA_COLUMN_WEIGHT = 1.25f
+private const val WIDE_CONTROLS_COLUMN_WEIGHT = 1f
+
+/** Dark backdrop scrim opacity keeping HUD cards legible over illustrated arena art. */
+private const val BACKDROP_SCRIM_ALPHA = 0.80f
+
+/** Maximum number of top damage-forecast lines shown in [TargetForecastCard]. */
+private const val TARGET_FORECAST_MAX_LINES = 2
+
+/** Number of recent combat log entries displayed when [CombatLogCard] is expanded. */
+private const val COMBAT_LOG_VISIBLE_ENTRIES = 14
+
+/** Indicator dot sizes for AP pips and skill element badges. */
+private val AP_PIP_SIZE = 10.dp
+private val SKILL_ELEMENT_DOT_SIZE = 8.dp
+private val SKIP_BUTTON_MIN_HEIGHT = 36.dp
+
+/** Relative weight of the primary End Turn button next to the Flee button. */
+private const val END_TURN_BUTTON_WEIGHT = 1.5f
+
 /**
  * Full tactical 9x5 combat screen replacing the legacy `BattleScreen` for
  * Adventure and Dungeon modes in `vaiwu-android`.
@@ -190,9 +214,9 @@ fun TacticalBattleScreen(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(Palette.Background).copy(alpha = 0.80f)),
+                .background(Color(Palette.Background).copy(alpha = BACKDROP_SCRIM_ALPHA)),
         ) {
-            val wideLayout = maxWidth >= 680.dp
+            val wideLayout = maxWidth >= WIDE_LAYOUT_BREAKPOINT
 
             if (wideLayout) {
                 Row(
@@ -203,7 +227,7 @@ fun TacticalBattleScreen(
                 ) {
                     Column(
                         modifier = Modifier
-                            .weight(1.25f)
+                            .weight(WIDE_ARENA_COLUMN_WEIGHT)
                             .fillMaxHeight()
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
@@ -229,7 +253,7 @@ fun TacticalBattleScreen(
                     }
                     Column(
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(WIDE_CONTROLS_COLUMN_WEIGHT)
                             .fillMaxHeight()
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
@@ -342,6 +366,7 @@ fun TacticalBattleScreen(
     }
 }
 
+/** Highlighted banner displaying the tactical coach's current recommended move. */
 @Composable
 private fun CoachBannerCard(text: String) {
     Card(
@@ -359,6 +384,7 @@ private fun CoachBannerCard(text: String) {
     }
 }
 
+/** Top hero HUD showing name/level/round, 2x & Coach toggles, HP/MP bars, AP pips, and active statuses. */
 @Composable
 private fun HeroHudCard(
     session: TacticalBattleSession,
@@ -414,7 +440,7 @@ private fun HeroHudCard(
                         OutlinedButton(
                             onClick = onSkip,
                             contentPadding = PaddingValues(horizontal = VaiwuSpacing.small, vertical = VaiwuSpacing.xs),
-                            modifier = Modifier.heightIn(min = 36.dp),
+                            modifier = Modifier.heightIn(min = SKIP_BUTTON_MIN_HEIGHT),
                         ) {
                             Text(
                                 stringResource(R.string.tactical_skip),
@@ -473,7 +499,7 @@ private fun HeroHudCard(
                     for (i in 0 until AP_PER_TURN) {
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
+                                .size(AP_PIP_SIZE)
                                 .clip(CircleShape)
                                 .background(if (i < player.ap) Color(Palette.Accent) else Color(Palette.OutlineMuted)),
                         )
@@ -504,6 +530,7 @@ private fun HeroHudCard(
     }
 }
 
+/** Compact labelled progress bar for HP or MP inside [HeroHudCard]. */
 @Composable
 private fun CompactResourceBar(
     label: String,
@@ -532,6 +559,7 @@ private fun CompactResourceBar(
     }
 }
 
+/** Colored pill displaying an active combat buff or debuff (Shield, Veil, Mark, Burn, Poison). */
 @Composable
 private fun StatusBadge(text: String, color: Color) {
     Surface(
@@ -549,6 +577,7 @@ private fun StatusBadge(text: String, color: Color) {
     }
 }
 
+/** Horizontally scrollable initiative strip of living combatants; tapping an enemy selects it as target. */
 @Composable
 private fun TurnOrderStrip(
     state: CombatState,
@@ -594,6 +623,7 @@ private fun TurnOrderStrip(
     }
 }
 
+/** Summary card for the currently targeted enemy: HP, distance, predicted intent, and top damage forecasts. */
 @Composable
 private fun TargetForecastCard(
     state: CombatState,
@@ -601,7 +631,9 @@ private fun TargetForecastCard(
     intent: EnemyIntent?,
 ) {
     val context = LocalContext.current
-    val lines = remember(state, target) { TacticalCombat.forecast(state, state.player, target).take(2) }
+    val lines = remember(state, target) {
+        TacticalCombat.forecast(state, state.player, target).take(TARGET_FORECAST_MAX_LINES)
+    }
     val covered = TacticalCombat.isCovered(state.grid, state.player, target)
     val dist = distance(state.player.pos, target.pos)
 
@@ -675,6 +707,7 @@ private fun TargetForecastCard(
     }
 }
 
+/** Player action controls: weapon strike, 3 heroine skills, HP/MP potions, Undo, Flee, and End Turn. */
 @Composable
 private fun ActionDeck(
     state: CombatState,
@@ -841,7 +874,7 @@ private fun ActionDeck(
                     contentColor = if (endHighlighted) Color(Palette.OnAccent) else Color(Palette.OnPrimary),
                 ),
                 modifier = Modifier
-                    .weight(1.5f)
+                    .weight(END_TURN_BUTTON_WEIGHT)
                     .heightIn(min = VaiwuSizes.primaryButtonHeight),
             ) {
                 Text(
@@ -855,6 +888,7 @@ private fun ActionDeck(
     }
 }
 
+/** Computes live range/resource availability and damage preview subtitle for one heroine [skill] tile. */
 @Composable
 private fun SkillActionTile(
     state: CombatState,
@@ -909,6 +943,7 @@ private fun SkillActionTile(
     )
 }
 
+/** Reusable two-line tactile button for a weapon or skill with element color dot and coach highlight. */
 @Composable
 private fun ActionSkillButton(
     title: String,
@@ -949,7 +984,7 @@ private fun ActionSkillButton(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(SKILL_ELEMENT_DOT_SIZE)
                         .clip(CircleShape)
                         .background(if (enabled) accentColor else accentColor.copy(alpha = 0.35f)),
                 )
@@ -987,6 +1022,7 @@ private fun ActionSkillButton(
     }
 }
 
+/** Post-room summary card displaying victory/defeat/escape outcome, XP/gold earned, and room transition buttons. */
 @Composable
 private fun BattleResultCard(
     session: TacticalBattleSession,
@@ -1085,6 +1121,7 @@ private fun BattleResultCard(
     }
 }
 
+/** Collapsible combat log showing either the latest event or a scrollable feed of recent entries. */
 @Composable
 private fun CombatLogCard(
     state: CombatState,
@@ -1121,7 +1158,7 @@ private fun CombatLogCard(
                 }
             }
             if (expanded) {
-                val recent = state.log.takeLast(14).asReversed()
+                val recent = state.log.takeLast(COMBAT_LOG_VISIBLE_ENTRIES).asReversed()
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()

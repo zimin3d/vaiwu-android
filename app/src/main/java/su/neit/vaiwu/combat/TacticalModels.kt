@@ -1,20 +1,48 @@
 package su.neit.vaiwu.combat
 
+/** Action points granted to each living, unstunned combatant at the start of their turn. */
 const val AP_PER_TURN = 3
+
+/** Damage multiplier for ranged weapon attacks when the target stands behind cover (50% reduction). */
 const val COVER_WEAPON = 0.5
+
+/** Damage multiplier for ranged spells when the target stands behind cover (30% reduction). */
 const val COVER_SPELL = 0.7
+
+/** Damage multiplier applied against a target marked by an enemy pack's Command knack (+30% damage). */
 const val COMMAND_BONUS = 1.3
+
+/** Damage multiplier for ranged hits against a veiled target (Smoke Veil halves incoming ranged hits). */
 const val VEIL_FACTOR = 0.5
+
+/** Action point cost for an enemy Shroom's ally-healing Mend knack. */
 const val MEND_AP = 2
+
+/** Maximum Chebyshev distance (in cells) at which a Shroom can heal a wounded ally. */
 const val MEND_RANGE = 4
+
+/** Ally HP fraction below which a Shroom considers them wounded enough to Mend (70% HP). */
 const val MEND_THRESHOLD = 0.7
+
+/** Action point cost for an enemy Fox's pack-marking Command knack. */
 const val COMMAND_AP = 1
+
+/** Action point cost to drink an HP or MP potion during battle. */
 const val POTION_AP = 1
+
+/** Action point cost to attempt fleeing the arena. */
 const val FLEE_AP = 2
+
+/** Fraction of max HP restored by a single HP potion (50%). */
 const val POTION_HEAL_RATIO = 0.5
+
+/** Fraction of max MP restored by a single MP potion (50%). */
 const val POTION_MP_RATIO = 0.5
+
+/** Number of turns of stun immunity ("Steeled") granted after recovering from a stun. */
 const val STEELED_TURNS = 2
 
+/** Stable combatant id for the player's heroine across all tactical battles. */
 const val PLAYER_ID = "player"
 
 enum class Side {

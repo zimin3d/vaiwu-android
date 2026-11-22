@@ -13,8 +13,57 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
+/** Default lifetime (ms) for transient combat VFX badges on the battlefield. */
 const val FX_LIFETIME_MS = 1050L
 
+// Primary beat timelines (ms): impactMs is when Damage/Status fires; lengthMs is the full beat duration.
+private const val MOVE_TELEPORT_BEAT_MS = 380L
+private const val MOVE_WALK_BEAT_MS = 360L
+private const val CONTROL_IMPACT_MS = 360L
+private const val CONTROL_BEAT_MS = 640L
+private const val SPELL_IMPACT_MS = 420L
+private const val SPELL_BEAT_MS = 700L
+private const val MELEE_IMPACT_MS = 180L
+private const val MELEE_BEAT_MS = 500L
+private const val RANGED_IMPACT_MS = 160L
+private const val RANGED_BEAT_MS = 480L
+private const val SHIELD_BEAT_MS = 500L
+private const val HEAL_BEAT_MS = 520L
+private const val MP_RESTORE_BEAT_MS = 460L
+private const val COMMAND_BEAT_MS = 540L
+private const val FLEE_BEAT_MS = 500L
+
+// Tail padding (ms) reserved after consequence events and after the entire playback sequence.
+private const val CONSEQUENCE_DOWN_TAIL_MS = 560L
+private const val CONSEQUENCE_OWN_TAIL_MS = 220L
+private const val CONSEQUENCE_OTHER_TAIL_MS = 380L
+private const val PLAYBACK_TAIL_PADDING_MS = 150L
+
+/** Minimum non-crit hit damage required to trigger a camera shake on impact. */
+private const val SHAKE_MIN_DAMAGE = 8
+
+/** Maximum simultaneous VFX items kept visible so multi-hit bursts stay legible. */
+private const val MAX_ACTIVE_FX = 8
+
+/** Playback speed multipliers for normal (`1x`) and fast (`2x`) combat animation modes. */
+private const val PLAYBACK_NORMAL_RATE = 1f
+private const val PLAYBACK_FAST_RATE = 2f
+
+/** Vector length epsilon below which [unitVector] treats two positions as coincident. */
+private const val UNIT_VECTOR_EPSILON = 0.001f
+
+// Fighter sprite nudge distances expressed as fractions of one grid cell.
+private const val POSE_MELEE_LUNGE_REACH = 0.34f
+private const val POSE_RANGED_RECOIL_REACH = 0.12f
+private const val POSE_CAST_LEAN_REACH = 0.14f
+private const val POSE_SELF_CAST_LIFT = -0.10f
+private const val POSE_HIT_KNOCKBACK = 0.14f
+private const val POSE_HIT_FALLBACK_DY = -0.3f
+private const val POSE_BLOCK_KNOCKBACK = 0.08f
+private const val POSE_BLOCK_FALLBACK_DY = -0.2f
+private const val POSE_FALL_DROP = 0.15f
+
+/** Visual pose animation applied to a combatant sprite during a playback beat. */
 enum class PoseKind {
     Lunge,
     Cast,
@@ -22,6 +71,10 @@ enum class PoseKind {
     Fall,
 }
 
+/**
+ * Per-combatant fractional cell offset (`dx`, `dy`) applied by [BattlefieldCanvas]
+ * to animate lunges, spell casts, hit knockback, and defeats.
+ */
 data class FighterPose(
     val kind: PoseKind,
     val dx: Float,
@@ -29,6 +82,7 @@ data class FighterPose(
     val key: Int,
 )
 
+/** Renderable VFX entry pairing a [CombatEvent] with resolved source/target grid cells. */
 data class FxItem(
     val key: Int,
     val event: CombatEvent,
@@ -36,11 +90,13 @@ data class FxItem(
     val to: Pos? = null,
 )
 
+/** Timing envelope for a primary combat beat: [impactMs] until hit lands, [lengthMs] total duration. */
 data class BeatTiming(
     val impactMs: Long,
     val lengthMs: Long,
 )
 
+/** One scheduled step on the deterministic combat playback timeline. */
 data class ScheduledBeat(
     val atMs: Long,
     val event: CombatEvent,
@@ -50,6 +106,7 @@ data class ScheduledBeat(
     val shake: Boolean,
 )
 
+/** Snapshot of in-flight animation state consumed by [TacticalBattleScreen] and [BattlefieldCanvas]. */
 data class PlaybackUiState(
     val shown: CombatState,
     val fx: List<FxItem>,
@@ -61,24 +118,27 @@ data class PlaybackUiState(
     val skip: () -> Unit,
 )
 
-/** Impact delay and beat length (ms) for each primary combat event. */
+/** Returns the impact delay and total beat duration (ms) for each primary [CombatEvent]. */
 fun beatTiming(event: CombatEvent): BeatTiming = when (event) {
-    is CombatEvent.Move -> BeatTiming(impactMs = 0L, lengthMs = if (event.teleport) 380L else 360L)
+    is CombatEvent.Move -> BeatTiming(
+        impactMs = 0L,
+        lengthMs = if (event.teleport) MOVE_TELEPORT_BEAT_MS else MOVE_WALK_BEAT_MS,
+    )
     is CombatEvent.SkillCast -> if (event.effect == SkillEffect.Control) {
-        BeatTiming(impactMs = 360L, lengthMs = 640L)
+        BeatTiming(impactMs = CONTROL_IMPACT_MS, lengthMs = CONTROL_BEAT_MS)
     } else {
-        BeatTiming(impactMs = 420L, lengthMs = 700L)
+        BeatTiming(impactMs = SPELL_IMPACT_MS, lengthMs = SPELL_BEAT_MS)
     }
     is CombatEvent.WeaponStrike -> if (event.melee) {
-        BeatTiming(impactMs = 180L, lengthMs = 500L)
+        BeatTiming(impactMs = MELEE_IMPACT_MS, lengthMs = MELEE_BEAT_MS)
     } else {
-        BeatTiming(impactMs = 160L, lengthMs = 480L)
+        BeatTiming(impactMs = RANGED_IMPACT_MS, lengthMs = RANGED_BEAT_MS)
     }
-    is CombatEvent.ShieldUp -> BeatTiming(impactMs = 0L, lengthMs = 500L)
-    is CombatEvent.Heal -> BeatTiming(impactMs = 0L, lengthMs = 520L)
-    is CombatEvent.MpRestore -> BeatTiming(impactMs = 0L, lengthMs = 460L)
-    is CombatEvent.CommandMark -> BeatTiming(impactMs = 0L, lengthMs = 540L)
-    is CombatEvent.FleeAttempt -> BeatTiming(impactMs = 0L, lengthMs = 500L)
+    is CombatEvent.ShieldUp -> BeatTiming(impactMs = 0L, lengthMs = SHIELD_BEAT_MS)
+    is CombatEvent.Heal -> BeatTiming(impactMs = 0L, lengthMs = HEAL_BEAT_MS)
+    is CombatEvent.MpRestore -> BeatTiming(impactMs = 0L, lengthMs = MP_RESTORE_BEAT_MS)
+    is CombatEvent.CommandMark -> BeatTiming(impactMs = 0L, lengthMs = COMMAND_BEAT_MS)
+    is CombatEvent.FleeAttempt -> BeatTiming(impactMs = 0L, lengthMs = FLEE_BEAT_MS)
     else -> BeatTiming(impactMs = 0L, lengthMs = 0L)
 }
 
@@ -127,15 +187,16 @@ fun rewindState(state: CombatState, pending: List<CombatEvent>): CombatState {
     return state.copy(combatants = rewound)
 }
 
+/** Returns a normalized direction vector `(dx, dy)` pointing from [from] toward [to]. */
 private fun unitVector(from: Pos, to: Pos): Pair<Float, Float> {
     val dx = (to.x - from.x).toFloat()
     val dy = (to.y - from.y).toFloat()
-    val len = hypot(dx.toDouble(), dy.toDouble()).toFloat().takeIf { it > 0.001f } ?: 1f
+    val len = hypot(dx.toDouble(), dy.toDouble()).toFloat().takeIf { it > UNIT_VECTOR_EPSILON } ?: 1f
     return (dx / len) to (dy / len)
 }
 
 /**
- * Builds the deterministic playback timeline (beats + total duration in ms) for [freshEvents].
+ * Builds the deterministic playback timeline (ordered beats + total duration in ms) for [freshEvents].
  */
 fun buildPlaybackSchedule(
     state: CombatState,
@@ -169,9 +230,9 @@ fun buildPlaybackSchedule(
             cursor = max(
                 cursor,
                 at + when {
-                    event is CombatEvent.Down -> 560L
-                    own -> 220L
-                    else -> 380L
+                    event is CombatEvent.Down -> CONSEQUENCE_DOWN_TAIL_MS
+                    own -> CONSEQUENCE_OWN_TAIL_MS
+                    else -> CONSEQUENCE_OTHER_TAIL_MS
                 },
             )
         } else {
@@ -216,7 +277,7 @@ fun buildPlaybackSchedule(
         }
 
         val (poseTarget, pose) = computePose(event, fxItem, lastActorPos, where)
-        val shake = (event is CombatEvent.Damage && (event.amount >= 8 || event.crit)) ||
+        val shake = (event is CombatEvent.Damage && (event.amount >= SHAKE_MIN_DAMAGE || event.crit)) ||
             event is CombatEvent.Down
         beats += ScheduledBeat(
             atMs = at,
@@ -230,9 +291,10 @@ fun buildPlaybackSchedule(
             where[event.actorId] = event.to
         }
     }
-    return beats to (cursor + 150L)
+    return beats to (cursor + PLAYBACK_TAIL_PADDING_MS)
 }
 
+/** Maps a combat event into the target combatant id and sprite offset pose to play on that beat. */
 private fun computePose(
     event: CombatEvent,
     fxItem: FxItem,
@@ -244,7 +306,7 @@ private fun computePose(
         val to = fxItem.to
         if (from != null && to != null) {
             val (ux, uy) = unitVector(from, to)
-            val reach = if (event.melee) 0.34f else 0.12f
+            val reach = if (event.melee) POSE_MELEE_LUNGE_REACH else POSE_RANGED_RECOIL_REACH
             val kind = if (event.melee) PoseKind.Lunge else PoseKind.Cast
             event.actorId to FighterPose(kind, ux * reach, uy * reach, event.id)
         } else {
@@ -256,22 +318,22 @@ private fun computePose(
         val to = fxItem.to
         if (from != null && to != null && from != to) {
             val (ux, uy) = unitVector(from, to)
-            event.actorId to FighterPose(PoseKind.Cast, ux * 0.14f, uy * 0.14f, event.id)
+            event.actorId to FighterPose(PoseKind.Cast, ux * POSE_CAST_LEAN_REACH, uy * POSE_CAST_LEAN_REACH, event.id)
         } else {
-            event.actorId to FighterPose(PoseKind.Cast, 0f, -0.10f, event.id)
+            event.actorId to FighterPose(PoseKind.Cast, 0f, POSE_SELF_CAST_LIFT, event.id)
         }
     }
     is CombatEvent.Damage -> {
         val at = where[event.targetId]
-        val (ux, uy) = if (attackerPos != null && at != null) unitVector(attackerPos, at) else 0f to -0.3f
-        event.targetId to FighterPose(PoseKind.Hit, ux * 0.14f, uy * 0.14f, event.id)
+        val (ux, uy) = if (attackerPos != null && at != null) unitVector(attackerPos, at) else 0f to POSE_HIT_FALLBACK_DY
+        event.targetId to FighterPose(PoseKind.Hit, ux * POSE_HIT_KNOCKBACK, uy * POSE_HIT_KNOCKBACK, event.id)
     }
     is CombatEvent.Blocked -> {
         val at = where[event.targetId]
-        val (ux, uy) = if (attackerPos != null && at != null) unitVector(attackerPos, at) else 0f to -0.2f
-        event.targetId to FighterPose(PoseKind.Hit, ux * 0.08f, uy * 0.08f, event.id)
+        val (ux, uy) = if (attackerPos != null && at != null) unitVector(attackerPos, at) else 0f to POSE_BLOCK_FALLBACK_DY
+        event.targetId to FighterPose(PoseKind.Hit, ux * POSE_BLOCK_KNOCKBACK, uy * POSE_BLOCK_KNOCKBACK, event.id)
     }
-    is CombatEvent.Down -> event.targetId to FighterPose(PoseKind.Fall, 0f, 0.15f, event.id)
+    is CombatEvent.Down -> event.targetId to FighterPose(PoseKind.Fall, 0f, POSE_FALL_DROP, event.id)
     else -> null to null
 }
 
@@ -286,7 +348,7 @@ fun rememberBattlePlayback(
     fastMode: Boolean,
     onEventSound: (CombatEvent) -> Unit,
 ): PlaybackUiState {
-    val rate = if (fastMode) 2f else 1f
+    val rate = if (fastMode) PLAYBACK_FAST_RATE else PLAYBACK_NORMAL_RATE
     var lastPlayedSeq by remember { mutableIntStateOf(state.eventSeq) }
     var pending by remember { mutableStateOf<List<CombatEvent>>(emptyList()) }
     var activeFx by remember { mutableStateOf<List<FxItem>>(emptyList()) }
@@ -342,7 +404,7 @@ fun rememberBattlePlayback(
             if (beat.shake) {
                 shakeCount++
             }
-            activeFx = (activeFx + beat.fxItem).takeLast(8)
+            activeFx = (activeFx + beat.fxItem).takeLast(MAX_ACTIVE_FX)
             if (beat.poseTargetId != null && beat.pose != null) {
                 poses = poses + (beat.poseTargetId to beat.pose)
             }

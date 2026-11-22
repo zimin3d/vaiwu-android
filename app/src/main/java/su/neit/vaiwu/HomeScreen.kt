@@ -58,6 +58,49 @@ import androidx.compose.ui.window.DialogProperties
 /** Heroine art ratio (width / height) of the sprite: 180x240 dp. */
 private const val SPRITE_ASPECT_RATIO = 0.75f
 
+/** Share of screen height allocated to the top pet stage + side stat panel row. */
+private const val STAGE_HEIGHT_FRACTION = 0.48f
+
+/** Floor for the stage height so short landscape viewports still fit the sprite and speech bubble. */
+private val STAGE_MIN_HEIGHT = 280.dp
+
+/** Fixed width of the vertical stat bar panel beside the stage. */
+private val SIDE_STAT_PANEL_WIDTH = 132.dp
+
+/** Energy ceiling below which manual sleep is enabled (must match `kManualSleepMaxEnergy` in `VaiwuPet.cpp`). */
+private const val MANUAL_SLEEP_MAX_ENERGY = 90f
+
+/** Semi-opaque backdrop alpha for the side stat card so room art softly shows through. */
+private const val SIDE_PANEL_ALPHA = 0.9f
+
+/** Subtle top scrim behind the speech bubble to keep text legible over bright morning art. */
+private const val STAGE_TOP_SCRIM_ALPHA = 0.25f
+
+/** Vertical stop (0..1) where the bottom fade into screen background starts. */
+private const val STAGE_BOTTOM_SCRIM_START = 0.55f
+
+/** Maximum speech bubble height and visible line count so long phrases never push the sprite off-stage. */
+private val SPEECH_BUBBLE_MAX_HEIGHT = 96.dp
+private const val SPEECH_BUBBLE_MAX_LINES = 3
+
+/** Number of columns in the care-action button grid. */
+private const val CARE_GRID_COLUMNS = 2
+
+/** Sentinel item id passed to `onFeed` for the free rice bowl (paid dishes use non-negative `ShopItem` ids). */
+private const val FREE_RICE_ITEM_ID = -1
+
+/** Icon dimensions and dialog elevation for Home cards and the feed picker. */
+private val HOME_LINK_ICON_SIZE = 32.dp
+private val FEED_OPTION_ICON_SIZE = 28.dp
+private val FEED_OPTION_ICON_BOX_SIZE = 32.dp
+private val FEED_DIALOG_TONAL_ELEVATION = 6.dp
+
+/** Per-emotion sprite animation frame intervals (ms): slower for calm/sleepy, livelier for happy. */
+private const val IDLE_FRAME_DURATION_MS = 420L
+private const val SLEEPY_FRAME_DURATION_MS = 650L
+private const val HAPPY_FRAME_DURATION_MS = 260L
+private const val OTHER_EMOTION_FRAME_DURATION_MS = 220L
+
 /**
  * Home tab (UI-HOME): the pet stage, the stats, the care grid, the sickness
  * banner and the entry cards. Every pet state keeps the navigation available.
@@ -77,7 +120,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val stageHeight = (maxHeight * 0.48f).coerceAtLeast(280.dp)
+        val stageHeight = (maxHeight * STAGE_HEIGHT_FRACTION).coerceAtLeast(STAGE_MIN_HEIGHT)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -100,7 +143,7 @@ fun HomeScreen(
                     pet = pet,
                     inventory = inventory,
                     modifier = Modifier
-                        .width(132.dp)
+                        .width(SIDE_STAT_PANEL_WIDTH)
                         .fillMaxHeight()
                         .padding(
                             top = VaiwuSpacing.small,
@@ -140,7 +183,7 @@ fun HomeScreen(
                         VaiwuSecondaryButton(
                             text = stringResource(R.string.action_sleep),
                             onClick = { onAction(PetAction.Sleep) },
-                            enabled = pet.energy < 90f,
+                            enabled = pet.energy < MANUAL_SLEEP_MAX_ENERGY,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -188,7 +231,7 @@ private fun SideStatPanel(
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = SIDE_PANEL_ALPHA),
     ) {
         Column(
             modifier = Modifier
@@ -242,6 +285,10 @@ private fun SideStatPanel(
     }
 }
 
+/**
+ * Main pet backdrop card showing the time-of-day room art, optional speech
+ * bubble, animated heroine sprite, and sleeping/sick status chips.
+ */
 @Composable
 private fun PetStage(
     pet: PetSnapshot,
@@ -273,7 +320,7 @@ private fun PetStage(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color(Palette.Background).copy(alpha = 0.25f),
+                            Color(Palette.Background).copy(alpha = STAGE_TOP_SCRIM_ALPHA),
                             Color.Transparent,
                         ),
                     ),
@@ -285,7 +332,7 @@ private fun PetStage(
                 .background(
                     Brush.verticalGradient(
                         0f to Color.Transparent,
-                        0.55f to Color.Transparent,
+                        STAGE_BOTTOM_SCRIM_START to Color.Transparent,
                         1f to Color(Palette.Background),
                     ),
                 ),
@@ -310,10 +357,10 @@ private fun PetStage(
                 description = pet.petName,
                 modifier = Modifier.size(spriteWidth, spriteHeight),
                 frameDurationMs = when (pet.emotionId) {
-                    Emotion.Idle -> 420L
-                    Emotion.Sleepy -> 650L
-                    Emotion.Happy -> 260L
-                    else -> 220L
+                    Emotion.Idle -> IDLE_FRAME_DURATION_MS
+                    Emotion.Sleepy -> SLEEPY_FRAME_DURATION_MS
+                    Emotion.Happy -> HAPPY_FRAME_DURATION_MS
+                    else -> OTHER_EMOTION_FRAME_DURATION_MS
                 },
             )
             Spacer(Modifier.height(VaiwuSpacing.small))
@@ -339,10 +386,11 @@ private fun PetStage(
     }
 }
 
+/** Capped dialogue bubble shown above the heroine sprite when she reacts to an action. */
 @Composable
 private fun SpeechBubble(text: String, modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier.heightIn(max = 96.dp),
+        modifier = modifier.heightIn(max = SPEECH_BUBBLE_MAX_HEIGHT),
         shape = RoundedCornerShape(VaiwuRadius.card),
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -353,12 +401,13 @@ private fun SpeechBubble(text: String, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(horizontal = VaiwuSpacing.medium, vertical = VaiwuSpacing.small),
             textAlign = TextAlign.Center,
-            maxLines = 3,
+            maxLines = SPEECH_BUBBLE_MAX_LINES,
             overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
+/** Alert banner displayed on Home when an awake pet needs medicine. */
 @Composable
 private fun SicknessBanner(
     onMedicine: () -> Unit,
@@ -385,7 +434,7 @@ private fun SicknessBanner(
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
                 )
-                Spacer(Modifier.size(8.dp))
+                Spacer(Modifier.size(VaiwuSpacing.small))
                 Text(
                     text = stringResource(R.string.sick_title),
                     style = MaterialTheme.typography.titleMedium,
@@ -405,6 +454,7 @@ private fun SicknessBanner(
     }
 }
 
+/** Recovery card shown when the pet has passed away, offering to start a new run. */
 @Composable
 private fun DeadCard(onRestart: () -> Unit, modifier: Modifier = Modifier) {
     SectionCard(title = stringResource(R.string.dead_title), modifier = modifier) {
@@ -421,6 +471,7 @@ private fun DeadCard(onRestart: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
+/** Action panel shown while the pet is asleep, exposing Wake and (if needed) Medicine. */
 @Composable
 private fun SleepingCard(
     pet: PetSnapshot,
@@ -447,6 +498,7 @@ private fun SleepingCard(
     }
 }
 
+/** Two-column grid of primary daily care actions (Feed, Wash, Clean, Talk, Hug, Games). */
 @Composable
 private fun HomeCareGrid(
     kinds: List<CareKind>,
@@ -459,7 +511,7 @@ private fun HomeCareGrid(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.itemGap),
     ) {
-        kinds.chunked(2).forEach { row ->
+        kinds.chunked(CARE_GRID_COLUMNS).forEach { row ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -492,6 +544,7 @@ private fun HomeCareGrid(
     }
 }
 
+/** Secondary navigation card linking Home directly to the Shop or Pet profile screen. */
 @Composable
 private fun HomeLinkCard(
     iconRes: Int,
@@ -519,7 +572,7 @@ private fun HomeLinkCard(
             Image(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(HOME_LINK_ICON_SIZE),
             )
             Text(
                 text = label,
@@ -572,7 +625,7 @@ fun FeedDialog(
             shape = RoundedCornerShape(VaiwuRadius.sheet),
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            tonalElevation = 6.dp,
+            tonalElevation = FEED_DIALOG_TONAL_ELEVATION,
         ) {
             Column(
                 modifier = Modifier
@@ -594,12 +647,12 @@ fun FeedDialog(
                     name = stringResource(R.string.feed_free_rice),
                     note = stringResource(R.string.feed_free),
                     enabled = true,
-                    onClick = { onFeed(-1) },
+                    onClick = { onFeed(FREE_RICE_ITEM_ID) },
                 ) {
                     Image(
                         painter = painterResource(R.drawable.icon_feed),
                         contentDescription = null,
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(FEED_OPTION_ICON_SIZE),
                     )
                 }
                 options.forEach { item ->
@@ -616,7 +669,7 @@ fun FeedDialog(
                         Image(
                             painter = painterResource(shopIconFor(item.id)),
                             contentDescription = null,
-                            modifier = Modifier.size(28.dp),
+                            modifier = Modifier.size(FEED_OPTION_ICON_SIZE),
                         )
                     }
                 }
@@ -631,6 +684,7 @@ fun FeedDialog(
     }
 }
 
+/** Single selectable dish row inside [FeedDialog]. */
 @Composable
 private fun FeedOption(
     name: String,
@@ -659,7 +713,7 @@ private fun FeedOption(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.medium),
         ) {
-            Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.size(FEED_OPTION_ICON_BOX_SIZE), contentAlignment = Alignment.Center) {
                 icon()
             }
             Text(

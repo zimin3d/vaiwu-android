@@ -4,8 +4,73 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+/** Maximum number of combat log entries retained in [CombatState.log]. */
 private const val MAX_LOG_ENTRIES = 200
+
+/** Damage multiplier on a critical hit (+50%). */
 private const val CRIT_MULTIPLIER = 1.5
+
+/** Bonus crit probability granted per point of combatant Luck (+1.5% per point). */
+private const val LUCK_CRIT_PER_POINT = 0.015
+
+/** Clamp bounds for weapon critical hit probability (5%..45%). */
+private const val WEAPON_CRIT_MIN = 0.05
+private const val WEAPON_CRIT_MAX = 0.45
+
+/** Base crit probability and ceiling for offensive skills (6% + Luck, capped at 40%). */
+private const val SKILL_BASE_CRIT = 0.06
+private const val SKILL_CRIT_MAX = 0.40
+
+/** Per-hit random damage roll range for skills (`[0.9, 1.1)` = +/-10% variance). */
+private const val SKILL_VARIANCE_MIN = 0.9
+private const val SKILL_VARIANCE_SPAN = 0.2
+
+/** Lower clamp for elemental shield multiplier so dividing damage by it never blows up. */
+private const val MIN_DEFENSE_FACTOR = 0.1
+
+/** Minimum remaining shield strength; shields decaying or hit below 1.0 shatter. */
+private const val MIN_SHIELD_REMAINDER = 1.0
+
+/** Minimum damage dealt by any unblocked hit after flat armor reduction. */
+private const val MIN_ARMORED_DAMAGE = 1
+
+/** Duration (turns) of poison inflicted by poisoned weapons such as Wind Dagger or Slime claws. */
+private const val WEAPON_POISON_TURNS = 3
+
+/** Minimum per-turn poison damage floor when applied by a skill. */
+private const val MIN_SKILL_POISON_DAMAGE = 2
+
+/** Floor for stun probability on dedicated Control skills (80%). */
+private const val MIN_CONTROL_STUN_CHANCE = 0.8
+
+/** Burn stacks halve (`burn / 2`) after dealing damage at the start of each turn. */
+private const val BURN_DECAY_DIVISOR = 2
+
+/** Gold theft probabilities and base stolen amount (`GOLD_STEAL_BASE + actor.level`). */
+private const val ENEMY_STEAL_GOLD_CHANCE = 0.25
+private const val SKILL_STEAL_GOLD_CHANCE = 0.45
+private const val GOLD_STEAL_BASE = 2
+
+/** Flee probability formula away from the left arena edge: `40% + 3% * agility`, clamped to `35%..90%`. */
+private const val FLEE_BASE_CHANCE = 0.40
+private const val FLEE_AGILITY_PER_POINT = 0.03
+private const val FLEE_CHANCE_MIN = 0.35
+private const val FLEE_CHANCE_MAX = 0.90
+
+/** Shroom's Mend healing range: `5 + 2 * level` up to `+3` extra HP. */
+private const val MEND_HEAL_BASE = 5
+private const val MEND_HEAL_PER_LEVEL = 2
+private const val MEND_HEAL_SPREAD = 3
+
+/** Safety iteration ceilings preventing infinite loops in turn advance or enemy AI. */
+private const val MAX_AI_TURNS_PER_LOOP = 40
+private const val MAX_AI_ACTIONS_PER_TURN = 10
+
+/** Probability that an unshielded enemy caster raises its shield instead of attacking immediately. */
+private const val AI_SHIELD_CAST_CHANCE = 0.45
+
+/** Weight favouring closer cover cells over slightly farther ones in [MutableCombat.coverStep]. */
+private const val COVER_STEP_MOVE_PENALTY = 2
 
 private data class AiStep(
     val actorId: String,
@@ -45,6 +110,10 @@ private val INTENT_PRIORITY = listOf(
  */
 object TacticalCombat {
 
+    /**
+     * Initializes a new tactical battle with [combatants] on [grid], seeds the
+     * deterministic RNG, and starts the opening combatant's turn.
+     */
     fun createCombat(
         combatants: List<Combatant>,
         grid: TacticalGrid,
@@ -75,6 +144,7 @@ object TacticalCombat {
         return builder.snapshot()
     }
 
+    /** Applies a single [action] for the active combatant and returns the updated immutable state. */
     fun performAction(state: CombatState, action: CombatAction): CombatState {
         if (state.winner != null) throw CombatActionException(ActionFailReason.BattleOver)
         val draft = MutableCombat.from(state, clearEvents = true)
@@ -160,6 +230,7 @@ object TacticalCombat {
     fun isCovered(grid: TacticalGrid, actor: Combatant, target: Combatant): Boolean =
         actor.id != target.id && distance(actor.pos, target.pos) > 1 && hasCover(grid, actor.pos, target.pos)
 
+    /** Cells currently occupied by other living combatants (blocking movement for [actor]). */
     fun occupiedBy(state: CombatState, actor: Combatant): Set<Pos> =
         state.combatants.asSequence()
             .filter { it.id != actor.id && it.isAlive }
@@ -185,6 +256,7 @@ object TacticalCombat {
         return distance(actor.pos, to) <= skill.range
     }
 
+    /** Estimates average non-crit damage and kill potential for [actor]'s basic weapon attack on [target]. */
     fun previewWeaponAttack(
         state: CombatState,
         actor: Combatant,
@@ -198,6 +270,7 @@ object TacticalCombat {
         return computePreview(actor, target, power, Element.None, 0.0, inRange, covered, hits = 1)
     }
 
+    /** Estimates expected damage, shield block status, and kill potential for casting [skill] on [target]. */
     fun previewSkillAttack(
         state: CombatState,
         actor: Combatant,
@@ -213,6 +286,7 @@ object TacticalCombat {
         return computePreview(actor, target, power, skill.element, skill.penetration, inRange, covered, hits = skill.hits)
     }
 
+    /** Ranks all offensive skills and the weapon attack against [target] (reachable & unblocked first). */
     fun forecast(state: CombatState, actor: Combatant, target: Combatant): List<ForecastLine> {
         val lines = mutableListOf<ForecastLine>()
         for (skill in actor.skills) {
@@ -269,7 +343,7 @@ object TacticalCombat {
             }
 
             if (effectiveShield > 0.0 && power <= effectiveShield) {
-                val factor = defenseFactor(shieldElement, element).coerceAtLeast(0.1)
+                val factor = defenseFactor(shieldElement, element).coerceAtLeast(MIN_DEFENSE_FACTOR)
                 remainingShield = (remainingShield - power / factor).coerceAtLeast(0.0)
             } else {
                 allBlocked = false
@@ -289,11 +363,13 @@ object TacticalCombat {
     }
 }
 
+/** Subtracts flat [armor] from [rawDamage], guaranteeing at least [MIN_ARMORED_DAMAGE] on any positive hit. */
 private fun applyArmor(rawDamage: Int, armor: Int): Int {
     if (rawDamage <= 0) return 0
-    return max(1, rawDamage - armor.coerceAtLeast(0))
+    return max(MIN_ARMORED_DAMAGE, rawDamage - armor.coerceAtLeast(0))
 }
 
+/** Returns true for dark-aligned targets (Ghost, Bat, or any dark-element caster) weak to Light bonuses. */
 private fun isDarkAligned(c: Combatant): Boolean =
     c.monsterKind == MonsterKind.Ghost ||
         c.monsterKind == MonsterKind.Bat ||
@@ -431,6 +507,7 @@ private class MutableCombat(
         appendLog(CombatLogEntry.Moved(actor.id, teleport = false))
     }
 
+    /** Resolves a basic weapon strike including Luck crit chance, cover penalty, poison, and gold theft. */
     private fun weaponAttack(actorIdx: Int, targetIdx: Int) {
         val actor = combatants[actorIdx]
         val target = combatants[targetIdx]
@@ -441,7 +518,8 @@ private class MutableCombat(
         spendAp(actorIdx, weapon.apCost)
         val covered = weapon.range > 1 && TacticalCombat.isCovered(grid, actor, target)
         var raw = nextInt(weapon.minDamage, weapon.maxDamage).toDouble()
-        val critChance = (weapon.critChance + actor.luck * 0.015).coerceIn(0.05, 0.45)
+        val critChance = (weapon.critChance + actor.luck * LUCK_CRIT_PER_POINT)
+            .coerceIn(WEAPON_CRIT_MIN, WEAPON_CRIT_MAX)
         val crit = nextDouble() < critChance
         if (crit) raw *= CRIT_MULTIPLIER
         if (covered) raw *= COVER_WEAPON
@@ -452,10 +530,10 @@ private class MutableCombat(
 
         if (dealt > 0 && combatants[targetIdx].isAlive) {
             if (weapon.poisonChance > 0.0 && !combatants[targetIdx].poisonImmune && nextDouble() < weapon.poisonChance) {
-                applyPoison(targetIdx, turns = 3, damage = weapon.poisonDamage)
+                applyPoison(targetIdx, turns = WEAPON_POISON_TURNS, damage = weapon.poisonDamage)
             }
-            if (actor.stealGoldOnHit && target.side == Side.Player && nextDouble() < 0.25) {
-                val stolen = 2 + actor.level
+            if (actor.stealGoldOnHit && target.side == Side.Player && nextDouble() < ENEMY_STEAL_GOLD_CHANCE) {
+                val stolen = GOLD_STEAL_BASE + actor.level
                 goldDelta -= stolen
                 emit(CombatEvent.StatusApplied(nextEventId(), target.id, StatusTag.StolenGold, stolen))
                 appendLog(CombatLogEntry.GoldChanged(target.id, -stolen))
@@ -464,6 +542,7 @@ private class MutableCombat(
         checkEnd(targetIdx)
     }
 
+    /** Executes a tactical skill (Defense, Heal, Veil, Teleport, Control, or Attack) for [actorIdx]. */
     private fun useSkill(actorIdx: Int, skillId: SkillId, targetId: String?, targetPos: Pos?) {
         val actor = combatants[actorIdx]
         val skill = actor.skills.firstOrNull { it.id == skillId }
@@ -538,7 +617,7 @@ private class MutableCombat(
                 val power = if (covered) skill.power * COVER_SPELL else skill.power.toDouble()
                 val dealt = if (power > 0) resolveHit(actorIdx, targetIdx, power, skill.element, skill.penetration, crit = false) else 0
                 if (combatants[targetIdx].isAlive && (dealt > 0 || skill.power == 0)) {
-                    tryApplyStun(targetIdx, skill.stunChance.coerceAtLeast(0.8))
+                    tryApplyStun(targetIdx, skill.stunChance.coerceAtLeast(MIN_CONTROL_STUN_CHANCE))
                 }
                 checkEnd(targetIdx)
             }
@@ -557,9 +636,10 @@ private class MutableCombat(
                 var totalDealt = 0
                 repeat(skill.hits.coerceAtLeast(1)) {
                     if (!combatants[targetIdx].isAlive) return@repeat
-                    val variance = 0.9 + nextDouble() * 0.2
+                    val variance = SKILL_VARIANCE_MIN + nextDouble() * SKILL_VARIANCE_SPAN
                     var power = skill.power * variance
-                    val crit = skill.guaranteedCrit || (nextDouble() < (0.06 + actor.luck * 0.015).coerceAtMost(0.4))
+                    val critChance = (SKILL_BASE_CRIT + actor.luck * LUCK_CRIT_PER_POINT).coerceAtMost(SKILL_CRIT_MAX)
+                    val crit = skill.guaranteedCrit || (nextDouble() < critChance)
                     if (crit) power *= CRIT_MULTIPLIER
                     if (skill.bonusVsDark > 1.0 && isDarkAligned(combatants[targetIdx])) {
                         power *= skill.bonusVsDark
@@ -578,8 +658,8 @@ private class MutableCombat(
                             appendLog(CombatLogEntry.Healed(cur.id, cur.id, heal))
                         }
                     }
-                    if (skill.stealGold && actor.side == Side.Player && nextDouble() < 0.45) {
-                        val snagged = 2 + actor.level
+                    if (skill.stealGold && actor.side == Side.Player && nextDouble() < SKILL_STEAL_GOLD_CHANCE) {
+                        val snagged = GOLD_STEAL_BASE + actor.level
                         goldDelta += snagged
                         emit(CombatEvent.StatusApplied(nextEventId(), actor.id, StatusTag.StolenGold, snagged))
                         appendLog(CombatLogEntry.GoldChanged(actor.id, snagged))
@@ -591,7 +671,7 @@ private class MutableCombat(
                             appendLog(CombatLogEntry.StatusChanged(target.id, StatusTag.Burn, skill.burnAmount))
                         }
                         if (skill.poisonTurns > 0 && !combatants[targetIdx].poisonImmune) {
-                            applyPoison(targetIdx, skill.poisonTurns, skill.poisonDamage.coerceAtLeast(2))
+                            applyPoison(targetIdx, skill.poisonTurns, skill.poisonDamage.coerceAtLeast(MIN_SKILL_POISON_DAMAGE))
                         }
                         if (skill.stunChance > 0.0) {
                             tryApplyStun(targetIdx, skill.stunChance)
@@ -656,6 +736,10 @@ private class MutableCombat(
         }
     }
 
+    /**
+     * Absorbs [power] with [targetIdx]'s elemental shield (modified by [defenseFactor]
+     * and [penetration]) and returns the unblocked overflow damage.
+     */
     private fun absorbByShield(
         targetIdx: Int,
         power: Double,
@@ -664,7 +748,7 @@ private class MutableCombat(
     ): Double {
         val target = combatants[targetIdx]
         val shield = target.shield ?: return power
-        val factor = defenseFactor(shield.element, element).coerceAtLeast(0.1)
+        val factor = defenseFactor(shield.element, element).coerceAtLeast(MIN_DEFENSE_FACTOR)
         val effective = shield.value * factor * (1.0 - penetration)
         return if (power > effective) {
             update(targetIdx) { it.copy(shield = null) }
@@ -673,7 +757,7 @@ private class MutableCombat(
         } else {
             val nextVal = shield.value - power / factor
             update(targetIdx) {
-                it.copy(shield = if (nextVal < 1.0) null else shield.copy(value = nextVal))
+                it.copy(shield = if (nextVal < MIN_SHIELD_REMAINDER) null else shield.copy(value = nextVal))
             }
             emit(CombatEvent.Blocked(nextEventId(), target.id))
             appendLog(CombatLogEntry.ShieldHeld(target.id))
@@ -681,6 +765,7 @@ private class MutableCombat(
         }
     }
 
+    /** Applies Command/Veil modifiers, shield absorption, and armor reduction to a single hit. */
     private fun resolveHit(
         actorIdx: Int,
         targetIdx: Int,
@@ -733,11 +818,17 @@ private class MutableCombat(
         appendLog(CombatLogEntry.MpRestored(actor.id, gain))
     }
 
+    /** Attempts to escape: guaranteed from the left edge (`x == 0`), otherwise Agility-scaled. */
     private fun attemptFlee(actorIdx: Int) {
         val actor = combatants[actorIdx]
         spendAp(actorIdx, FLEE_AP)
         val atEdge = actor.pos.x == 0
-        val chance = if (atEdge) 1.0 else (0.40 + actor.agility * 0.03).coerceIn(0.35, 0.90)
+        val chance = if (atEdge) {
+            1.0
+        } else {
+            (FLEE_BASE_CHANCE + actor.agility * FLEE_AGILITY_PER_POINT)
+                .coerceIn(FLEE_CHANCE_MIN, FLEE_CHANCE_MAX)
+        }
         val escaped = nextDouble() < chance
         emit(CombatEvent.FleeAttempt(nextEventId(), actor.id, escaped))
         appendLog(CombatLogEntry.FleeResult(escaped))
@@ -747,12 +838,13 @@ private class MutableCombat(
         }
     }
 
+    /** Enemy Shroom knack: restores HP to a wounded ally within [MEND_RANGE]. */
     private fun mendAlly(actorIdx: Int, allyIdx: Int) {
         spendAp(actorIdx, MEND_AP)
         val actor = combatants[actorIdx]
         val ally = combatants[allyIdx]
-        val healBase = 5 + actor.level * 2
-        val healed = min(ally.maxHp - ally.hp, nextInt(healBase, healBase + 3))
+        val healBase = MEND_HEAL_BASE + actor.level * MEND_HEAL_PER_LEVEL
+        val healed = min(ally.maxHp - ally.hp, nextInt(healBase, healBase + MEND_HEAL_SPREAD))
         if (healed > 0) {
             update(allyIdx) { it.copy(hp = it.hp + healed) }
         }
@@ -760,6 +852,7 @@ private class MutableCombat(
         appendLog(CombatLogEntry.Healed(actor.id, ally.id, healed))
     }
 
+    /** Enemy Fox knack: marks [targetIdx] so subsequent pack attacks gain [COMMAND_BONUS]. */
     private fun commandPack(actorIdx: Int, targetIdx: Int) {
         spendAp(actorIdx, COMMAND_AP)
         val actor = combatants[actorIdx]
@@ -769,6 +862,10 @@ private class MutableCombat(
         appendLog(CombatLogEntry.Commanded(actor.id, target.id))
     }
 
+    /**
+     * Begins [idx]'s turn: ticks Poison and Burn DoTs, decays any active shield,
+     * regenerates passive MP, refills AP (unless stunned), and counts down statuses.
+     */
     fun startTurn(idx: Int) {
         var c = combatants[idx]
         if (!c.isAlive) return
@@ -797,7 +894,7 @@ private class MutableCombat(
             c = update(idx) {
                 it.copy(
                     hp = max(0, it.hp - dmg),
-                    burn = it.burn / 2,
+                    burn = it.burn / BURN_DECAY_DIVISOR,
                 )
             }
             emit(CombatEvent.Damage(nextEventId(), c.id, dmg, DamageKind.Burn))
@@ -810,7 +907,7 @@ private class MutableCombat(
         c = update(idx) { cur ->
             val nextShield = cur.shield?.let { sh ->
                 val v = sh.value * (1.0 - sh.decay)
-                if (v < 1.0) null else sh.copy(value = v)
+                if (v < MIN_SHIELD_REMAINDER) null else sh.copy(value = v)
             }
             val nextMp = if (cur.maxMp > 0) min(cur.maxMp, cur.mp + cur.mpRegen) else cur.mp
             val nextSteeled = (cur.steeled - 1).coerceAtLeast(0)
@@ -879,13 +976,15 @@ private class MutableCombat(
         }
     }
 
+    /** Runs enemy AI turns sequentially until the player regains control or the battle ends. */
     fun runAiLoop(trace: MutableList<AiStep>?) {
         var guard = 0
-        while (winner == null && combatants[activeIndex].side == Side.Enemy && guard++ < 40) {
+        while (winner == null && combatants[activeIndex].side == Side.Enemy && guard++ < MAX_AI_TURNS_PER_LOOP) {
             enemyTurn(activeIndex, trace)
         }
     }
 
+    /** Finds a 1-AP step into cover from [target] while staying within [desiredRange], or null. */
     private fun coverStep(actor: Combatant, target: Combatant, desiredRange: Int): Pos? {
         if (hasCover(grid, target.pos, actor.pos)) return null
         val occupied = occupiedFor(actor.id)
@@ -901,7 +1000,7 @@ private class MutableCombat(
                 if (findPath(grid, actor.pos, p, occupied, maxCells) == null) continue
                 val d = distance(p, target.pos)
                 if (d > desiredRange || d < currentDist || !hasCover(grid, target.pos, p)) continue
-                val score = distance(actor.pos, p) * 2 - d
+                val score = distance(actor.pos, p) * COVER_STEP_MOVE_PENALTY - d
                 if (score < bestScore) {
                     best = p
                     bestScore = score
@@ -911,10 +1010,11 @@ private class MutableCombat(
         return best
     }
 
+    /** Executes one enemy's AI turn (knacks, cover-seeking, shield, skill/weapon attack, or advance). */
     private fun enemyTurn(actorIdx: Int, trace: MutableList<AiStep>?) {
         var tookCover = false
         var usedKnack = false
-        for (iter in 0 until 10) {
+        for (iter in 0 until MAX_AI_ACTIONS_PER_TURN) {
             if (winner != null) break
             val actor = combatants[actorIdx]
             if (!actor.isAlive || actor.ap <= 0) break
@@ -984,7 +1084,7 @@ private class MutableCombat(
             }
 
             val currentSnap = snapshot()
-            if (actor.shield == null && shieldSkill != null && nextDouble() < 0.45) {
+            if (actor.shield == null && shieldSkill != null && nextDouble() < AI_SHIELD_CAST_CHANCE) {
                 trace?.add(AiStep(actor.id, AiAct.Shield, skillId = shieldSkill.id))
                 useSkill(actorIdx, shieldSkill.id, null, null)
             } else if (offensiveSkill != null) {

@@ -28,26 +28,91 @@ data class HeroBuild(
     val mpPotions: Int,
 )
 
+/** Equipment slot indices shared with native `EquipSlot` in `Rpg.hpp`. */
+private const val EQUIP_SLOT_WEAPON = 0
+private const val EQUIP_SLOT_ARMOR = 1
+
+/** Native `EquipItem` ids that grant flat tactical armor and their bonus values. */
+private const val ARMOR_ID_LEATHER_VEST = 4
+private const val ARMOR_ID_IRON_ARMOR = 5
+private const val ARMOR_ID_SCALE_MAIL = 9
+private const val ARMOR_ID_SILK_CLOAK = 10
+private const val ARMOR_BONUS_LEATHER_VEST = 2
+private const val ARMOR_BONUS_IRON_ARMOR = 4
+private const val ARMOR_BONUS_SCALE_MAIL = 3
+private const val ARMOR_BONUS_SILK_CLOAK = 2
+
+/** Highest valid native `CharacterId` (0..7 for the 8 heroines). */
+private const val MAX_CHARACTER_ID = 7
+
+/** Hero derived stat scaling: `+1` armor per 3 Vitality, `2 + magic / 3` passive MP regen per turn. */
+private const val VITALITY_PER_ARMOR = 3
+private const val BASE_HERO_MP_REGEN = 2
+private const val MAGIC_PER_MP_REGEN = 3
+
+/** Baseline monster stat curves before per-kind % modifiers, room depth %, and boss multipliers. */
+private const val MONSTER_HP_BASE = 16
+private const val MONSTER_HP_PER_LEVEL = 6
+private const val MONSTER_ATK_BASE = 4
+private const val MONSTER_ATK_PER_LEVEL = 2
+private const val MONSTER_XP_BASE = 10
+private const val MONSTER_XP_PER_LEVEL = 5
+private const val MONSTER_GOLD_BASE = 3
+private const val MONSTER_GOLD_PER_LEVEL = 2
+private const val MONSTER_MIN_HIT_FLOOR = 2
+private const val MONSTER_MAX_HIT_BONUS = 2
+private const val MONSTER_POISON_BASE = 2
+
+/** Boss scaling applied to the primary foe in the final dungeon room. */
+private const val BOSS_HP_MULTIPLIER = 1.65
+private const val BOSS_ATK_MULTIPLIER = 1.25
+private const val BOSS_REWARD_MULTIPLIER = 2
+private const val BOSS_ESCORT_DEPTH_PCT = 85
+
+/** Encounter progression thresholds (monster pool unlocks, 2-foe fights, dungeon scaling, chest gold). */
+private const val BASE_MONSTER_KINDS = 3
+private const val UNLOCK_FOX_LEVEL = 3
+private const val UNLOCK_GHOST_LEVEL = 5
+private const val UNLOCK_GOLEM_LEVEL = 7
+private const val MULTI_FOE_ADVENTURE_LEVEL = 3
+private const val FOREST_THEME_MIN_LEVEL = 3
+private const val DUNGEON_BASE_DEPTH_PCT = 100
+private const val DUNGEON_DEPTH_PCT_PER_ROOM = 10
+private const val DUNGEON_CHEST_GOLD_PER_ROOM = 5
+private const val DUNGEON_CHEST_BONUS_MAX = 9
+
+/** Default spawn coordinates on the 9x5 tactical grid (player on left, enemies on right). */
+private val DEFAULT_PLAYER_SPAWN = Pos(1, 2)
+private val ENEMY_SPAWN_SLOTS = listOf(Pos(7, 2), Pos(7, 0), Pos(7, 4))
+
+/**
+ * Factory for hero builds, monster archetypes, and complete Adventure/Dungeon
+ * tactical encounters. Kept pure Kotlin so balance rules can be unit-tested on JVM.
+ */
 object EncounterBuilder {
 
+    /** Minimum and maximum room counts rolled when starting a dungeon expedition. */
     const val DUNGEON_MIN_ROOMS = 3
     const val DUNGEON_MAX_ROOMS = 5
+
+    /** Percentage of max HP and max MP restored when resting between dungeon rooms. */
     const val REST_HP_PERCENT = 25
     const val REST_MP_PERCENT = 20
 
+    /** Converts live JNI pet and RPG inventory snapshots into a pure [HeroBuild]. */
     fun heroBuildFromSnapshots(pet: PetSnapshot, inv: InventorySnapshot): HeroBuild {
-        val equippedWeapon = inv.equipment.firstOrNull { it.slot == 0 && it.equipped }
+        val equippedWeapon = inv.equipment.firstOrNull { it.slot == EQUIP_SLOT_WEAPON && it.equipped }
         val weaponId = WeaponId.fromEquipId(equippedWeapon?.id ?: -1)
-        val armorSlot = inv.equipment.firstOrNull { it.slot == 1 && it.equipped }
+        val armorSlot = inv.equipment.firstOrNull { it.slot == EQUIP_SLOT_ARMOR && it.equipped }
         val armorGearBonus = when (armorSlot?.id) {
-            4 -> 2 // LeatherVest
-            5 -> 4 // IronArmor
-            9 -> 3 // ScaleMail
-            10 -> 2 // SilkCloak
+            ARMOR_ID_LEATHER_VEST -> ARMOR_BONUS_LEATHER_VEST
+            ARMOR_ID_IRON_ARMOR -> ARMOR_BONUS_IRON_ARMOR
+            ARMOR_ID_SCALE_MAIL -> ARMOR_BONUS_SCALE_MAIL
+            ARMOR_ID_SILK_CLOAK -> ARMOR_BONUS_SILK_CLOAK
             else -> 0
         }
         return HeroBuild(
-            characterId = pet.characterId.coerceIn(0, 7),
+            characterId = pet.characterId.coerceIn(0, MAX_CHARACTER_ID),
             customName = pet.petName,
             level = inv.level.coerceAtLeast(1),
             hp = inv.hp.coerceIn(1, inv.hpMax.coerceAtLeast(1)),
@@ -66,11 +131,12 @@ object EncounterBuilder {
         )
     }
 
-    fun buildHero(build: HeroBuild, startPos: Pos = Pos(1, 2)): Combatant {
+    /** Constructs the player [Combatant] with equipped weapon, derived armor/MP regen, and heroine skills. */
+    fun buildHero(build: HeroBuild, startPos: Pos = DEFAULT_PLAYER_SPAWN): Combatant {
         val weapon = buildWeapon(build)
         val skills = skillsForCharacter(build)
-        val armor = build.armorBonus + build.vitality / 3
-        val mpRegen = 2 + build.magic / 3
+        val armor = build.armorBonus + build.vitality / VITALITY_PER_ARMOR
+        val mpRegen = BASE_HERO_MP_REGEN + build.magic / MAGIC_PER_MP_REGEN
         return Combatant(
             id = PLAYER_ID,
             side = Side.Player,
@@ -422,12 +488,13 @@ object EncounterBuilder {
         }
     }
 
+    /** Builds a level- and depth-scaled enemy [Combatant] for [kind] (optionally promoted to a room boss). */
     fun buildMonster(
         id: String,
         kind: MonsterKind,
         level: Int,
         pos: Pos,
-        depthPct: Int = 100,
+        depthPct: Int = DUNGEON_BASE_DEPTH_PCT,
         boss: Boolean = false,
     ): Combatant {
         val lvl = level.coerceAtLeast(1)
@@ -454,20 +521,20 @@ object EncounterBuilder {
             MonsterKind.Golem -> 140
         }
 
-        var hpMax = ((16 + lvl * 6) * hpPct / 100) * depthPct / 100
-        var atk = ((4 + lvl * 2) * atkPct / 100) * depthPct / 100
-        var xp = (10 + lvl * 5) * rewardPct / 100
-        var gold = (3 + lvl * 2) * rewardPct / 100
+        var hpMax = ((MONSTER_HP_BASE + lvl * MONSTER_HP_PER_LEVEL) * hpPct / 100) * depthPct / 100
+        var atk = ((MONSTER_ATK_BASE + lvl * MONSTER_ATK_PER_LEVEL) * atkPct / 100) * depthPct / 100
+        var xp = (MONSTER_XP_BASE + lvl * MONSTER_XP_PER_LEVEL) * rewardPct / 100
+        var gold = (MONSTER_GOLD_BASE + lvl * MONSTER_GOLD_PER_LEVEL) * rewardPct / 100
         if (boss) {
-            hpMax = (hpMax * 1.65).roundToInt()
-            atk = (atk * 1.25).roundToInt()
-            xp *= 2
-            gold *= 2
+            hpMax = (hpMax * BOSS_HP_MULTIPLIER).roundToInt()
+            atk = (atk * BOSS_ATK_MULTIPLIER).roundToInt()
+            xp *= BOSS_REWARD_MULTIPLIER
+            gold *= BOSS_REWARD_MULTIPLIER
         }
 
-        val minHit = max(2, atk - 1)
-        val maxHit = atk + 2
-        val poisonDmg = 2 + lvl / 2
+        val minHit = max(MONSTER_MIN_HIT_FLOOR, atk - 1)
+        val maxHit = atk + MONSTER_MAX_HIT_BONUS
+        val poisonDmg = MONSTER_POISON_BASE + lvl / 2
 
         return when (kind) {
             MonsterKind.Slime -> Combatant(
@@ -678,14 +745,16 @@ object EncounterBuilder {
         }
     }
 
+    /** Returns how many monster archetypes are unlocked for [petLevel] (3 base + Fox/Ghost/Golem). */
     private fun unlockedMonsterCount(petLevel: Int): Int {
-        var kinds = 3
-        if (petLevel >= 3) kinds++
-        if (petLevel >= 5) kinds++
-        if (petLevel >= 7) kinds++
+        var kinds = BASE_MONSTER_KINDS
+        if (petLevel >= UNLOCK_FOX_LEVEL) kinds++
+        if (petLevel >= UNLOCK_GHOST_LEVEL) kinds++
+        if (petLevel >= UNLOCK_GOLEM_LEVEL) kinds++
         return kinds
     }
 
+    /** Starts a fresh Adventure (1 room) or Dungeon (`3..5` rooms) tactical battle session. */
     fun startSession(
         hero: HeroBuild,
         dungeon: Boolean,
@@ -713,6 +782,7 @@ object EncounterBuilder {
         )
     }
 
+    /** Generates a single room's arena, enemy party, and opening [CombatState] for [room] of [rooms]. */
     fun buildRoomCombat(
         hero: HeroBuild,
         dungeon: Boolean,
@@ -722,16 +792,15 @@ object EncounterBuilder {
     ): CombatState {
         var rng = SeededRng.fromSeed(seed)
         val isBoss = dungeon && room >= rooms
-        val playerPos = Pos(1, 2)
-        val enemySlots = listOf(Pos(7, 2), Pos(7, 0), Pos(7, 4))
+        val playerPos = DEFAULT_PLAYER_SPAWN
         val foeCount = when {
             isBoss -> 2
             dungeon && room >= 2 -> 2
-            !dungeon && hero.level >= 3 -> 2
+            !dungeon && hero.level >= MULTI_FOE_ADVENTURE_LEVEL -> 2
             else -> 1
         }
         val kinds = unlockedMonsterCount(hero.level)
-        val depthPct = if (dungeon) 100 + (room - 1) * 10 else 100
+        val depthPct = if (dungeon) DUNGEON_BASE_DEPTH_PCT + (room - 1) * DUNGEON_DEPTH_PCT_PER_ROOM else DUNGEON_BASE_DEPTH_PCT
 
         val enemies = mutableListOf<Combatant>()
         for (i in 0 until foeCount) {
@@ -741,13 +810,13 @@ object EncounterBuilder {
             val isThisBoss = isBoss && i == 0
             val baseLevel = max(1, hero.level - lvlDrop)
             val enemyLevel = if (isThisBoss) hero.level + 1 else if (isBoss) max(1, hero.level - 1) else baseLevel
-            val pos = enemySlots[i % enemySlots.size]
+            val pos = ENEMY_SPAWN_SLOTS[i % ENEMY_SPAWN_SLOTS.size]
             enemies += buildMonster(
                 id = "foe_$i",
                 kind = MonsterKind.fromNative(kindIdx),
                 level = enemyLevel,
                 pos = pos,
-                depthPct = if (isBoss && !isThisBoss) 85 else depthPct,
+                depthPct = if (isBoss && !isThisBoss) BOSS_ESCORT_DEPTH_PCT else depthPct,
                 boss = isThisBoss,
             )
         }
@@ -755,7 +824,7 @@ object EncounterBuilder {
         val theme = when {
             isBoss -> ArenaTheme.BossHall
             dungeon -> ArenaTheme.Dungeon
-            hero.level >= 3 -> ArenaTheme.Forest
+            hero.level >= FOREST_THEME_MIN_LEVEL -> ArenaTheme.Forest
             else -> ArenaTheme.Meadow
         }
         val reserved = (listOf(playerPos) + enemies.map { it.pos }).toSet()
@@ -770,8 +839,9 @@ object EncounterBuilder {
         )
     }
 
+    /** Rolls the bonus gold chest awarded upon clearing all [rooms] of a dungeon (`5 * rooms + 0..9`). */
     fun computeDungeonChestGold(rooms: Int, seed: Long): Int {
-        val (bonus, _) = SeededRng.fromSeed(seed).nextInt(0, 9)
-        return 5 * rooms + bonus
+        val (bonus, _) = SeededRng.fromSeed(seed).nextInt(0, DUNGEON_CHEST_BONUS_MAX)
+        return DUNGEON_CHEST_GOLD_PER_ROOM * rooms + bonus
     }
 }

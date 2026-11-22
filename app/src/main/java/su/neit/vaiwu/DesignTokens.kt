@@ -64,10 +64,19 @@ fun statTone(value: Float): StatTone = when {
     else -> StatTone.Healthy
 }
 
+/** Fraction of the home stage height occupied by the heroine sprite. */
+private const val PET_SPRITE_STAGE_RATIO = 0.62f
+
+/** Minimum sprite height on compact phones so facial expressions stay readable. */
+private val PET_SPRITE_MIN_HEIGHT = 180.dp
+
+/** Maximum sprite height on tablets so the character does not clip the speech bubble. */
+private val PET_SPRITE_MAX_HEIGHT = 340.dp
+
 /**
  * Heroine sprite height on the home stage. The sprite scales with the stage
  * box, so a tablet shows a proportionally larger character instead of a tiny
  * one while phones keep the familiar size (UI-A11Y-05).
  */
 internal fun petSpriteHeightForStage(stageHeight: Dp): Dp =
-    (stageHeight * 0.62f).coerceIn(180.dp, 340.dp)
+    (stageHeight * PET_SPRITE_STAGE_RATIO).coerceIn(PET_SPRITE_MIN_HEIGHT, PET_SPRITE_MAX_HEIGHT)
