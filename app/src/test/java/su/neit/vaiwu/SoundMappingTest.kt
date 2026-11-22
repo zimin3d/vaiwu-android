@@ -46,6 +46,12 @@ class SoundMappingTest {
     }
 
     @Test
+    fun sleepOnlyChirpsWhenItActuallySleeps() {
+        assertEquals(Sfx.Talk, care(PetAction.Sleep, lifeState = LifeState.Sleeping))
+        assertEquals(Sfx.Tap, care(PetAction.Sleep, lifeState = LifeState.Awake))
+    }
+
+    @Test
     fun medicineIsAudibleOnlyWhenItCures() {
         assertEquals(
             Sfx.Feed,

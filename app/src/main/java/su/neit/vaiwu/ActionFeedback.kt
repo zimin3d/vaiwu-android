@@ -13,6 +13,8 @@ internal enum class CareFeedback {
     Dead,
     Woken,
     StillSleeping,
+    FellAsleep,
+    NotTired,
     MedicineTaken,
     MedicineNotNeeded,
 }
@@ -31,6 +33,8 @@ internal fun careFeedback(
     lifeState == LifeState.Dead -> CareFeedback.Dead
     action == PetAction.Wake && lifeState == LifeState.Awake -> CareFeedback.Woken
     action == PetAction.Wake -> CareFeedback.StillSleeping
+    action == PetAction.Sleep && lifeState == LifeState.Sleeping -> CareFeedback.FellAsleep
+    action == PetAction.Sleep -> CareFeedback.NotTired
     action == PetAction.Medicine && wasSick && !isSick -> CareFeedback.MedicineTaken
     action == PetAction.Medicine -> CareFeedback.MedicineNotNeeded
     else -> null

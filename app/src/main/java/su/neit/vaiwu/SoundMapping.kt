@@ -31,6 +31,8 @@ internal fun sfxForCareAction(
         PetAction.Hug -> Sfx.Talk
         // Waking fully is a "talk" chirp; refusing to wake is a soft tap.
         PetAction.Wake -> if (lifeState == LifeState.Awake) Sfx.Talk else Sfx.Tap
+        // Tucking in to sleep gives a soft chirp; refusing when full of energy is a tap.
+        PetAction.Sleep -> if (lifeState == LifeState.Sleeping) Sfx.Talk else Sfx.Tap
         // The native cure() has no result code, so the state transition is the
         // only reliable signal that the medicine actually worked.
         PetAction.Medicine -> if (wasSick && !isSick) Sfx.Feed else Sfx.Tap

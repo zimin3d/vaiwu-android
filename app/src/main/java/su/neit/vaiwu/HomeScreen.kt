@@ -129,13 +129,21 @@ fun HomeScreen(
                         onMedicine = { onAction(PetAction.Medicine) },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    LifeState.Awake -> HomeCareGrid(
-                        kinds = homeOffers(pet).filterIsInstance<HomeOffer.Care>().map { it.kind }.distinct(),
-                        onAction = onAction,
-                        onFeedMenu = onFeedMenu,
-                        onGames = onGames,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    LifeState.Awake -> {
+                        HomeCareGrid(
+                            kinds = homeOffers(pet).filterIsInstance<HomeOffer.Care>().map { it.kind }.distinct(),
+                            onAction = onAction,
+                            onFeedMenu = onFeedMenu,
+                            onGames = onGames,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        VaiwuSecondaryButton(
+                            text = stringResource(R.string.action_sleep),
+                            onClick = { onAction(PetAction.Sleep) },
+                            enabled = pet.energy < 90f,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
                 Spacer(Modifier.height(VaiwuSpacing.large))
                 Row(

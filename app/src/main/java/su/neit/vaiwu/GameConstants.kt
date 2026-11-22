@@ -12,6 +12,7 @@ object PetAction {
     const val Wake = 5
     const val Medicine = 6
     const val Hug = 7
+    const val Sleep = 8
 }
 
 /**

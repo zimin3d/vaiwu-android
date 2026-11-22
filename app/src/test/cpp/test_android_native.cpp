@@ -451,6 +451,35 @@ void testTacticalSettlementDefeatEscapeAndRest()
     CHECK(pet.coins() == 7U);
 }
 
+void testOfflineSleepRecoveryAndManualSleep()
+{
+    VaiwuPet pet;
+    pet.startNew(CharacterId::Rin, "Rin", 1000);
+    // Refuses manual sleep when energy >= 90%.
+    CHECK(!pet.sleep());
+    CHECK(pet.life() == LifeState::Awake);
+
+    // Drain to 50% energy, then put to sleep manually -> succeeds.
+    pet.applyGift(0.0f, 0.0f, -50.0f, 0.0f);
+    CHECK(pet.sleep());
+    CHECK(pet.life() == LifeState::Sleeping);
+
+    // Full energy drink while sleeping wakes her up immediately.
+    pet.applyGift(0.0f, 0.0f, 100.0f, 0.0f);
+    CHECK(pet.life() == LifeState::Awake);
+    CHECK(pet.stats().energy >= 99.9f);
+
+    // Offline gap of 2 hours starting at 40% energy while awake:
+    // drains 40 -> 15 in 50 min, sleeps 15 -> 100 in 34 min, then wakes up
+    // and stays well-rested (~82% energy) instead of collapsing to 0%.
+    VaiwuPet offline;
+    offline.startNew(CharacterId::Rin, "Rin", 0);
+    offline.applyGift(0.0f, 0.0f, -60.0f, 0.0f); // energy = 40
+    offline.tick(120ULL * 60ULL * 1000ULL);
+    CHECK(offline.life() == LifeState::Awake);
+    CHECK(offline.stats().energy > 50.0f);
+}
+
 } // namespace
 
 int main()
@@ -474,6 +503,7 @@ int main()
     testDeserializeRejectsNonFiniteAndClampsCorruptValues();
     testTacticalSettlementVictoryLevelUpAndClamping();
     testTacticalSettlementDefeatEscapeAndRest();
+    testOfflineSleepRecoveryAndManualSleep();
 
     if (failures == 0) {
         std::printf("ALL ANDROID NATIVE TESTS PASSED\n");

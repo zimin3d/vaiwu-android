@@ -174,6 +174,9 @@ Java_su_neit_vaiwu_NativePet_nativeAction(JNIEnv*, jobject, jlong handle, jint a
     case 7:
         p->giveAffection(6.0f);
         return 0;
+    case 8:
+        return static_cast<jint>(p->sleep() ? vaiwu::game::ActionResult::Ok
+                                            : vaiwu::game::ActionResult::NotHungry);
     default:
         return -1;
     }

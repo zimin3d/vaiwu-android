@@ -16,6 +16,12 @@ class ActionFeedbackTest {
     }
 
     @Test
+    fun sleepReportsWhetherThePetFellAsleep() {
+        assertEquals(CareFeedback.FellAsleep, careFeedback(PetAction.Sleep, false, LifeState.Sleeping, false))
+        assertEquals(CareFeedback.NotTired, careFeedback(PetAction.Sleep, false, LifeState.Awake, false))
+    }
+
+    @Test
     fun medicineReportsWhetherThePetWasCured() {
         assertEquals(CareFeedback.MedicineTaken, careFeedback(PetAction.Medicine, true, LifeState.Sleeping, false))
         assertEquals(CareFeedback.MedicineNotNeeded, careFeedback(PetAction.Medicine, true, LifeState.Awake, true))

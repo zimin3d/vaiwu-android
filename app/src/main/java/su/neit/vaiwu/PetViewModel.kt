@@ -930,6 +930,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             CareFeedback.Dead -> text(R.string.pet_left)
             CareFeedback.Woken -> text(R.string.pet_woken)
             CareFeedback.StillSleeping -> text(R.string.pet_still_sleeping)
+            CareFeedback.FellAsleep -> text(R.string.pet_fell_asleep)
+            CareFeedback.NotTired -> text(R.string.pet_not_tired)
             CareFeedback.MedicineTaken -> text(R.string.medicine_taken)
             CareFeedback.MedicineNotNeeded -> text(R.string.medicine_not_needed)
             null -> when (result) {

@@ -11,6 +11,7 @@
     <string name="action_settings">Настройки</string>
     <string name="action_medicine">Дать лекарство</string>
     <string name="action_wake">Разбудить</string>
+    <string name="action_sleep">Уложить спать</string>
     <string name="action_feed">Покормить</string>
     <string name="action_play">Поиграть</string>
     <string name="action_wash">Помыть</string>
@@ -50,6 +51,8 @@
     <string name="pet_left">Она ушла...</string>
     <string name="pet_woken">Она проснулась</string>
     <string name="pet_still_sleeping">Она всё ещё спит</string>
+    <string name="pet_fell_asleep">Она легла спать</string>
+    <string name="pet_not_tired">Она ещё полна сил</string>
     <string name="medicine_taken">Лекарство принято</string>
     <string name="medicine_not_needed">Лекарство сейчас не нужно</string>
     <string name="pet_tab_label">Питомец</string>
@@ -252,7 +255,7 @@
     <string name="help_pet">Питомец и характеристики</string>
     <string name="help_pet_text">На экране питомца видны характеристики и свободные очки. Очки распределяются между Силой, Живучестью, Ловкостью, Магией и Удачей. Снаряжение даёт бонусы к характеристикам.</string>
     <string name="help_sleep">Сон и болезнь</string>
-    <string name="help_sleep_text">При низкой энергии питомец засыпает сам. Сон восстанавливает энергию и дисциплину. При голоде или лишнем весе питомец заболевает — дайте лекарство из сумки.</string>
+    <string name="help_sleep_text">Героиню можно уложить спать вручную кнопкой «Уложить спать» (когда энергия ниже 90%), а при истощении она засыпает сама — в том числе в офлайне. Сон быстро восстанавливает энергию и дисциплину. При голоде или лишнем весе питомец заболевает — дайте лекарство из сумки.</string>
     <string name="help_progress">Прогрессия</string>
     <string name="help_progress_text">Свободные очки характеристик можно распределить на экране питомца. Уровень растёт от побед в боях.</string>
     <string name="help_save">Сохранение</string>
