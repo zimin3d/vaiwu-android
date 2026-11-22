@@ -9,6 +9,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 
+/**
+ * Single-activity Compose host wiring [PetViewModel], [VoiceController], and
+ * foreground/background lifecycle hooks for offline decay and autosave.
+ */
 class MainActivity : ComponentActivity() {
     private val viewModel: PetViewModel by viewModels()
     private lateinit var voice: VoiceController

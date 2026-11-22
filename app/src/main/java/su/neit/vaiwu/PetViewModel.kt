@@ -40,6 +40,11 @@ data class SystemMessage(val id: Long, val text: String)
 /** One phrase of the pet shown in the speech bubble. */
 data class PetSpeech(val id: Long, val text: String)
 
+/**
+ * Main application ViewModel owning the native [NativePet] handle, periodic
+ * simulation/mini-game tickers, atomic save persistence, tactical combat
+ * sessions, assistant chat/reminders, and in-app updates.
+ */
 class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val pet = NativePet()
     private val saveStore = AtomicFile(File(application.filesDir, "pet.save"))
@@ -140,7 +145,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         loadSavedPet()
         viewModelScope.launch {
             while (isActive) {
-                delay(1_000)
+                delay(PetTickIntervalMs)
                 if (!inForeground || _snapshot.value == null) continue
                 val now = System.currentTimeMillis()
                 _hour.value = currentHour()
@@ -153,16 +158,17 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             while (isActive) {
-                delay(100)
+                delay(MiniGameTickIntervalMs)
                 val current = _miniGame.value ?: continue
                 if (!inForeground || current.finished) continue
-                val next = miniGameEngine.tick(current, 100)
+                val next = miniGameEngine.tick(current, MiniGameTickIntervalMs.toInt())
                 _miniGame.value = next
                 settleMiniGame(current, next)
             }
         }
     }
 
+    /** Resumes simulation when the activity enters the foreground, applying capped offline decay. */
     fun onForeground() {
         _hour.value = currentHour()
         if (inForeground) return
@@ -193,6 +199,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Snapshots and saves the pet when the activity leaves the foreground. */
     fun onBackground() {
         if (!inForeground) return
         inForeground = false
@@ -203,9 +210,10 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Creates a new pet for [characterId] with sanitized [name] (up to [MaxPetNameLength] chars). */
     fun createPet(characterId: Int, name: String = "") {
         val profile = pet.characterProfile(characterId)
-        val safeName = name.filter { it != '\n' && it != '\r' }.take(24).trim()
+        val safeName = name.filter { it != '\n' && it != '\r' }.take(MaxPetNameLength).trim()
         val petName = safeName.ifBlank { profile?.name.orEmpty() }
         pet.startNew(characterId, petName, System.currentTimeMillis())
         refreshPet()
@@ -215,8 +223,10 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         savePet()
     }
 
+    /** Fetches static character traits and starting RPG stats for onboarding cards. */
     fun characterProfile(characterId: Int): CharacterProfile? = pet.characterProfile(characterId)
 
+    /** Clears all in-memory state and deletes the persisted save file so the user returns to onboarding. */
     fun resetPet() {
         backgroundSave = null
         backgroundedAt = 0L
@@ -368,7 +378,8 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         savePet()
     }
 
-    fun startMiniGame(kind: MiniGameKind, melodyLength: Int = 4) {
+    /** Starts a new mini-game round of [kind] after paying the upfront energy cost. */
+    fun startMiniGame(kind: MiniGameKind, melodyLength: Int = MELODY_DEFAULT_LENGTH) {
         val result = pet.startPlay()
         refreshPet()
         if (result != ActionResult.Ok || _snapshot.value?.lifeState != LifeState.Awake) {
@@ -418,6 +429,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         savePet()
     }
 
+    /** Launches a new tactical Adventure (`dungeon = false`) or multi-room Dungeon (`dungeon = true`). */
     fun startBattle(dungeon: Boolean) {
         val result = pet.startPlay()
         refreshPet()
@@ -453,6 +465,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         savePet()
     }
 
+    /** Executes a player tactical combat action, resolves enemy AI turns, and settles the room if finished. */
     fun performTacticalAction(action: su.neit.vaiwu.combat.CombatAction) {
         if (_screen.value != AppScreen.Battle) return
         val session = _tacticalBattle.value ?: return
@@ -507,6 +520,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         playSfx(sfxForCombatEvent(event))
     }
 
+    /** Commits a finished tactical room's HP/MP, potions, XP, gold, and dungeon chest rewards to native state. */
     private fun settleTacticalRoom(
         session: su.neit.vaiwu.combat.TacticalBattleSession,
         finished: su.neit.vaiwu.combat.CombatState,
@@ -519,7 +533,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 val chest = if (isFinalDungeonRoom) {
                     su.neit.vaiwu.combat.EncounterBuilder.computeDungeonChestGold(
                         rooms = session.rooms,
-                        seed = finished.rng.seed xor 0x85EBCA6BL,
+                        seed = finished.rng.seed xor DungeonChestSeedSalt,
                     )
                 } else {
                     0
@@ -555,7 +569,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             su.neit.vaiwu.combat.CombatWinner.Enemy -> {
-                val defeatPenalty = -(5 + player.level * 2)
+                val defeatPenalty = -(DefeatGoldPenaltyBase + player.level * DefeatGoldPenaltyPerLevel)
                 val netGold = (finished.goldDelta + defeatPenalty).coerceAtMost(0)
                 pet.settleTacticalBattle(
                     outcome = BattleOutcome.Defeat,
@@ -644,6 +658,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         savePet()
     }
 
+    /** Rests between dungeon rooms (native HP/MP recovery) and builds the next room's combat encounter. */
     fun nextDungeonRoom() {
         val session = _tacticalBattle.value ?: return
         if (!session.dungeon || !session.awaitingRest || session.dungeonCleared) return
@@ -659,7 +674,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             dungeon = true,
             room = nextRoom,
             rooms = session.rooms,
-            seed = System.nanoTime() xor (nextRoom.toLong() * 0x9E3779B9L),
+            seed = System.nanoTime() xor (nextRoom.toLong() * DungeonRoomSeedSalt),
         )
         _tacticalBattle.value = session.copy(
             room = nextRoom,
@@ -676,8 +691,9 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         savePet()
     }
 
+    /** Spends one unallocated RPG level-up stat point on attribute [stat] (0=STR..4=LUCK). */
     fun allocateStat(stat: Int) {
-        if (stat !in 0..4) return
+        if (stat !in RpgStatRange) return
         pet.allocateStat(stat)
         _inventory.value = pet.inventory()
         _battle.value = pet.battleSnapshot()
@@ -736,10 +752,11 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         playSfx(sfxForNote(note))
     }
 
+    /** Parses a user chat message for local intents (alarms, timers, weather, jokes) or sends it to OpenRouter. */
     fun submitChat(rawText: String) {
-        val text = rawText.trim().take(2_000)
+        val text = rawText.trim().take(MaxChatInputChars)
         if (text.isEmpty() || _chatBusy.value || _snapshot.value == null) return
-        _chatMessages.value = (_chatMessages.value + ChatMessage(text, false, messageCounter++)).takeLast(50)
+        _chatMessages.value = (_chatMessages.value + ChatMessage(text, false, messageCounter++)).takeLast(MaxChatHistorySize)
         val intent = pet.parseIntent(text)
         if (intent == null) {
             answerChat(pet.phrase(PhraseContext.Talked) ?: text(R.string.pet_talked_fallback))
@@ -752,12 +769,13 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 answerChat(text(R.string.reminder_set, formatReminderTime(at)))
             }
             AssistantKind.Reminder -> {
-                val at = System.currentTimeMillis() + intent.afterMinutes.coerceIn(1, 1_440) * 60_000L
+                val at = System.currentTimeMillis() +
+                    intent.afterMinutes.coerceIn(1, MaxReminderMinutes) * MsPerMinute
                 reminders.schedule(at, text)
                 answerChat(text(R.string.reminder_heard, formatReminderTime(at)))
             }
             AssistantKind.Pomodoro -> {
-                val at = System.currentTimeMillis() + 25 * 60_000L
+                val at = System.currentTimeMillis() + PomodoroMinutes * MsPerMinute
                 reminders.schedule(at, text(R.string.pomodoro_done))
                 answerChat(text(R.string.pomodoro_started))
             }
@@ -818,10 +836,11 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun answerChat(text: String) {
-        _chatMessages.value = (_chatMessages.value + ChatMessage(text, true, messageCounter++)).takeLast(50)
+        _chatMessages.value = (_chatMessages.value + ChatMessage(text, true, messageCounter++)).takeLast(MaxChatHistorySize)
         playSfx(Sfx.Talk)
     }
 
+    /** Purchases one shop item into the bag (or unlocks equipment) and posts status feedback. */
     fun buyItem(itemId: Int) {
         val item = _shopItems.value.firstOrNull { it.id == itemId } ?: return
         val bought = pet.buy(itemId)
@@ -830,7 +849,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 SystemMessage(messageCounter++, text(R.string.shop_bought_bag, item.name))
             bought -> SystemMessage(messageCounter++, text(R.string.shop_bought, item.name))
             item.owned -> SystemMessage(messageCounter++, text(R.string.shop_already_bought))
-            item.kind == ShopItemKind.Consumable && item.count >= 99 ->
+            item.kind == ShopItemKind.Consumable && item.count >= MaxConsumableStack ->
                 SystemMessage(messageCounter++, text(R.string.shop_bag_full))
             else -> SystemMessage(messageCounter++, text(R.string.shop_not_enough))
         }
@@ -1161,6 +1180,22 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         const val SaveHeader = "VAIWU-ANDROID-1"
         const val SaveIntervalMs = 15_000L
+        const val PetTickIntervalMs = 1_000L
+        const val MiniGameTickIntervalMs = 100L
+        const val MsPerMinute = 60_000L
+        const val MaxPetNameLength = 24
+        const val MaxChatInputChars = 2_000
+        const val MaxChatHistorySize = 50
+        const val MaxReminderMinutes = 1_440 // 24 hours
+        const val PomodoroMinutes = 25
+        const val MaxConsumableStack = 99
+        val RpgStatRange = 0..4
+        /** Defeat gold loss formula (`5 + level * 2`), mirroring native RPG defeat penalty. */
+        const val DefeatGoldPenaltyBase = 5
+        const val DefeatGoldPenaltyPerLevel = 2
+        /** Murmur/golden-ratio mixing salts so dungeon rooms and chest rolls diverge cleanly. */
+        const val DungeonChestSeedSalt = 0x85EBCA6BL
+        const val DungeonRoomSeedSalt = 0x9E3779B9L
         const val SoundPreference = "sound"
         const val CoachPreference = "tactical_coach"
         const val FastModePreference = "tactical_fast"

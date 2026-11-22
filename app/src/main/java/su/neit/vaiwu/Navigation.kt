@@ -87,6 +87,11 @@ fun isRoundActive(
     else -> false
 }
 
+/**
+ * Tactical-combat counterpart of [isRoundActive]: returns true while an RPS
+ * choice, mini-game, or tactical room/dungeon rest is in progress so leaving
+ * asks for confirmation first.
+ */
 fun isTacticalRoundActive(
     screen: AppScreen,
     rpsResult: RpsResult?,

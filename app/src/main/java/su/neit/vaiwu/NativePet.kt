@@ -2,11 +2,17 @@ package su.neit.vaiwu
 
 import java.io.Closeable
 
+/**
+ * Thread-safe JNI wrapper around the native C++ `VaiwuPet` + RPG state
+ * (`app/src/main/cpp/native-lib.cpp`, `battle-lib.cpp`, `info-lib.cpp`).
+ *
+ * All methods synchronize on `this` and guard against calls after [close].
+ */
 class NativePet : Closeable {
     private var handle: Long = nativeCreate()
 
     private fun requireHandle(): Long {
-        check(handle != 0L) { "NativePet has been closed" }
+        check(handle != InvalidHandle) { "NativePet has been closed" }
         return handle
     }
 
@@ -249,6 +255,9 @@ class NativePet : Closeable {
     private external fun nativeJoke(handle: Long): String
 
     companion object {
+        /** Sentinel handle value after [close] destroys the native C++ state. */
+        private const val InvalidHandle = 0L
+
         init {
             System.loadLibrary("vaiwu_native")
         }

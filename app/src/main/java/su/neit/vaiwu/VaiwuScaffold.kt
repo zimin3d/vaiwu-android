@@ -106,6 +106,7 @@ fun VaiwuTopBar(
     )
 }
 
+/** Bottom navigation bar switching between the four top-level tabs (`Home`, `Games`, `Pet`, `Chat`). */
 @Composable
 fun VaiwuBottomBar(
     selected: AppTab,

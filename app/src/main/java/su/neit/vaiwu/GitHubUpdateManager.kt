@@ -17,6 +17,7 @@ import java.security.MessageDigest
 import java.util.Locale
 import java.util.zip.ZipFile
 
+/** Metadata parsed from the latest GitHub Release containing a signed APK asset. */
 data class ReleaseInfo(
     val version: String,
     val title: String,
@@ -26,6 +27,7 @@ data class ReleaseInfo(
     val sha256: String,
 )
 
+/** Whitelisted HTTPS hosts allowed during update metadata fetches and asset redirects. */
 private val AllowedUpdateHosts = setOf(
     "api.github.com",
     "github.com",
@@ -33,6 +35,7 @@ private val AllowedUpdateHosts = setOf(
     "release-assets.githubusercontent.com",
 )
 
+/** Returns true only when [url] uses HTTPS and points to one of [AllowedUpdateHosts]. */
 internal fun isAllowedUpdateUrl(url: URL): Boolean =
     url.protocol == "https" && url.host in AllowedUpdateHosts
 
@@ -51,7 +54,14 @@ internal fun resolveAllowedRedirect(current: URL, location: String?): URL? {
     return resolved.takeIf(::isAllowedUpdateUrl)
 }
 
+/**
+ * Handles in-app self-updates from GitHub Releases with strict security checks:
+ * HTTPS host allowlisting on every redirect hop, SHA-256 digest verification,
+ * APK zip sanity check, anti-downgrade check, and signing-certificate pinning.
+ */
 class GitHubUpdateManager(private val context: Context) {
+
+    /** Queries the latest GitHub Release and returns [ReleaseInfo] if it is newer than [currentVersion]. */
     fun findLatestUpdate(currentVersion: String): ReleaseInfo? {
         val connection = openFollowingAllowedRedirects(RELEASES_API_URL)
         try {
@@ -73,6 +83,7 @@ class GitHubUpdateManager(private val context: Context) {
         }
     }
 
+    /** Downloads [release]'s APK to cache, streaming progress and verifying size, SHA-256, and zip structure. */
     fun download(release: ReleaseInfo, onProgress: (Long, Long) -> Unit = { _, _ -> }): File {
         if (release.sizeBytes > MaxApkBytes) {
             throw IOException(context.getString(R.string.update_apk_too_large))
@@ -85,7 +96,7 @@ class GitHubUpdateManager(private val context: Context) {
         cleanOldDownloads(updatesDir, keep = setOf(target.name, partial.name))
         partial.delete()
 
-        val connection = openFollowingAllowedRedirects(release.apkUrl, readTimeoutMs = 60_000)
+        val connection = openFollowingAllowedRedirects(release.apkUrl, readTimeoutMs = DownloadReadTimeoutMs)
         val digest = MessageDigest.getInstance("SHA-256")
         try {
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
@@ -93,7 +104,7 @@ class GitHubUpdateManager(private val context: Context) {
             }
             connection.inputStream.use { input ->
                 partial.outputStream().buffered().use { output ->
-                    val buffer = ByteArray(32 * 1024)
+                    val buffer = ByteArray(DownloadBufferBytes)
                     var total = 0L
                     while (true) {
                         val count = input.read(buffer)
@@ -143,6 +154,10 @@ class GitHubUpdateManager(private val context: Context) {
         return target
     }
 
+    /**
+     * Verifies package name, monotonic versionCode, and matching signing certificate
+     * hashes before launching the system APK installer via FileProvider.
+     */
     fun install(apk: File) {
         val signatureFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             PackageManager.GET_SIGNING_CERTIFICATES
@@ -220,7 +235,7 @@ class GitHubUpdateManager(private val context: Context) {
      * Opens [url] and follows HTTP redirects manually so every single hop is
      * validated against [AllowedUpdateHosts] BEFORE connecting to it.
      */
-    private fun openFollowingAllowedRedirects(url: String, readTimeoutMs: Int = 15_000): HttpURLConnection {
+    private fun openFollowingAllowedRedirects(url: String, readTimeoutMs: Int = ApiTimeoutMs): HttpURLConnection {
         var current = try {
             URL(url)
         } catch (_: Exception) {
@@ -251,10 +266,11 @@ class GitHubUpdateManager(private val context: Context) {
         throw IOException(context.getString(R.string.update_too_many_redirects))
     }
 
+    /** Configures a single non-redirecting HTTPS connection with timeouts and GitHub API headers. */
     private fun openSingleHop(url: URL, readTimeoutMs: Int): HttpURLConnection {
         val connection = url.openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = false
-        connection.connectTimeout = 15_000
+        connection.connectTimeout = ApiTimeoutMs
         connection.readTimeout = readTimeoutMs
         connection.setRequestProperty("User-Agent", "Vaiwu-Android/${BuildConfig.VERSION_NAME}")
         if (url.host == "api.github.com") {
@@ -264,6 +280,7 @@ class GitHubUpdateManager(private val context: Context) {
         return connection
     }
 
+    /** Removes stale `.apk` and `.part` files left in the update cache from earlier downloads. */
     private fun cleanOldDownloads(directory: File, keep: Set<String>) {
         directory.listFiles()?.forEach { file ->
             val stale = file.name.endsWith(".apk") || file.name.endsWith(".part")
@@ -273,11 +290,13 @@ class GitHubUpdateManager(private val context: Context) {
         }
     }
 
+    /** Strips unsafe path characters from a release tag before embedding it in a local filename. */
     private fun sanitizeFileName(version: String): String {
-        val safe = version.replace(Regex("[^A-Za-z0-9._-]"), "_").take(64)
+        val safe = version.replace(Regex("[^A-Za-z0-9._-]"), "_").take(MaxVersionFileNameChars)
         return safe.ifBlank { "update" }
     }
 
+    /** Extracts the signed APK asset and its mandatory 64-hex-char SHA-256 digest from GitHub API JSON. */
     private fun parseRelease(json: JSONObject): ReleaseInfo {
         val assets = json.getJSONArray("assets")
         var apk: JSONObject? = null
@@ -290,7 +309,7 @@ class GitHubUpdateManager(private val context: Context) {
         }
         val asset = apk ?: throw IOException(context.getString(R.string.update_asset_missing, APK_ASSET_NAME))
         val sha256 = asset.optString("digest").removePrefix("sha256:")
-        if (!sha256.matches(Regex("[0-9a-fA-F]{64}"))) {
+        if (!sha256.matches(Regex("[0-9a-fA-F]{$Sha256HexLength}"))) {
             throw IOException(context.getString(R.string.update_no_sha256))
         }
         return ReleaseInfo(
@@ -309,27 +328,38 @@ class GitHubUpdateManager(private val context: Context) {
         private const val APK_ASSET_NAME = "vaiwu-android.apk"
         private const val MaxApkBytes = 128L * 1024 * 1024
         private const val MaxApiResponseBytes = 1024 * 1024
+        private const val DownloadBufferBytes = 32 * 1024
+        private const val ApiTimeoutMs = 15_000
+        private const val DownloadReadTimeoutMs = 60_000
+        private const val MaxVersionFileNameChars = 64
+        private const val Sha256HexLength = 64
         private const val MaxRedirects = 5
+        private const val HTTP_TEMP_REDIRECT = 307
+        private const val HTTP_PERM_REDIRECT = 308
         private val RedirectCodes = setOf(
             HttpURLConnection.HTTP_MOVED_PERM,
             HttpURLConnection.HTTP_MOVED_TEMP,
             HttpURLConnection.HTTP_SEE_OTHER,
-            307,
-            308,
+            HTTP_TEMP_REDIRECT,
+            HTTP_PERM_REDIRECT,
         )
     }
 }
 
+/** Decodes an even-length hexadecimal string into raw bytes. */
 private fun String.hexToBytes(): ByteArray = ByteArray(length / 2) { index ->
     substring(index * 2, index * 2 + 2).toInt(16).toByte()
 }
 
+/** Encodes raw bytes as a lowercase hexadecimal digest string. */
 private fun ByteArray.toHexString(): String = joinToString("") { byte ->
     "%02x".format(Locale.US, byte.toInt() and 0xff)
 }
 
+/** Signals that Android's "Install unknown apps" permission screen was opened for the user. */
 class UnknownAppSourcesRequiredException : IOException()
 
+/** Returns true when semantic version [candidate] is strictly greater than [current]. */
 internal fun isNewerVersion(candidate: String, current: String): Boolean {
     val candidateParts = versionParts(candidate) ?: return false
     val currentParts = versionParts(current) ?: return false
@@ -342,6 +372,7 @@ internal fun isNewerVersion(candidate: String, current: String): Boolean {
     return false
 }
 
+/** Parses the numeric `major.minor.patch` core of a version string (ignoring `v` prefix and suffixes). */
 internal fun versionParts(version: String): List<Long>? {
     val core = version.trim()
         .removePrefix("v")

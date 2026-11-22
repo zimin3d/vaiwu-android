@@ -38,6 +38,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 
+/** Sentinel character id indicating no heroine has been selected yet. */
+private const val NO_CHARACTER_SELECTED = -1
+
+/** Number of columns in the heroine selection grid. */
+private const val CHARACTER_GRID_COLUMNS = 2
+
+/** Maximum length (characters) allowed for a custom pet name (matches `PetViewModel.createPet`). */
+private const val MAX_PET_NAME_LENGTH = 24
+
+/** Preview sprite dimensions inside each onboarding character card (3:4 portrait aspect). */
+private val CHARACTER_CARD_SPRITE_WIDTH = 96.dp
+private val CHARACTER_CARD_SPRITE_HEIGHT = 128.dp
+
 /**
  * Onboarding: the pet is only chosen here, it is settled with the explicit
  * «Поселить» action. The selection itself never creates a pet (UI-ONB-01).
@@ -49,7 +62,7 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier,
 ) {
     val characterNames = stringArrayResource(R.array.character_names)
-    var selectedId by rememberSaveable { mutableStateOf(-1) }
+    var selectedId by rememberSaveable { mutableStateOf(NO_CHARACTER_SELECTED) }
     var petName by rememberSaveable { mutableStateOf("") }
 
     Column(
@@ -72,7 +85,7 @@ fun OnboardingScreen(
                 ),
         )
         LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+            columns = GridCells.Fixed(CHARACTER_GRID_COLUMNS),
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
@@ -95,7 +108,7 @@ fun OnboardingScreen(
         }
         OutlinedTextField(
             value = petName,
-            onValueChange = { petName = it.take(24) },
+            onValueChange = { petName = it.take(MAX_PET_NAME_LENGTH) },
             label = { Text(stringResource(R.string.onboarding_name_label)) },
             supportingText = { Text(stringResource(R.string.onboarding_name_hint)) },
             singleLine = true,
@@ -114,6 +127,7 @@ fun OnboardingScreen(
     }
 }
 
+/** Selectable heroine card showing her idle sprite, base RPG stats, and favorite food. */
 @Composable
 private fun CharacterCard(
     id: Int,
@@ -151,9 +165,9 @@ private fun CharacterCard(
         ) {
             PetSprite(
                 characterId = id,
-                emotionId = 0,
+                emotionId = Emotion.Idle,
                 description = name,
-                modifier = Modifier.size(96.dp, 128.dp),
+                modifier = Modifier.size(CHARACTER_CARD_SPRITE_WIDTH, CHARACTER_CARD_SPRITE_HEIGHT),
             )
             Text(name, style = MaterialTheme.typography.titleMedium)
             profile?.let {

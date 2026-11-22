@@ -15,6 +15,7 @@ NativePetState* state(jlong handle)
 }
 } // namespace
 
+// Returns a localized offline reaction phrase for the active character and PhraseContext.
 extern "C" JNIEXPORT jstring JNICALL
 Java_su_neit_vaiwu_NativePet_nativePhrase(JNIEnv* env, jobject, jlong handle, jint context)
 {
@@ -31,6 +32,7 @@ Java_su_neit_vaiwu_NativePet_nativePhrase(JNIEnv* env, jobject, jlong handle, ji
     return vaiwu::android::toJavaString(env, text);
 }
 
+// Builds a CharacterProfile snapshot (traits + base RPG stats) for onboarding cards.
 extern "C" JNIEXPORT jobject JNICALL
 Java_su_neit_vaiwu_NativePet_nativeCharacterProfile(JNIEnv* env, jobject, jlong, jint id)
 {
@@ -66,6 +68,7 @@ Java_su_neit_vaiwu_NativePet_nativeCharacterProfile(JNIEnv* env, jobject, jlong,
     return profile;
 }
 
+// Parses Russian chat text into a local assistant intent (alarm, timer, weather, joke, conversion).
 extern "C" JNIEXPORT jobject JNICALL
 Java_su_neit_vaiwu_NativePet_nativeParseIntent(JNIEnv* env, jobject, jlong, jstring text)
 {
@@ -96,6 +99,7 @@ Java_su_neit_vaiwu_NativePet_nativeParseIntent(JNIEnv* env, jobject, jlong, jstr
     return intent;
 }
 
+// Picks a random offline Russian joke using the native pet RNG.
 extern "C" JNIEXPORT jstring JNICALL
 Java_su_neit_vaiwu_NativePet_nativeJoke(JNIEnv* env, jobject, jlong handle)
 {

@@ -112,7 +112,7 @@ class SoundPlayer {
         try {
             track.write(pcm, 0, pcm.size)
             track.play()
-            val durationMs = pcm.size.toLong() * 1000L / (SoundSynth.SampleRate * 2L)
+            val durationMs = pcm.size.toLong() * MsPerSecond / (SoundSynth.SampleRate * Pcm16BytesPerSample)
             Thread.sleep(durationMs + TailMs)
         } catch (_: InterruptedException) {
             // Closing: fall through and release the track.
@@ -133,8 +133,14 @@ class SoundPlayer {
     }
 
     private companion object {
+        /** Maximum queued SFX requests before the oldest unplayed sound is dropped. */
         const val MaxPending = 6
+        /** Idle poll timeout (ms) on the audio worker thread. */
         const val WorkerIdleMs = 500L
+        /** Extra sleep cushion (ms) after PCM duration so static AudioTrack finishes cleanly. */
         const val TailMs = 30L
+        /** Milliseconds per second and byte width of 16-bit mono PCM samples. */
+        const val MsPerSecond = 1_000L
+        const val Pcm16BytesPerSample = 2L
     }
 }

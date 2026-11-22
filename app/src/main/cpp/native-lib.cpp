@@ -17,6 +17,40 @@
 
 namespace {
 
+// Action ids mirrored by `PetAction` in `GameConstants.kt`.
+constexpr jint kActionFeed = 0;
+constexpr jint kActionWash = 2;
+constexpr jint kActionClean = 3;
+constexpr jint kActionTalk = 4;
+constexpr jint kActionWake = 5;
+constexpr jint kActionMedicine = 6;
+constexpr jint kActionHug = 7;
+constexpr jint kActionSleep = 8;
+
+// Happiness & reward tuning shared with Android mini-games and care actions.
+constexpr float kHugHappinessGain = 6.0f;
+constexpr float kDrawHappinessGain = 3.0f;
+constexpr std::uint32_t kMaxMiniGameReward = 10U;
+
+// Rock-Paper-Scissors rules (3 choices: rock/paper/scissors, +2 coins on win).
+constexpr int kRpsChoiceCount = 3;
+constexpr int kRpsWinReward = 2;
+
+// Shop item kind ids mirrored by `ShopItemKind` in `GameConstants.kt`.
+constexpr int kShopKindConsumable = 0;
+constexpr int kShopKindEquipment = 1;
+constexpr int kShopKindPotion = 2;
+constexpr int kShopKindMpPotion = 3;
+
+// Free-rice result codes mirrored by `UseResult.FreeRice*` in `GameConstants.kt`.
+constexpr jint kFreeRiceOk = 0;
+constexpr jint kFreeRiceRefusedDead = 10;
+constexpr jint kFreeRiceRefusedSleeping = 11;
+constexpr jint kFreeRiceRefusedCaprice = 12;
+constexpr jint kFreeRiceNotHungry = 13;
+constexpr jint kFreeRiceUnknown = 19;
+
+// Safely unwraps an opaque JNI handle back into its NativePetState pointer.
 NativePetState* state(jlong handle)
 {
     if (handle == 0) {
@@ -149,6 +183,7 @@ Java_su_neit_vaiwu_NativePet_nativeTick(JNIEnv*, jobject, jlong handle, jlong no
     }
 }
 
+// Dispatches a daily care action id from Kotlin (`PetAction`) to VaiwuPet.
 extern "C" JNIEXPORT jint JNICALL
 Java_su_neit_vaiwu_NativePet_nativeAction(JNIEnv*, jobject, jlong handle, jint action)
 {
@@ -157,24 +192,24 @@ Java_su_neit_vaiwu_NativePet_nativeAction(JNIEnv*, jobject, jlong handle, jint a
         return -1;
     }
     switch (action) {
-    case 0:
+    case kActionFeed:
         return static_cast<jint>(p->feed());
-    case 2:
+    case kActionWash:
         return static_cast<jint>(p->wash());
-    case 3:
+    case kActionClean:
         return static_cast<jint>(p->toilet());
-    case 4:
+    case kActionTalk:
         return static_cast<jint>(p->talk());
-    case 5:
+    case kActionWake:
         return static_cast<jint>(p->wake() ? vaiwu::game::ActionResult::Ok
                                            : vaiwu::game::ActionResult::RefusedSleeping);
-    case 6:
+    case kActionMedicine:
         p->cure();
         return 0;
-    case 7:
-        p->giveAffection(6.0f);
+    case kActionHug:
+        p->giveAffection(kHugHappinessGain);
         return 0;
-    case 8:
+    case kActionSleep:
         return static_cast<jint>(p->sleep() ? vaiwu::game::ActionResult::Ok
                                             : vaiwu::game::ActionResult::NotHungry);
     default:
@@ -182,6 +217,7 @@ Java_su_neit_vaiwu_NativePet_nativeAction(JNIEnv*, jobject, jlong handle, jint a
     }
 }
 
+// Settles a finished Android mini-game round and caps coin rewards at kMaxMiniGameReward.
 extern "C" JNIEXPORT jboolean JNICALL
 Java_su_neit_vaiwu_NativePet_nativeFinishGame(
     JNIEnv*, jobject, jlong handle, jint outcome, jint reward)
@@ -194,12 +230,14 @@ Java_su_neit_vaiwu_NativePet_nativeFinishGame(
     auto& p = s->pet;
     if (outcome > 0) {
         p.applyPlayResult(true);
-        const auto safeReward = reward > 0 ? std::min<std::uint32_t>(static_cast<std::uint32_t>(reward), 10U) : 0U;
+        const auto safeReward = reward > 0
+            ? std::min<std::uint32_t>(static_cast<std::uint32_t>(reward), kMaxMiniGameReward)
+            : 0U;
         p.addCoins(safeReward);
     } else if (outcome < 0) {
         p.applyPlayResult(false);
     } else {
-        p.giveAffection(3.0f);
+        p.giveAffection(kDrawHappinessGain);
     }
     return JNI_TRUE;
 }
@@ -292,9 +330,12 @@ Java_su_neit_vaiwu_NativePet_nativeShop(JNIEnv* env, jobject, jlong handle)
             const ShopItemInfo& info = shopItem(items[index]);
             const bool owned = info.equip >= 0
                 && ownsEquip(p->rpg(), static_cast<EquipItem>(info.equip));
-            const int kind = info.equip >= 0 ? 1 : info.potion ? 2 : info.mpPotion ? 3 : 0;
-            const int carried = kind == 0 ? p->consumableCount(id) : 0;
-            const bool usable = kind == 0 && canUseShopItem(*p, items[index]);
+            const int kind = info.equip >= 0 ? kShopKindEquipment
+                : info.potion ? kShopKindPotion
+                : info.mpPotion ? kShopKindMpPotion
+                : kShopKindConsumable;
+            const int carried = kind == kShopKindConsumable ? p->consumableCount(id) : 0;
+            const bool usable = kind == kShopKindConsumable && canUseShopItem(*p, items[index]);
             jstring nameStr = javaString(env, tr(Lang::Ru, info.nameId));
             jstring effectStr = javaString(env, shopEffect(info));
             jobject item = (nameStr != nullptr && effectStr != nullptr)
@@ -359,12 +400,12 @@ Java_su_neit_vaiwu_NativePet_nativeFeedWith(JNIEnv*, jobject, jlong handle, jint
     if (itemId < 0) {
         // Free rice keeps the classic feed rules (caprice, "already full").
         switch (p->feed()) {
-        case ActionResult::Ok: return 0;
-        case ActionResult::RefusedDead: return 10;
-        case ActionResult::RefusedSleeping: return 11;
-        case ActionResult::RefusedCaprice: return 12;
-        case ActionResult::NotHungry: return 13;
-        default: return 19;
+        case ActionResult::Ok: return kFreeRiceOk;
+        case ActionResult::RefusedDead: return kFreeRiceRefusedDead;
+        case ActionResult::RefusedSleeping: return kFreeRiceRefusedSleeping;
+        case ActionResult::RefusedCaprice: return kFreeRiceRefusedCaprice;
+        case ActionResult::NotHungry: return kFreeRiceNotHungry;
+        default: return kFreeRiceUnknown;
         }
     }
     if (itemId >= kShopItemCount) {
@@ -509,26 +550,27 @@ Java_su_neit_vaiwu_NativePet_nativeCancelPlay(JNIEnv*, jobject, jlong handle)
     }
 }
 
+// Resolves a single Rock-Paper-Scissors round and returns the RpsResult snapshot.
 extern "C" JNIEXPORT jobject JNICALL
 Java_su_neit_vaiwu_NativePet_nativePlayRps(JNIEnv* env, jobject, jlong handle, jint userChoice)
 {
     auto* s = state(handle);
     if (s == nullptr || !s->rpsStarted || s->pet.life() != vaiwu::game::LifeState::Awake ||
-        userChoice < 0 || userChoice > 2) {
+        userChoice < 0 || userChoice >= kRpsChoiceCount) {
         return nullptr;
     }
     s->rpsStarted = false;
-    const int petChoice = std::uniform_int_distribution<int>(0, 2)(s->rng);
-    const int difference = (userChoice - petChoice + 3) % 3;
+    const int petChoice = std::uniform_int_distribution<int>(0, kRpsChoiceCount - 1)(s->rng);
+    const int difference = (userChoice - petChoice + kRpsChoiceCount) % kRpsChoiceCount;
     const int outcome = difference == 0 ? 0 : difference == 1 ? 1 : -1;
-    const int reward = outcome > 0 ? 2 : 0;
+    const int reward = outcome > 0 ? kRpsWinReward : 0;
     if (outcome > 0) {
         s->pet.applyPlayResult(true);
         s->pet.addCoins(reward);
     } else if (outcome < 0) {
         s->pet.applyPlayResult(false);
     } else {
-        s->pet.giveAffection(3.0f);
+        s->pet.giveAffection(kDrawHappinessGain);
     }
     const jclass resultClass = env->FindClass("su/neit/vaiwu/RpsResult");
     if (resultClass == nullptr) {

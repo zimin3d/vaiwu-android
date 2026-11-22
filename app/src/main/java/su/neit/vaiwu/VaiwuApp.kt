@@ -64,6 +64,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+/** Shop category index for food items displayed in [FeedDialog]. */
+private const val FOOD_SHOP_CATEGORY_ID = 0
+
+/** Seconds in one 24-hour day, used to compute the pet's "Day N" counter in the top bar. */
+private const val SECONDS_PER_DAY = 86_400
+
+/** Percentage scale for APK download progress formatting. */
+private const val DOWNLOAD_PERCENT_MAX = 100
+
+/** Dialog layout dimensions for release notes and download progress indicators. */
+private val UPDATE_NOTES_MAX_HEIGHT = 240.dp
+private val PROGRESS_SPINNER_SIZE = 28.dp
+
 /**
  * Root composable of the redone UI: it owns the navigation state machine,
  * the snackbar host and the global top bar / bottom bar frame.
@@ -314,13 +327,14 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
     }
     if (feedMenuOpen && pet != null) {
         FeedDialog(
-            options = shopItems.filter { it.categoryId == 0 },
+            options = shopItems.filter { it.categoryId == FOOD_SHOP_CATEGORY_ID },
             onFeed = viewModel::feedWith,
             onDismiss = viewModel::closeFeedMenu,
         )
     }
 }
 
+/** Renders the global top bar title: pet name + age day on Home, or the active screen/room title. */
 @Composable
 private fun AppTopBarTitle(
     screen: AppScreen,
@@ -334,7 +348,7 @@ private fun AppTopBarTitle(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
-            val day = pet.ageSeconds / 86_400 + 1
+            val day = pet.ageSeconds / SECONDS_PER_DAY + 1
             Text(
                 text = pluralStringResource(R.plurals.pet_day, day, day),
                 style = MaterialTheme.typography.labelSmall,
@@ -360,6 +374,7 @@ private fun AppTopBarTitle(
     }
 }
 
+/** Maps each [AppScreen] to its localized top-bar string resource id. */
 internal fun screenTitleRes(screen: AppScreen): Int = when (screen) {
     AppScreen.Home -> R.string.nav_home
     AppScreen.Games -> R.string.nav_games
@@ -373,6 +388,7 @@ internal fun screenTitleRes(screen: AppScreen): Int = when (screen) {
     AppScreen.Help -> R.string.help_title
 }
 
+/** Modal dialog family driving the GitHub self-update flow (checking, available, downloading, error). */
 @Composable
 private fun UpdateDialog(state: UpdateUiState, onDownload: () -> Unit, onDismiss: () -> Unit) {
     when (state) {
@@ -381,7 +397,9 @@ private fun UpdateDialog(state: UpdateUiState, onDownload: () -> Unit, onDismiss
         UpdateUiState.NoUpdate -> Unit
         is UpdateUiState.Downloading -> {
             val percent = if (state.totalBytes > 0) {
-                (state.receivedBytes * 100 / state.totalBytes).toInt().coerceIn(0, 100)
+                (state.receivedBytes * DOWNLOAD_PERCENT_MAX / state.totalBytes)
+                    .toInt()
+                    .coerceIn(0, DOWNLOAD_PERCENT_MAX)
             } else {
                 null
             }
@@ -390,7 +408,7 @@ private fun UpdateDialog(state: UpdateUiState, onDownload: () -> Unit, onDismiss
             } else {
                 stringResource(R.string.update_downloading_progress, state.release.version, percent)
             }
-            ProgressDialog(text, percent?.let { it / 100f })
+            ProgressDialog(text, percent?.let { it / DOWNLOAD_PERCENT_MAX.toFloat() })
         }
         is UpdateUiState.Available -> AlertDialog(
             onDismissRequest = onDismiss,
@@ -399,10 +417,10 @@ private fun UpdateDialog(state: UpdateUiState, onDownload: () -> Unit, onDismiss
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text(stringResource(R.string.update_available, state.release.version))
                     if (state.release.notes.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(VaiwuSpacing.small))
                         Text(
                             state.release.notes,
-                            modifier = Modifier.heightIn(max = 240.dp),
+                            modifier = Modifier.heightIn(max = UPDATE_NOTES_MAX_HEIGHT),
                         )
                     }
                 }
@@ -431,6 +449,7 @@ private fun UpdateDialog(state: UpdateUiState, onDownload: () -> Unit, onDismiss
     }
 }
 
+/** Non-dismissible progress modal shown while checking for updates or downloading an APK. */
 @Composable
 private fun ProgressDialog(text: String, fraction: Float? = null) {
     AlertDialog(
@@ -439,12 +458,12 @@ private fun ProgressDialog(text: String, fraction: Float? = null) {
         text = {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(28.dp))
-                    Spacer(Modifier.width(16.dp))
+                    CircularProgressIndicator(modifier = Modifier.size(PROGRESS_SPINNER_SIZE))
+                    Spacer(Modifier.width(VaiwuSpacing.large))
                     Text(text)
                 }
                 if (fraction != null) {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(VaiwuSpacing.medium))
                     LinearProgressIndicator(
                         progress = { fraction.coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth(),

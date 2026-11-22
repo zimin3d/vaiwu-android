@@ -10,6 +10,16 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+/** Printable non-whitespace ASCII range allowed in HTTP `Authorization` header values. */
+private val PRINTABLE_ASCII = '\u0021'..'\u007E'
+
+/** Upper character limit applied to stored API keys. */
+private const val MAX_API_KEY_LENGTH = 300
+
+/** Geographic coordinate bounds (WGS-84 degrees). */
+private val VALID_LATITUDE_RANGE = -90.0..90.0
+private val VALID_LONGITUDE_RANGE = -180.0..180.0
+
 /**
  * Strips whitespace, control characters and non-ASCII bytes so an API key can
  * never inject HTTP headers or break `HttpURLConnection`.
@@ -18,8 +28,8 @@ internal fun sanitizeApiKey(raw: String): String =
     raw.lineSequence()
         .firstOrNull { it.isNotBlank() }
         .orEmpty()
-        .filter { it in '\u0021'..'\u007E' }
-        .take(300)
+        .filter { it in PRINTABLE_ASCII }
+        .take(MAX_API_KEY_LENGTH)
 
 /**
  * Parses a decimal coordinate accepting both dot and comma decimal separators
@@ -28,9 +38,10 @@ internal fun sanitizeApiKey(raw: String): String =
 internal fun parseCoordinate(raw: String): Double? =
     raw.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
 
+/** Returns true when [latitude] is within `[-90, 90]` and [longitude] within `[-180, 180]`. */
 internal fun isValidCoordinates(latitude: Double, longitude: Double): Boolean =
     latitude.isFinite() && longitude.isFinite() &&
-        latitude in -90.0..90.0 && longitude in -180.0..180.0
+        latitude in VALID_LATITUDE_RANGE && longitude in VALID_LONGITUDE_RANGE
 
 /**
  * Keeps the existing API key when the settings form is saved with a blank key
@@ -121,7 +132,7 @@ class SecretStore(private val preferences: SharedPreferences) {
         )
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setKeySize(256)
+            .setKeySize(AesKeyBits)
             .build()
         generator.init(spec)
         return generator.generateKey()
@@ -131,6 +142,7 @@ class SecretStore(private val preferences: SharedPreferences) {
         const val AndroidKeyStore = "AndroidKeyStore"
         const val KeyAlias = "vaiwu_openrouter_key_v1"
         const val Transformation = "AES/GCM/NoPadding"
+        const val AesKeyBits = 256
         const val GcmTagBits = 128
         const val FormatPrefix = "v1:"
         const val EncryptedKeyPref = "openrouter_key_enc"

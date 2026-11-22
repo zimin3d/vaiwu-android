@@ -10,6 +10,20 @@
 
 namespace vaiwu::android {
 
+// Mixing salts separating dungeon foe/chest RNG rolls from the room seed.
+constexpr std::uint32_t kDungeonSpawnSalt = 0x9e3779b9U;
+constexpr std::uint32_t kDungeonChestSalt = 0x85ebca6bU;
+
+// RPG stat index range (0=STR, 1=VIT, 2=AGI, 3=MAG, 4=LUCK).
+constexpr int kMaxStatIndex = 4;
+
+// Safety bounds enforced when settling Android tactical combat results into native RPG state.
+constexpr int kMaxBattlePotions = 99;
+constexpr int kMaxSettlementGoldDelta = 5000;
+constexpr int kMaxSettlementXp = 5000;
+constexpr int kMaxRpgLevel = 99;
+constexpr int kDefeatReviveHpPercent = 30; // Fainted pet wakes up home at 30% max HP.
+
 enum class BattleOutcome : int {
     Ongoing = 0,
     Victory = 1,
@@ -42,7 +56,7 @@ public:
         state_.active = true;
         if (dungeon) {
             state_.dungeon = game::startDungeon(pet.rpg().level, rng);
-            state_.foe = game::spawnDungeonFoe(state_.dungeon, pet.rpg().level, rng ^ 0x9e3779b9U);
+            state_.foe = game::spawnDungeonFoe(state_.dungeon, pet.rpg().level, rng ^ kDungeonSpawnSalt);
         } else {
             state_.foe = game::spawnFoe(pet.rpg().level, rng);
         }
@@ -76,7 +90,7 @@ public:
                 state_.dungeon.goldBanked += result.goldGained;
                 state_.dungeon.xpBanked += result.xpGained;
                 if (game::isBossRoom(state_.dungeon)) {
-                    state_.chestGold = game::dungeonChestGold(state_.dungeon, rng ^ 0x85ebca6bU);
+                    state_.chestGold = game::dungeonChestGold(state_.dungeon, rng ^ kDungeonChestSalt);
                     pet.addCoins(static_cast<std::uint32_t>(state_.chestGold));
                     state_.dungeon = game::DungeonRun{};
                     state_.cleared = true;
@@ -125,10 +139,11 @@ public:
         state_.dungeon = game::DungeonRun{};
     }
 
+    // Allocates one unspent level-up point to stat index 0..kMaxStatIndex (STR..LUCK).
     void allocate(game::VaiwuPet& pet, int stat)
     {
         auto& progress = pet.rpg();
-        if (progress.statPoints <= 0 || stat < 0 || stat > 4) {
+        if (progress.statPoints <= 0 || stat < 0 || stat > kMaxStatIndex) {
             return;
         }
         --progress.statPoints;
@@ -285,14 +300,14 @@ inline int settleTacticalBattle(game::VaiwuPet& pet, const TacticalSettlement& s
     progress.stunTurns = 0;
 
     // Potions can only be spent during combat, never conjured out of thin air.
-    const int maxPotions = std::clamp(progress.potions, 0, 99);
-    const int maxMpPotions = std::clamp(progress.mpPotions, 0, 99);
+    const int maxPotions = std::clamp(progress.potions, 0, kMaxBattlePotions);
+    const int maxMpPotions = std::clamp(progress.mpPotions, 0, kMaxBattlePotions);
     progress.potions = std::clamp(s.potionsLeft, 0, maxPotions);
     progress.mpPotions = std::clamp(s.mpPotionsLeft, 0, maxMpPotions);
     progress.hp = std::clamp(s.hpLeft, 0, hpMax);
     progress.mp = std::clamp(s.mpLeft, 0, mpMax);
 
-    const int goldDelta = std::clamp(s.goldDelta, -5000, 5000);
+    const int goldDelta = std::clamp(s.goldDelta, -kMaxSettlementGoldDelta, kMaxSettlementGoldDelta);
     if (goldDelta > 0) {
         pet.addCoins(static_cast<std::uint32_t>(goldDelta));
     } else if (goldDelta < 0) {
@@ -302,9 +317,9 @@ inline int settleTacticalBattle(game::VaiwuPet& pet, const TacticalSettlement& s
 
     int levelsGained = 0;
     if (outcome == BattleOutcome::Victory) {
-        const int xp = std::clamp(s.xpGained, 0, 5000);
+        const int xp = std::clamp(s.xpGained, 0, kMaxSettlementXp);
         progress.xp += xp;
-        while (progress.xp >= xpForNext(progress.level) && progress.level < 99) {
+        while (progress.xp >= xpForNext(progress.level) && progress.level < kMaxRpgLevel) {
             progress.xp -= xpForNext(progress.level);
             ++progress.level;
             progress.statPoints += kPointsPerLevel;
@@ -320,8 +335,8 @@ inline int settleTacticalBattle(game::VaiwuPet& pet, const TacticalSettlement& s
             pet.applyPlayResult(true);
         }
     } else if (outcome == BattleOutcome::Defeat) {
-        // Defeat in battle faints the pet back home at ~30% HP; never pet death.
-        progress.hp = std::max(1, hpMax * 3 / 10);
+        // Defeat in battle faints the pet back home at kDefeatReviveHpPercent (30% HP); never pet death.
+        progress.hp = std::max(1, hpMax * kDefeatReviveHpPercent / 100);
         if (s.applyPlayOutcome) {
             pet.applyPlayResult(false);
         }
@@ -333,6 +348,7 @@ inline int settleTacticalBattle(game::VaiwuPet& pet, const TacticalSettlement& s
     return levelsGained;
 }
 
+// Applies between-room dungeon rest recovery and clears lingering poison/stun statuses.
 inline bool restBetweenTacticalRooms(game::VaiwuPet& pet)
 {
     using namespace vaiwu::game;

@@ -44,11 +44,23 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+/** Default percentage scale and transition duration for [StatMeter] bars. */
+private const val STAT_PERCENT_SCALE = 100f
+private const val STAT_BAR_ANIMATION_MS = 300
+
+/** Status chip backdrop and border opacities over the dark surface palette. */
+private const val STATUS_CHIP_BG_ALPHA = 0.16f
+private const val STATUS_CHIP_BORDER_ALPHA = 0.45f
+private val CHIP_HORIZONTAL_PADDING = 10.dp
+private val COIN_DOT_SIZE = 12.dp
+private val COIN_DOT_GAP = 6.dp
+
 /**
  * Shared UI components from `docs/ui-spec.md` (section 4). Screens compose
  * these instead of re-styling Material widgets by hand.
  */
 
+/** High-emphasis filled action button meeting the minimum primary touch height. */
 @Composable
 fun VaiwuPrimaryButton(
     text: String,
@@ -70,6 +82,7 @@ fun VaiwuPrimaryButton(
     }
 }
 
+/** Medium-emphasis outlined action button for secondary actions. */
 @Composable
 fun VaiwuSecondaryButton(
     text: String,
@@ -91,6 +104,7 @@ fun VaiwuSecondaryButton(
     }
 }
 
+/** Resolves a semantic [StatTone] to its theme color (danger/warning/healthy). */
 @Composable
 fun toneColor(tone: StatTone): Color = when (tone) {
     StatTone.Danger -> MaterialTheme.colorScheme.error
@@ -107,15 +121,15 @@ fun StatMeter(
     label: String,
     value: Float,
     modifier: Modifier = Modifier,
-    max: Float = 100f,
+    max: Float = STAT_PERCENT_SCALE,
 ) {
-    val safeMax = if (max <= 0f) 100f else max
+    val safeMax = if (max <= 0f) STAT_PERCENT_SCALE else max
     val fraction = (value / safeMax).coerceIn(0f, 1f)
-    val points = fraction * 100f
+    val points = fraction * STAT_PERCENT_SCALE
     val color = toneColor(statTone(points))
     val animated by animateFloatAsState(
         targetValue = fraction,
-        animationSpec = tween(durationMillis = 300),
+        animationSpec = tween(durationMillis = STAT_BAR_ANIMATION_MS),
         label = "stat-$label",
     )
     val description = stringResource(R.string.stat_a11y, label, points.toInt())
@@ -158,6 +172,7 @@ fun StatMeter(
     }
 }
 
+/** Compact pill badge tinted by [tone] for status flags like Sleeping or Sick. */
 @Composable
 fun StatusChip(
     text: String,
@@ -170,15 +185,16 @@ fun StatusChip(
         text = text,
         modifier = modifier
             .clip(shape)
-            .background(color.copy(alpha = 0.16f))
-            .border(1.dp, color.copy(alpha = 0.45f), shape)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .background(color.copy(alpha = STATUS_CHIP_BG_ALPHA))
+            .border(1.dp, color.copy(alpha = STATUS_CHIP_BORDER_ALPHA), shape)
+            .padding(horizontal = CHIP_HORIZONTAL_PADDING, vertical = VaiwuSpacing.xs),
         color = color,
         style = MaterialTheme.typography.labelSmall,
         maxLines = 1,
     )
 }
 
+/** Pill displaying the player's current coin balance with an accent coin dot. */
 @Composable
 fun CoinChip(
     coins: Int,
@@ -190,7 +206,7 @@ fun CoinChip(
         modifier = modifier
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
+            .padding(horizontal = CHIP_HORIZONTAL_PADDING, vertical = VaiwuSpacing.xs)
             .semantics(mergeDescendants = true) {
                 contentDescription = description
             },
@@ -198,11 +214,11 @@ fun CoinChip(
     ) {
         Box(
             modifier = Modifier
-                .size(12.dp)
+                .size(COIN_DOT_SIZE)
                 .clip(CircleShape)
                 .background(VaiwuColors.accent),
         )
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(COIN_DOT_GAP))
         Text(
             text = coins.toString(),
             style = MaterialTheme.typography.labelMedium,
@@ -212,6 +228,7 @@ fun CoinChip(
     }
 }
 
+/** Bordered surface card grouping related content under an optional [title]. */
 @Composable
 fun SectionCard(
     title: String?,
@@ -238,6 +255,7 @@ fun SectionCard(
     }
 }
 
+/** Centered placeholder message with an optional call-to-action button for empty lists. */
 @Composable
 fun EmptyState(
     title: String,

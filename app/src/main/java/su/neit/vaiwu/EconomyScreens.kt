@@ -45,6 +45,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+/** Icon container dimensions for shop catalog cards and bag/equipment rows. */
+private val SHOP_ICON_BOX_SIZE = 56.dp
+private val SHOP_ICON_PADDING = 6.dp
+private val BAG_ICON_BOX_SIZE = 48.dp
+private val BAG_ICON_PADDING = 5.dp
+
+/** Sentinel equipment id passed to `onEquip(slot, id)` to clear the slot. */
+private const val UNEQUIP_ITEM_ID = -1
+
+/** Native RPG stat allocation indices shared with `BattleSession::allocate()` in `Battle.hpp`. */
+private const val STAT_INDEX_STRENGTH = 0
+private const val STAT_INDEX_VITALITY = 1
+private const val STAT_INDEX_AGILITY = 2
+private const val STAT_INDEX_MAGIC = 3
+private const val STAT_INDEX_LUCK = 4
+
+/** Heroine sprite dimensions on the Rock-Paper-Scissors screen (3:4 portrait aspect). */
+private val RPS_SPRITE_WIDTH = 144.dp
+private val RPS_SPRITE_HEIGHT = 192.dp
+
 /**
  * Shop focus screen (UI-ECO-01…03). Categories are horizontal chips, the balance
  * is visible without scrolling and the purchase button refuses coins that are
@@ -126,12 +146,8 @@ fun ShopScreen(
 }
 
 /**
- * Иконка товара по `ShopItemSnapshot.id` (порядок enum `ShopItem` в
- * `external/vaiwu/.../Shop.hpp`). Неизвестный id — запасной значок.
- */
-/**
- * Иконка снаряжения по `EquipmentSnapshot.id` (порядок `EquipItem` в
- * `external/vaiwu/.../Rpg.hpp`). Используются те же арты, что и в магазине.
+ * Maps an `EquipmentSnapshot.id` (matching native `EquipItem` order in
+ * `external/vaiwu/.../Rpg.hpp`) to its drawable icon, with a fallback icon for unknown ids.
  */
 internal fun equipIconFor(itemId: Int): Int = when (itemId) {
     0 -> R.drawable.shop_wooden_sword
@@ -149,6 +165,10 @@ internal fun equipIconFor(itemId: Int): Int = when (itemId) {
     else -> R.drawable.shop_icon_unknown
 }
 
+/**
+ * Maps a `ShopItemSnapshot.id` (matching native `ShopItem` order in
+ * `external/vaiwu/.../Shop.hpp`) to its drawable icon, with a fallback icon for unknown ids.
+ */
 internal fun shopIconFor(itemId: Int): Int = when (itemId) {
     0 -> R.drawable.shop_tasty_food
     1 -> R.drawable.shop_cake
@@ -176,6 +196,7 @@ internal fun shopIconFor(itemId: Int): Int = when (itemId) {
     else -> R.drawable.shop_icon_unknown
 }
 
+/** Single catalog item card in [ShopScreen] with stable layout across owned/in-bag states. */
 @Composable
 private fun ShopItemCard(
     item: ShopItemSnapshot,
@@ -199,14 +220,14 @@ private fun ShopItemCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
-                modifier = Modifier.size(56.dp),
+                modifier = Modifier.size(SHOP_ICON_BOX_SIZE),
                 shape = MaterialTheme.shapes.small,
                 color = MaterialTheme.colorScheme.surfaceVariant,
             ) {
                 Image(
                     painter = painterResource(shopIconFor(item.id)),
                     contentDescription = null,
-                    modifier = Modifier.padding(6.dp),
+                    modifier = Modifier.padding(SHOP_ICON_PADDING),
                 )
             }
             Column(
@@ -302,14 +323,14 @@ private fun BagItemCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(BAG_ICON_BOX_SIZE),
                 shape = MaterialTheme.shapes.small,
                 color = MaterialTheme.colorScheme.surfaceVariant,
             ) {
                 Image(
                     painter = painterResource(shopIconFor(item.id)),
                     contentDescription = null,
-                    modifier = Modifier.padding(5.dp),
+                    modifier = Modifier.padding(BAG_ICON_PADDING),
                 )
             }
             Column(
@@ -473,14 +494,14 @@ fun PetScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Surface(
-                            modifier = Modifier.size(48.dp),
+                            modifier = Modifier.size(BAG_ICON_BOX_SIZE),
                             shape = MaterialTheme.shapes.small,
                             color = MaterialTheme.colorScheme.surfaceVariant,
                         ) {
                             Image(
                                 painter = painterResource(equipIconFor(item.id)),
                                 contentDescription = null,
-                                modifier = Modifier.padding(5.dp),
+                                modifier = Modifier.padding(BAG_ICON_PADDING),
                             )
                         }
                         Column(modifier = Modifier.weight(1f)) {
@@ -488,7 +509,7 @@ fun PetScreen(
                             Text(item.bonuses, style = MaterialTheme.typography.bodySmall)
                             Row(horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small)) {
                                 if (item.equipped) {
-                                    OutlinedButton(onClick = { onEquip(slot, -1) }) {
+                                    OutlinedButton(onClick = { onEquip(slot, UNEQUIP_ITEM_ID) }) {
                                         Text(stringResource(R.string.unequip))
                                     }
                                 } else {
@@ -521,6 +542,7 @@ fun PetScreen(
     }
 }
 
+/** Card for spending unallocated RPG level-up stat points across the 5 attributes. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StatAllocation(points: Int, onAllocate: (Int) -> Unit) {
@@ -549,11 +571,11 @@ private fun StatAllocation(points: Int, onAllocate: (Int) -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 listOf(
-                    stringResource(R.string.stat_strength) to 0,
-                    stringResource(R.string.stat_vitality) to 1,
-                    stringResource(R.string.stat_agility) to 2,
-                    stringResource(R.string.stat_magic) to 3,
-                    stringResource(R.string.stat_luck) to 4,
+                    stringResource(R.string.stat_strength) to STAT_INDEX_STRENGTH,
+                    stringResource(R.string.stat_vitality) to STAT_INDEX_VITALITY,
+                    stringResource(R.string.stat_agility) to STAT_INDEX_AGILITY,
+                    stringResource(R.string.stat_magic) to STAT_INDEX_MAGIC,
+                    stringResource(R.string.stat_luck) to STAT_INDEX_LUCK,
                 ).forEach { (label, index) ->
                     OutlinedButton(
                         onClick = { onAllocate(index) },
@@ -591,7 +613,7 @@ fun RpsScreen(
             characterId = pet.characterId,
             emotionId = pet.emotionId,
             description = pet.petName,
-            modifier = Modifier.size(144.dp, 192.dp),
+            modifier = Modifier.size(RPS_SPRITE_WIDTH, RPS_SPRITE_HEIGHT),
         )
         if (result == null) {
             Text(

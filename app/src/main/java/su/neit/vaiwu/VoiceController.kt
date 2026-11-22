@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import java.util.Locale
 
+/** Manages Android speech-to-text recognition, Russian TTS playback, and runtime audio/notification permissions. */
 class VoiceController(
     private val activity: ComponentActivity,
     private val onText: (String) -> Unit,
@@ -59,6 +60,7 @@ class VoiceController(
         })
     }
 
+    /** Starts Russian speech recognition after verifying microphone permission. */
     fun listen() {
         if (recognizer == null) {
             onError(activity.getString(R.string.voice_unavailable))
@@ -73,16 +75,19 @@ class VoiceController(
         }
     }
 
+    /** Speaks [text] via Android TTS (truncated to [MaxTtsUtteranceChars] to stay within platform IPC limits). */
     fun speak(text: String) {
-        if (speechReady) tts.speak(text.take(4_000), TextToSpeech.QUEUE_FLUSH, null, "vaiwu-chat")
+        if (speechReady) tts.speak(text.take(MaxTtsUtteranceChars), TextToSpeech.QUEUE_FLUSH, null, "vaiwu-chat")
     }
 
+    /** Prompts for `POST_NOTIFICATIONS` on Android 13+ (API 33+) so scheduled reminders can appear. */
     fun requestNotifications() {
-        if (Build.VERSION.SDK_INT >= 33) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
+    /** Releases the speech recognizer and TTS engine when the host activity is destroyed. */
     fun close() {
         recognizer?.destroy()
         tts.stop()
@@ -95,5 +100,10 @@ class VoiceController(
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
         recognizer?.startListening(intent)
+    }
+
+    private companion object {
+        /** Android `TextToSpeech.getMaxSpeechInputLength()` safe ceiling (4,000 chars). */
+        const val MaxTtsUtteranceChars = 4_000
     }
 }

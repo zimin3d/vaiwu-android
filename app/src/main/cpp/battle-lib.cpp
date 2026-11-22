@@ -5,6 +5,10 @@
 
 namespace {
 
+// Number of valid legacy RpgAction enum values (Attack, Skill, Potion, MpPotion, Run).
+constexpr jint kRpgActionCount = 5;
+
+// Safely unwraps an opaque JNI handle back into its NativePetState pointer.
 NativePetState* state(jlong handle)
 {
     if (handle == 0) {
@@ -114,11 +118,12 @@ Java_su_neit_vaiwu_NativePet_nativeBattleSnapshot(JNIEnv* env, jobject, jlong ha
     return battleSnapshot(env, state(handle));
 }
 
+// Executes one legacy turn-based battle action after validating the action index.
 extern "C" JNIEXPORT jobject JNICALL
 Java_su_neit_vaiwu_NativePet_nativeBattleAction(JNIEnv* env, jobject, jlong handle, jint action)
 {
     auto* native = state(handle);
-    if (native == nullptr || action < 0 || action >= 5) {
+    if (native == nullptr || action < 0 || action >= kRpgActionCount) {
         return nullptr;
     }
     native->battle.takeTurn(native->pet, static_cast<vaiwu::game::RpgAction>(action), native->rng());

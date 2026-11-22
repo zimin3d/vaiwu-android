@@ -50,6 +50,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
+/** Width fraction of pet reply bubbles so they visually contrast with full-width user bubbles. */
+private const val PET_BUBBLE_WIDTH_FRACTION = 0.9f
+
+/** Maximum input lengths enforced in Chat and Settings fields. */
+private const val CHAT_INPUT_MAX_CHARS = 2_000
+private const val CHAT_INPUT_MAX_LINES = 3
+private const val API_KEY_INPUT_MAX_CHARS = 300
+
+/** Spacing between Help accordion cards and their title/body blocks. */
+private val HELP_CARD_VERTICAL_GAP = 6.dp
+
 /**
  * Chat tab (UI-AST-01…04): the conversation with the pet, the assistant
  * replies and the input. New messages scroll into view and the input respects
@@ -70,17 +81,17 @@ fun ChatScreen(
             listState.animateScrollToItem(messages.lastIndex)
         }
     }
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(VaiwuSpacing.screenPadding)) {
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
             state = listState,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
         ) {
             items(messages) { message ->
                 Card(
-                    modifier = Modifier.fillMaxWidth(if (message.fromPet) 0.9f else 1f),
+                    modifier = Modifier.fillMaxWidth(if (message.fromPet) PET_BUBBLE_WIDTH_FRACTION else 1f),
                     colors = CardDefaults.cardColors(
                         containerColor = if (message.fromPet) {
                             MaterialTheme.colorScheme.surfaceVariant
@@ -91,7 +102,7 @@ fun ChatScreen(
                 ) {
                     Text(
                         text = message.text,
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(VaiwuSpacing.medium),
                     )
                 }
             }
@@ -123,10 +134,10 @@ fun ChatScreen(
         ) {
             OutlinedTextField(
                 value = input,
-                onValueChange = { input = it.take(2_000) },
+                onValueChange = { input = it.take(CHAT_INPUT_MAX_CHARS) },
                 modifier = Modifier.weight(1f),
                 label = { Text(stringResource(R.string.chat_input_label)) },
-                maxLines = 3,
+                maxLines = CHAT_INPUT_MAX_LINES,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                 keyboardActions = KeyboardActions(onDone = {
                     if (input.isNotBlank() && !busy) {
@@ -240,7 +251,7 @@ fun SettingsScreen(
         )
         OutlinedTextField(
             value = apiKey,
-            onValueChange = { apiKey = it.take(300) },
+            onValueChange = { apiKey = it.take(API_KEY_INPUT_MAX_CHARS) },
             label = { Text(stringResource(R.string.settings_api_label)) },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
@@ -336,11 +347,11 @@ fun HelpScreen() {
             R.string.help_assistant to R.string.help_assistant_text,
         ).forEach { (titleRes, textRes) ->
             Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = HELP_CARD_VERTICAL_GAP),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(VaiwuSpacing.cardPadding)) {
                     Text(stringResource(titleRes), style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(HELP_CARD_VERTICAL_GAP))
                     Text(stringResource(textRes))
                 }
             }

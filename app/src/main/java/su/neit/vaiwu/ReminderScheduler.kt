@@ -13,18 +13,21 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 
+/** Persists and schedules local alarm/reminder notifications via Android's [AlarmManager]. */
 class ReminderScheduler(private val context: Context) {
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
     private val preferences = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
 
+    /** Stores and schedules a one-shot reminder at [timestamp] ms with text capped at [MaxReminderTextLength]. */
     fun schedule(timestamp: Long, text: String): Long {
         val id = preferences.getInt("next_id", 1).coerceAtLeast(1)
         preferences.edit().putInt("next_id", if (id == Int.MAX_VALUE) 1 else id + 1)
-            .putLong("time_$id", timestamp).putString("text_$id", text.take(240)).apply()
+            .putLong("time_$id", timestamp).putString("text_$id", text.take(MaxReminderTextLength)).apply()
         scheduleOne(id, timestamp, text)
         return timestamp
     }
 
+    /** Cancels every pending alarm scheduled by this app and clears stored reminder metadata. */
     fun cancelAll() {
         preferences.all.keys.mapNotNull { key ->
             key.removePrefix("time_").toIntOrNull().takeIf { key.startsWith("time_") }
@@ -34,6 +37,7 @@ class ReminderScheduler(private val context: Context) {
         preferences.edit().clear().apply()
     }
 
+    /** Re-registers all future reminders after a device reboot and prunes expired ones. */
     fun restoreAfterBoot() {
         val now = System.currentTimeMillis()
         val fallback = context.getString(R.string.reminder_default_text)
@@ -64,9 +68,12 @@ class ReminderScheduler(private val context: Context) {
     companion object {
         const val PreferencesName = "reminders"
         const val ActionReminder = "su.neit.vaiwu.ACTION_REMINDER"
+        /** Maximum length (chars) persisted per reminder notification body. */
+        private const val MaxReminderTextLength = 240
     }
 }
 
+/** Broadcast receiver that posts reminder notifications and restores alarms on `BOOT_COMPLETED`. */
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
@@ -81,7 +88,7 @@ class ReminderReceiver : BroadcastReceiver() {
         manager.createNotificationChannel(NotificationChannel(
             ChannelId, context.getString(R.string.reminder_channel_name), NotificationManager.IMPORTANCE_DEFAULT,
         ))
-        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(
                 context, android.Manifest.permission.POST_NOTIFICATIONS,
             ) != PackageManager.PERMISSION_GRANTED
         ) return
