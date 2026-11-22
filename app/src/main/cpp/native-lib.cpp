@@ -427,7 +427,7 @@ Java_su_neit_vaiwu_NativePet_nativeUseItem(JNIEnv*, jobject, jlong handle, jint 
         }
         return static_cast<jint>(useShopItem(*p, static_cast<ShopItem>(itemId)));
     } catch (...) {
-        return static_cast<jint>(UseResult::NotOwned);
+        return static_cast<jint>(vaiwu::game::UseResult::NotOwned);
     }
 }
 
@@ -462,7 +462,7 @@ Java_su_neit_vaiwu_NativePet_nativeFeedWith(JNIEnv*, jobject, jlong handle, jint
             ? useShopItem(*p, item)
             : buyAndUseShopItem(*p, item));
     } catch (...) {
-        return static_cast<jint>(UseResult::NotApplicable);
+        return static_cast<jint>(vaiwu::game::UseResult::NotApplicable);
     }
 }
 
