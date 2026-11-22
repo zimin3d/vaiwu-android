@@ -276,9 +276,7 @@ internal fun calculateInSampleSize(options: BitmapFactory.Options, maxDimension:
     val width = options.outWidth
     var inSampleSize = 1
     if (height > maxDimension || width > maxDimension) {
-        val halfHeight = height / 2
-        val halfWidth = width / 2
-        while ((halfHeight / inSampleSize) >= maxDimension || (halfWidth / inSampleSize) >= maxDimension) {
+        while ((height / inSampleSize) > maxDimension || (width / inSampleSize) > maxDimension) {
             inSampleSize *= 2
         }
     }
