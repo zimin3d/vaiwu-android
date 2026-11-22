@@ -309,7 +309,12 @@ private fun PetStage(
                 emotionId = pet.emotionId,
                 description = pet.petName,
                 modifier = Modifier.size(spriteWidth, spriteHeight),
-                frameDurationMs = if (pet.emotionId == Emotion.Idle) 450L else 180L,
+                frameDurationMs = when (pet.emotionId) {
+                    Emotion.Idle -> 420L
+                    Emotion.Sleepy -> 650L
+                    Emotion.Happy -> 260L
+                    else -> 220L
+                },
             )
             Spacer(Modifier.height(VaiwuSpacing.small))
             Row(

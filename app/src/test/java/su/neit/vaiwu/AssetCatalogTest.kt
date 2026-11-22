@@ -48,4 +48,13 @@ class AssetCatalogTest {
         }
         assertEquals(emptyList<String>(), missing(coverNames + arenaNames))
     }
+
+    @Test
+    fun animatedSpriteSequencesExistForAkaneAndAoi() {
+        val available = assets.list()?.toSet().orEmpty()
+        assertEquals(4, resolveSpriteFrames("sprite_akane_idle", available).size)
+        assertEquals(3, resolveSpriteFrames("sprite_akane_happy", available).size)
+        assertEquals(3, resolveSpriteFrames("sprite_akane_sleepy", available).size)
+        assertEquals(3, resolveSpriteFrames("sprite_aoi_idle", available).size)
+    }
 }

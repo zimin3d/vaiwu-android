@@ -4,6 +4,12 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -17,7 +23,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
@@ -106,25 +114,70 @@ fun PetSprite(
         val available = SpriteAssetIndex.list(context)
         SpriteAnimation(resolveSpriteFrames(base, available), frameDurationMs)
     }
-    SpriteImage(animation = animation, description = description, modifier = modifier)
+    val alive = emotionId != Emotion.Dead
+    val breathingModifier = if (alive) {
+        val transition = rememberInfiniteTransition(label = "pet-breathing")
+        val breathScaleY by transition.animateFloat(
+            initialValue = 1.0f,
+            targetValue = if (emotionId == Emotion.Sleepy) 1.022f else 1.015f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = if (emotionId == Emotion.Sleepy) 2400 else 1800,
+                    easing = FastOutSlowInEasing,
+                ),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "pet-breath-scale-y",
+        )
+        modifier.graphicsLayer {
+            scaleY = breathScaleY
+            transformOrigin = TransformOrigin(0.5f, 1.0f)
+        }
+    } else {
+        modifier
+    }
+    SpriteImage(animation = animation, description = description, modifier = breathingModifier)
 }
 
 @Composable
 fun SpriteImage(animation: SpriteAnimation, description: String, modifier: Modifier) {
+    val context = LocalContext.current.applicationContext
     var frameIndex by remember(animation) { mutableIntStateOf(0) }
+    var currentBitmap by remember(animation) {
+        mutableStateOf(SpriteBitmapCache.get(animation.frames.first()))
+    }
     LaunchedEffect(animation) {
+        // Show frame 0 immediately, then preload remaining frames on IO before
+        // cycling so emotion switches feel instant and frame swaps never flash.
+        val first = withContext(Dispatchers.IO) { decodeAsset(context, animation.frames.first()) }
+        if (first != null) currentBitmap = first
         if (animation.frames.size > 1) {
+            val rest = withContext(Dispatchers.IO) {
+                animation.frames.drop(1).map { decodeAsset(context, it) }
+            }
+            val loaded = listOf(first) + rest
+            if (currentBitmap == null) {
+                currentBitmap = loaded.firstOrNull { it != null }
+            }
             while (true) {
                 delay(animation.frameDurationMs)
                 frameIndex = (frameIndex + 1) % animation.frames.size
+                loaded[frameIndex]?.let { currentBitmap = it }
             }
         }
     }
-    AssetImage(
-        assetName = animation.frames[frameIndex],
-        description = description,
-        modifier = modifier,
-    )
+    val bmp = currentBitmap
+    if (bmp != null) {
+        Image(
+            bitmap = bmp.asImageBitmap(),
+            contentDescription = description,
+            modifier = modifier,
+            contentScale = ContentScale.Fit,
+            filterQuality = FilterQuality.Low,
+        )
+    } else {
+        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant))
+    }
 }
 
 @Composable
