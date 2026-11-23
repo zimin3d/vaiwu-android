@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.Color
  * their contrast ratios. Do not hardcode colours in screens.
  */
 internal object Palette {
-    const val Background = 0xFF1A1430
+    const val Background = 0xFF120E22
     const val Surface = 0xFF1E1833
     const val SurfaceElevated = 0xFF2A2245
     const val SurfaceVariant = 0xFF332A52
@@ -35,11 +35,17 @@ internal object Palette {
 
     const val Outline = 0xFF7A68B0
     const val OutlineMuted = 0xFF4A3D6B
+
+    const val MelodyRose = 0xFFFF7D9C
+    const val MelodySky = 0xFF72D9FF
+    const val MelodyGold = 0xFFFFD166
+    const val MelodyViolet = 0xFF9F8CFF
+    const val HeartTint = 0xFFFF8FA8
 }
 
 /**
  * Colours that are not part of the Material scheme but are still shared by
- * components (coins, warnings, hints).
+ * components (coins, warnings, hints, mini-games).
  */
 internal object VaiwuColors {
     val accent = Color(Palette.Accent)
@@ -49,4 +55,11 @@ internal object VaiwuColors {
     val info = Color(Palette.Info)
     val textSecondary = Color(Palette.TextSecondary)
     val outlineMuted = Color(Palette.OutlineMuted)
+    val heartTint = Color(Palette.HeartTint)
+    val melodyPads = listOf(
+        Color(Palette.MelodyRose),
+        Color(Palette.MelodySky),
+        Color(Palette.MelodyGold),
+        Color(Palette.MelodyViolet),
+    )
 }

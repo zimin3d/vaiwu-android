@@ -166,7 +166,8 @@ fun PetSprite(
         SpriteAnimation(resolveSpriteFrames(base, available), frameDurationMs)
     }
     val alive = emotionId != Emotion.Dead
-    val breathingModifier = if (alive) {
+    val reducedMotion = LocalReducedMotion.current
+    val breathingModifier = if (alive && !reducedMotion) {
         val transition = rememberInfiniteTransition(label = "pet-breathing")
         val breathScaleY by transition.animateFloat(
             initialValue = BREATH_SCALE_BASE,

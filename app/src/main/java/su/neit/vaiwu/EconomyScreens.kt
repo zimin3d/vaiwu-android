@@ -270,24 +270,20 @@ private fun ShopItemCard(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
                     ) {
-                        OutlinedButton(
+                        VaiwuSecondaryButton(
+                            text = stringResource(R.string.use_item),
                             onClick = { onUse(item.id) },
                             enabled = item.usable,
                             modifier = Modifier
                                 .weight(1f)
                                 .heightIn(min = VaiwuSizes.primaryButtonHeight),
-                        ) {
-                            Text(text = stringResource(R.string.use_item))
-                        }
-                        Button(
+                        )
+                        VaiwuPrimaryButton(
+                            text = stringResource(R.string.buy_with_price, item.price),
                             onClick = { onBuy(item.id) },
                             enabled = item.price <= coins,
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = VaiwuSizes.primaryButtonHeight),
-                        ) {
-                            Text(text = stringResource(R.string.buy_with_price, item.price))
-                        }
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 } else {
                     VaiwuPrimaryButton(
@@ -309,7 +305,7 @@ private fun BagItemCard(
     onUse: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = VaiwuSpacing.xs),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -360,15 +356,12 @@ private fun BagItemCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                OutlinedButton(
+                VaiwuSecondaryButton(
+                    text = stringResource(R.string.use_item),
                     onClick = onUse,
                     enabled = item.usable,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = VaiwuSizes.secondaryButtonHeight),
-                ) {
-                    Text(stringResource(R.string.use_item))
-                }
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
@@ -408,29 +401,29 @@ fun PetScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.secondary,
                 )
-                StatMeter(
+                RpgStatRow(
                     label = stringResource(R.string.stat_strength),
-                    value = stats.strength.toFloat(),
+                    value = stats.strength,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                StatMeter(
+                RpgStatRow(
                     label = stringResource(R.string.stat_vitality),
-                    value = stats.vitality.toFloat(),
+                    value = stats.vitality,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                StatMeter(
+                RpgStatRow(
                     label = stringResource(R.string.stat_agility),
-                    value = stats.agility.toFloat(),
+                    value = stats.agility,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                StatMeter(
+                RpgStatRow(
                     label = stringResource(R.string.stat_magic),
-                    value = stats.magic.toFloat(),
+                    value = stats.magic,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                StatMeter(
+                RpgStatRow(
                     label = stringResource(R.string.stat_luck),
-                    value = stats.luck.toFloat(),
+                    value = stats.luck,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -480,7 +473,7 @@ fun PetScreen(
             }
             owned.forEach { item ->
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = VaiwuSpacing.xs),
                     shape = MaterialTheme.shapes.medium,
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -509,15 +502,20 @@ fun PetScreen(
                             Text(item.bonuses, style = MaterialTheme.typography.bodySmall)
                             Row(horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small)) {
                                 if (item.equipped) {
-                                    OutlinedButton(onClick = { onEquip(slot, UNEQUIP_ITEM_ID) }) {
-                                        Text(stringResource(R.string.unequip))
-                                    }
+                                    VaiwuSecondaryButton(
+                                        text = stringResource(R.string.unequip),
+                                        onClick = { onEquip(slot, UNEQUIP_ITEM_ID) },
+                                    )
                                 } else {
-                                    Button(onClick = { onEquip(slot, item.id) }) {
-                                        Text(stringResource(R.string.equip))
-                                    }
+                                    VaiwuPrimaryButton(
+                                        text = stringResource(R.string.equip),
+                                        onClick = { onEquip(slot, item.id) },
+                                    )
                                 }
-                                TextButton(onClick = { pendingSale = item }) {
+                                TextButton(
+                                    onClick = { pendingSale = item },
+                                    modifier = Modifier.heightIn(min = VaiwuSizes.minTouchTarget),
+                                ) {
                                     Text(stringResource(R.string.sell_with_price, item.sellPrice))
                                 }
                             }
@@ -577,12 +575,10 @@ private fun StatAllocation(points: Int, onAllocate: (Int) -> Unit) {
                     stringResource(R.string.stat_magic) to STAT_INDEX_MAGIC,
                     stringResource(R.string.stat_luck) to STAT_INDEX_LUCK,
                 ).forEach { (label, index) ->
-                    OutlinedButton(
+                    VaiwuSecondaryButton(
+                        text = stringResource(R.string.stat_allocate, label),
                         onClick = { onAllocate(index) },
-                        modifier = Modifier.heightIn(min = VaiwuSizes.secondaryButtonHeight),
-                    ) {
-                        Text(stringResource(R.string.stat_allocate, label))
-                    }
+                    )
                 }
             }
         }
@@ -627,6 +623,7 @@ fun RpsScreen(
                 choices.forEachIndexed { index, name ->
                     Button(
                         onClick = { onChoice(index) },
+                        shape = MaterialTheme.shapes.small,
                         contentPadding = PaddingValues(horizontal = VaiwuSpacing.small, vertical = VaiwuSpacing.medium),
                         modifier = Modifier
                             .weight(1f)
@@ -649,12 +646,25 @@ fun RpsScreen(
                     else -> stringResource(R.string.rps_loss)
                 },
                 modifier = Modifier.padding(VaiwuSpacing.small),
-                color = MaterialTheme.colorScheme.secondary,
+                color = when (result.outcome) {
+                    RpsOutcome.Win -> MaterialTheme.colorScheme.secondary
+                    RpsOutcome.Draw -> MaterialTheme.colorScheme.onSurfaceVariant
+                    else -> MaterialTheme.colorScheme.error
+                },
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
             )
-            Button(onClick = onAgain) { Text(stringResource(R.string.rps_again)) }
+            VaiwuPrimaryButton(
+                text = stringResource(R.string.rps_again),
+                onClick = onAgain,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
-        OutlinedButton(onClick = onExit) { Text(stringResource(R.string.home)) }
+        Spacer(Modifier.height(VaiwuSpacing.small))
+        VaiwuSecondaryButton(
+            text = stringResource(R.string.home),
+            onClick = onExit,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }

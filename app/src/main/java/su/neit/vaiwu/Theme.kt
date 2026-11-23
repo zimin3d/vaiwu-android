@@ -1,17 +1,25 @@
 package su.neit.vaiwu
 
+import android.provider.Settings
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+/** True when the user has disabled system animations (Animator duration scale == 0). */
+internal val LocalReducedMotion = staticCompositionLocalOf { false }
 
 /**
  * Dark "cozy room" palette from `docs/ui-spec.md`. Values live in [Palette]
@@ -112,8 +120,8 @@ private val VaiwuTypography = Typography(
     labelSmall = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 11.sp,
-        lineHeight = 14.sp,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
     ),
 )
 
@@ -127,10 +135,22 @@ private val VaiwuShapes = Shapes(
 
 @Composable
 fun VaiwuTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = VaiwuColorScheme,
-        typography = VaiwuTypography,
-        shapes = VaiwuShapes,
-        content = content,
-    )
+    val context = LocalContext.current
+    val reducedMotion = remember(context) {
+        runCatching {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f,
+            ) == 0f
+        }.getOrDefault(false)
+    }
+    CompositionLocalProvider(LocalReducedMotion provides reducedMotion) {
+        MaterialTheme(
+            colorScheme = VaiwuColorScheme,
+            typography = VaiwuTypography,
+            shapes = VaiwuShapes,
+            content = content,
+        )
+    }
 }

@@ -1,9 +1,18 @@
 package su.neit.vaiwu
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -37,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -155,7 +165,24 @@ fun HomeScreen(
                     .padding(horizontal = VaiwuSpacing.screenPadding),
                 verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.medium),
             ) {
-                if (pet.isSick && pet.lifeState == LifeState.Awake) {
+                val reducedMotion = LocalReducedMotion.current
+                AnimatedVisibility(
+                    visible = pet.isSick && pet.lifeState == LifeState.Awake,
+                    enter = if (reducedMotion) {
+                        EnterTransition.None
+                    } else {
+                        fadeIn(tween(VaiwuMotion.EnterDurationMs, easing = VaiwuMotion.EaseOut)) +
+                            scaleIn(
+                                initialScale = VaiwuMotion.EnterInitialScale,
+                                animationSpec = tween(VaiwuMotion.EnterDurationMs, easing = VaiwuMotion.EaseOut),
+                            )
+                    },
+                    exit = if (reducedMotion) {
+                        ExitTransition.None
+                    } else {
+                        fadeOut(tween(VaiwuMotion.ExitDurationMs))
+                    },
+                ) {
                     SicknessBanner(
                         onMedicine = { onAction(PetAction.Medicine) },
                         modifier = Modifier.fillMaxWidth(),
@@ -344,9 +371,32 @@ private fun PetStage(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Bottom,
         ) {
-            if (speech != null) {
-                SpeechBubble(text = speech)
-                Spacer(Modifier.height(VaiwuSpacing.small))
+            val reducedMotion = LocalReducedMotion.current
+            AnimatedVisibility(
+                visible = !speech.isNullOrBlank(),
+                enter = if (reducedMotion) {
+                    EnterTransition.None
+                } else {
+                    fadeIn(tween(VaiwuMotion.EnterDurationMs, easing = VaiwuMotion.EaseOut)) +
+                        scaleIn(
+                            initialScale = VaiwuMotion.EnterInitialScale,
+                            animationSpec = tween(VaiwuMotion.EnterDurationMs, easing = VaiwuMotion.EaseOut),
+                        )
+                },
+                exit = if (reducedMotion) {
+                    ExitTransition.None
+                } else {
+                    fadeOut(tween(VaiwuMotion.ExitDurationMs)) +
+                        scaleOut(
+                            targetScale = VaiwuMotion.EnterInitialScale,
+                            animationSpec = tween(VaiwuMotion.ExitDurationMs),
+                        )
+                },
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    SpeechBubble(text = speech.orEmpty())
+                    Spacer(Modifier.height(VaiwuSpacing.small))
+                }
             }
             PetSprite(
                 characterId = pet.characterId,
@@ -549,15 +599,19 @@ private fun HomeLinkCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
         onClick = onClick,
-        modifier = modifier.heightIn(min = VaiwuSizes.careActionHeight),
+        modifier = modifier
+            .heightIn(min = VaiwuSizes.careActionHeight)
+            .pressScale(interactionSource),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        interactionSource = interactionSource,
     ) {
         Row(
             modifier = Modifier

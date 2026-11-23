@@ -1,7 +1,9 @@
 package su.neit.vaiwu
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -137,63 +142,73 @@ private fun CharacterCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val borderColor = if (selected) {
+    val isSelected = selected
+    val interactionSource = remember { MutableInteractionSource() }
+    val borderColor = if (isSelected) {
         MaterialTheme.colorScheme.primary
     } else {
         MaterialTheme.colorScheme.outline
     }
     Card(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier
+            .pressScale(interactionSource)
+            .semantics { this.selected = isSelected },
         shape = RoundedCornerShape(VaiwuRadius.card),
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
+            containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.primaryContainer
             } else {
                 MaterialTheme.colorScheme.surface
             },
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
-        border = BorderStroke(1.dp, borderColor),
+        border = BorderStroke(if (isSelected) 2.dp else 1.dp, borderColor),
+        interactionSource = interactionSource,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(VaiwuSpacing.medium),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
-        ) {
-            PetSprite(
-                characterId = id,
-                emotionId = Emotion.Idle,
-                description = name,
-                modifier = Modifier.size(CHARACTER_CARD_SPRITE_WIDTH, CHARACTER_CARD_SPRITE_HEIGHT),
-            )
-            Text(name, style = MaterialTheme.typography.titleMedium)
-            profile?.let {
-                Text(
-                    text = stringResource(
-                        R.string.onboarding_stats,
-                        it.strength,
-                        it.vitality,
-                        it.agility,
-                        it.magic,
-                        it.luck,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(VaiwuSpacing.medium),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+            ) {
+                PetSprite(
+                    characterId = id,
+                    emotionId = Emotion.Idle,
+                    description = name,
+                    modifier = Modifier.size(CHARACTER_CARD_SPRITE_WIDTH, CHARACTER_CARD_SPRITE_HEIGHT),
                 )
-                Text(
-                    text = stringResource(R.string.onboarding_food, it.favoriteFood),
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                )
+                Text(name, style = MaterialTheme.typography.titleMedium)
+                profile?.let {
+                    Text(
+                        text = stringResource(
+                            R.string.onboarding_stats,
+                            it.strength,
+                            it.vitality,
+                            it.agility,
+                            it.magic,
+                            it.luck,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = stringResource(R.string.onboarding_food, it.favoriteFood),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
-            if (selected) {
+            if (isSelected) {
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(VaiwuSpacing.small),
                 )
             }
         }

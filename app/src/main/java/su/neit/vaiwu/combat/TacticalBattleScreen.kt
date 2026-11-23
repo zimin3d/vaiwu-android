@@ -3,6 +3,7 @@ package su.neit.vaiwu.combat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -51,10 +52,13 @@ import su.neit.vaiwu.AssetImage
 import su.neit.vaiwu.Palette
 import su.neit.vaiwu.R
 import su.neit.vaiwu.VaiwuColors
+import su.neit.vaiwu.VaiwuPrimaryButton
 import su.neit.vaiwu.VaiwuRadius
+import su.neit.vaiwu.VaiwuSecondaryButton
 import su.neit.vaiwu.VaiwuSizes
 import su.neit.vaiwu.VaiwuSpacing
 import su.neit.vaiwu.battleBackgroundForHour
+import su.neit.vaiwu.pressScale
 import kotlin.math.roundToInt
 
 /** Viewport width at which the battle switches from portrait stack to 2-column landscape layout. */
@@ -76,7 +80,7 @@ private const val COMBAT_LOG_VISIBLE_ENTRIES = 14
 /** Indicator dot sizes for AP pips and skill element badges. */
 private val AP_PIP_SIZE = 10.dp
 private val SKILL_ELEMENT_DOT_SIZE = 8.dp
-private val SKIP_BUTTON_MIN_HEIGHT = 36.dp
+private val SKIP_BUTTON_MIN_HEIGHT = VaiwuSizes.minTouchTarget
 
 /** Relative weight of the primary End Turn button next to the Flee button. */
 private const val END_TURN_BUTTON_WEIGHT = 1.5f
@@ -955,6 +959,7 @@ private fun ActionSkillButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
         enabled = enabled,
@@ -972,7 +977,10 @@ private fun ActionSkillButton(
             },
         ),
         shape = RoundedCornerShape(VaiwuRadius.field),
-        modifier = modifier.heightIn(min = VaiwuSizes.primaryButtonHeight),
+        interactionSource = interactionSource,
+        modifier = modifier
+            .heightIn(min = VaiwuSizes.primaryButtonHeight)
+            .pressScale(interactionSource, enabled),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = VaiwuSpacing.medium, vertical = VaiwuSpacing.small),
@@ -1074,14 +1082,11 @@ private fun BattleResultCard(
             }
             when {
                 session.dungeonCleared -> {
-                    Button(
+                    VaiwuPrimaryButton(
+                        text = stringResource(R.string.battle_claim),
                         onClick = onExit,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = VaiwuSizes.primaryButtonHeight),
-                    ) {
-                        Text(stringResource(R.string.battle_claim))
-                    }
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
                 session.awaitingRest -> {
                     Text(
@@ -1089,32 +1094,23 @@ private fun BattleResultCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(Palette.TextSecondary),
                     )
-                    Button(
+                    VaiwuPrimaryButton(
+                        text = stringResource(R.string.battle_rest_next),
                         onClick = onNextRoom,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = VaiwuSizes.primaryButtonHeight),
-                    ) {
-                        Text(stringResource(R.string.battle_rest_next))
-                    }
-                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    VaiwuSecondaryButton(
+                        text = stringResource(R.string.battle_exit_loot),
                         onClick = onExit,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = VaiwuSizes.secondaryButtonHeight),
-                    ) {
-                        Text(stringResource(R.string.battle_exit_loot))
-                    }
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
                 else -> {
-                    Button(
+                    VaiwuPrimaryButton(
+                        text = stringResource(R.string.battle_back_home),
                         onClick = onExit,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = VaiwuSizes.primaryButtonHeight),
-                    ) {
-                        Text(stringResource(R.string.battle_back_home))
-                    }
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }
@@ -1149,6 +1145,7 @@ private fun CombatLogCard(
                 )
                 TextButton(
                     onClick = onToggle,
+                    modifier = Modifier.heightIn(min = VaiwuSizes.minTouchTarget),
                     contentPadding = PaddingValues(horizontal = VaiwuSpacing.small, vertical = VaiwuSpacing.xs),
                 ) {
                     Text(

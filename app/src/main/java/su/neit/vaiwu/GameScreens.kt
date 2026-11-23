@@ -2,6 +2,7 @@ package su.neit.vaiwu
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -19,19 +20,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
@@ -61,15 +63,6 @@ private val MATH_TOP_SPACER = 48.dp
 private val MATH_ANSWER_SPACER = 32.dp
 private val GUESS_BUTTON_PADDING = 3.dp
 
-/** Distinct pad colors for the 4-note Melody mini-game. */
-private val MELODY_PAD_COLORS = listOf(
-    Color(0xFFFF7D9C),
-    Color(0xFF72D9FF),
-    Color(0xFFFFD166),
-    Color(0xFF9F8CFF),
-)
-private val HEART_ICON_TINT = Color(0xFFFF8FA8)
-
 /** Rounds remaining milliseconds upward to whole seconds so the timer never shows 0 while still running. */
 private fun remainingSecondsCeil(remainingMs: Int): Int =
     (remainingMs + MS_PER_SECOND - 1) / MS_PER_SECOND
@@ -84,7 +77,9 @@ fun GamesScreen(
     onRps: () -> Unit,
     onMiniGame: (MiniGameKind, Int) -> Unit,
     onBattle: (Boolean) -> Unit,
+    onGoHome: () -> Unit = {},
 ) {
+    val canPlay = canPlayGames(pet)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -92,18 +87,45 @@ fun GamesScreen(
             .padding(VaiwuSpacing.screenPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = stringResource(R.string.nav_games),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(vertical = VaiwuSpacing.small),
-        )
-        Text(
-            text = stringResource(R.string.games_energy),
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(VaiwuSpacing.large))
+        if (!canPlay) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = VaiwuSpacing.medium),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+                border = BorderStroke(1.dp, VaiwuColors.warning),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(VaiwuSpacing.medium),
+                    verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+                ) {
+                    Text(
+                        text = stringResource(R.string.games_tired_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = VaiwuColors.warning,
+                    )
+                    VaiwuSecondaryButton(
+                        text = stringResource(R.string.games_go_home),
+                        onClick = onGoHome,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        } else {
+            Text(
+                text = stringResource(R.string.games_energy),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(VaiwuSpacing.large))
+        }
         val cards = listOf(
             GameCardModel(R.string.mini_guess_title, R.string.mini_guess_reward) {
                 onMiniGame(MiniGameKind.Guess, MELODY_DEFAULT_LENGTH)
@@ -190,9 +212,12 @@ private fun GameCard(
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
         onClick = onClick,
-        modifier = modifier.heightIn(min = VaiwuSizes.careActionHeight),
+        modifier = modifier
+            .heightIn(min = VaiwuSizes.careActionHeight)
+            .pressScale(interactionSource, enabled),
         enabled = enabled,
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
@@ -200,6 +225,7 @@ private fun GameCard(
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        interactionSource = interactionSource,
     ) {
         Column(
             modifier = Modifier
@@ -267,10 +293,19 @@ fun MiniGameScreen(
                     stringResource(R.string.mini_lost)
                 },
                 style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.secondary,
+                color = if (state.outcome > 0) {
+                    MaterialTheme.colorScheme.secondary
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
                 textAlign = TextAlign.Center,
             )
-            Button(onClick = onAgain) { Text(stringResource(R.string.rps_again)) }
+            Spacer(Modifier.height(VaiwuSpacing.medium))
+            VaiwuPrimaryButton(
+                text = stringResource(R.string.rps_again),
+                onClick = onAgain,
+                modifier = Modifier.fillMaxWidth(),
+            )
         } else {
             when (state.kind) {
                 MiniGameKind.Guess -> MiniGameGuess(pet, state, onChoice)
@@ -280,7 +315,11 @@ fun MiniGameScreen(
             }
         }
         Spacer(Modifier.height(VaiwuSpacing.large))
-        OutlinedButton(onClick = onExit) { Text(stringResource(R.string.home)) }
+        VaiwuSecondaryButton(
+            text = stringResource(R.string.home),
+            onClick = onExit,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -308,9 +347,13 @@ private fun MiniGameGuess(
         stringResource(R.string.mini_guess_sleepiness) to 3,
     )
     labels.forEach { (label, index) ->
-        Button(onClick = { onChoice(index) }, modifier = Modifier.fillMaxWidth().padding(GUESS_BUTTON_PADDING)) {
-            Text(label, textAlign = TextAlign.Center)
-        }
+        VaiwuPrimaryButton(
+            text = label,
+            onClick = { onChoice(index) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = GUESS_BUTTON_PADDING),
+        )
     }
 }
 
@@ -323,10 +366,11 @@ private fun MiniGameHearts(state: MiniGameState, onChoice: (Int) -> Unit) {
         style = MaterialTheme.typography.bodyLarge,
     )
     val heartPx = with(LocalDensity.current) { HEART_TARGET_SIZE.roundToPx() }
+    val tapLabel = stringResource(R.string.mini_hearts_tap)
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         Icon(
             imageVector = VaiwuIcons.heart,
-            contentDescription = null,
+            contentDescription = tapLabel,
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .offset {
@@ -340,8 +384,8 @@ private fun MiniGameHearts(state: MiniGameState, onChoice: (Int) -> Unit) {
                     IntOffset(x, y)
                 }
                 .size(HEART_TARGET_SIZE)
-                .clickable { onChoice(0) },
-            tint = HEART_ICON_TINT,
+                .clickable(role = Role.Button) { onChoice(0) },
+            tint = VaiwuColors.heartTint,
         )
     }
 }
@@ -353,6 +397,7 @@ private fun MiniGameMelody(
     onChoice: (Int) -> Unit,
     onNote: (Int) -> Unit,
 ) {
+    val pads = VaiwuColors.melodyPads
     if (state.melodyPhase == MelodyPhase.Watch) {
         val totalWatchMs = state.sequence.size * MELODY_NOTE_DURATION_MS + MELODY_WATCH_LEAD_IN_MS
         val note = if (state.sequence.isEmpty()) {
@@ -367,7 +412,7 @@ private fun MiniGameMelody(
         Text(stringResource(R.string.mini_watch), style = MaterialTheme.typography.titleLarge)
         Text(
             "●",
-            color = MELODY_PAD_COLORS[state.sequence.getOrElse(note) { 0 }],
+            color = pads[state.sequence.getOrElse(note) { 0 }],
             fontSize = MELODY_DOT_FONT_SIZE,
         )
     } else {
@@ -376,15 +421,34 @@ private fun MiniGameMelody(
         Spacer(Modifier.height(MELODY_REPEAT_SPACER))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(MELODY_PAD_GAP)) {
-        MELODY_PAD_COLORS.forEachIndexed { note, color ->
+        pads.forEachIndexed { note, color ->
+            val enabled = state.melodyPhase == MelodyPhase.Repeat
+            val interactionSource = remember { MutableInteractionSource() }
             Button(
                 onClick = {
                     onNote(note)
                     onChoice(note)
                 },
-                enabled = state.melodyPhase == MelodyPhase.Repeat,
-                modifier = Modifier.size(MELODY_PAD_SIZE),
-            ) { Text("${note + 1}", color = color, fontWeight = FontWeight.Bold) }
+                enabled = enabled,
+                shape = MaterialTheme.shapes.small,
+                border = BorderStroke(2.dp, if (enabled) color else color.copy(alpha = 0.35f)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = color,
+                    disabledContainerColor = MaterialTheme.colorScheme.surface,
+                    disabledContentColor = color.copy(alpha = 0.45f),
+                ),
+                interactionSource = interactionSource,
+                modifier = Modifier
+                    .size(MELODY_PAD_SIZE)
+                    .pressScale(interactionSource, enabled),
+            ) {
+                Text(
+                    text = "${note + 1}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }
@@ -396,8 +460,12 @@ private fun MiniGameMath(state: MiniGameState, onChoice: (Int) -> Unit) {
     Text(state.question, style = MaterialTheme.typography.displaySmall)
     Spacer(Modifier.height(MATH_ANSWER_SPACER))
     state.options.forEachIndexed { index, answer ->
-        Button(onClick = { onChoice(index) }, modifier = Modifier.fillMaxWidth().padding(VaiwuSpacing.xs)) {
-            Text("$answer")
-        }
+        VaiwuPrimaryButton(
+            text = "$answer",
+            onClick = { onChoice(index) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = VaiwuSpacing.xs),
+        )
     }
 }

@@ -1,5 +1,6 @@
 package su.neit.vaiwu
 
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -33,7 +34,7 @@ internal object VaiwuRadius {
 
 internal object VaiwuSizes {
     val primaryButtonHeight = 52.dp
-    val secondaryButtonHeight = 44.dp
+    val secondaryButtonHeight = 48.dp
     val minTouchTarget = 48.dp
     val careActionHeight = 64.dp
     val bottomBarHeight = 64.dp
@@ -43,6 +44,17 @@ internal object VaiwuSizes {
     val pixelIconLarge = 32.dp
     /** Fixed height of the battle log area so text changes never move controls. */
     val battleLogHeight = 120.dp
+}
+
+/** Shared motion timing, scale, and easing tokens for responsive tactile UI. */
+internal object VaiwuMotion {
+    const val PressDurationMs = 120
+    const val EnterDurationMs = 180
+    const val ExitDurationMs = 140
+    const val BarDurationMs = 220
+    const val PressScale = 0.97f
+    const val EnterInitialScale = 0.95f
+    val EaseOut = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
 }
 
 /**

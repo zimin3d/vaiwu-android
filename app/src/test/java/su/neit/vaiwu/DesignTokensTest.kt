@@ -112,7 +112,7 @@ class DesignTokensTest {
         assertEquals(16f, VaiwuSpacing.cardPadding.value, 0f)
         assertEquals(12f, VaiwuSpacing.cardGap.value, 0f)
         assertEquals(52f, VaiwuSizes.primaryButtonHeight.value, 0f)
-        assertEquals(44f, VaiwuSizes.secondaryButtonHeight.value, 0f)
+        assertEquals(48f, VaiwuSizes.secondaryButtonHeight.value, 0f)
         assertEquals(48f, VaiwuSizes.minTouchTarget.value, 0f)
         assertEquals(8f, VaiwuSizes.statBarHeight.value, 0f)
         assertEquals(24f, VaiwuRadius.sheet.value, 0f)

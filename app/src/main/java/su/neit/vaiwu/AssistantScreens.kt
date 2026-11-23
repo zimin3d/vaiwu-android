@@ -50,16 +50,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
-/** Width fraction of pet reply bubbles so they visually contrast with full-width user bubbles. */
-private const val PET_BUBBLE_WIDTH_FRACTION = 0.9f
+/** Width fraction of chat bubbles so user (right) and pet (left) sides visually separate. */
+private const val CHAT_BUBBLE_WIDTH_FRACTION = 0.85f
+
+/** Compact spinner size inside the "thinking" indicator row in [ChatScreen]. */
+private val CHAT_BUSY_SPINNER_SIZE = 20.dp
 
 /** Maximum input lengths enforced in Chat and Settings fields. */
 private const val CHAT_INPUT_MAX_CHARS = 2_000
 private const val CHAT_INPUT_MAX_LINES = 3
 private const val API_KEY_INPUT_MAX_CHARS = 300
-
-/** Spacing between Help accordion cards and their title/body blocks. */
-private val HELP_CARD_VERTICAL_GAP = 6.dp
 
 /**
  * Chat tab (UI-AST-01…04): the conversation with the pet, the assistant
@@ -74,7 +74,7 @@ fun ChatScreen(
     voice: VoiceController?,
     onSend: (String) -> Unit,
 ) {
-    var input by remember { mutableStateOf("") }
+    var input by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -82,33 +82,76 @@ fun ChatScreen(
         }
     }
     Column(modifier = Modifier.fillMaxSize().padding(VaiwuSpacing.screenPadding)) {
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            state = listState,
-            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
-        ) {
-            items(messages) { message ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(if (message.fromPet) PET_BUBBLE_WIDTH_FRACTION else 1f),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (message.fromPet) {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.primaryContainer
-                        },
-                    ),
-                ) {
-                    Text(
-                        text = message.text,
-                        modifier = Modifier.padding(VaiwuSpacing.medium),
-                    )
-                }
+        if (messages.isEmpty() && !busy) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                EmptyState(title = stringResource(R.string.chat_empty_title))
+                Text(
+                    text = stringResource(R.string.chat_empty_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = VaiwuSpacing.large),
+                )
             }
-            if (busy) {
-                item {
-                    CircularProgressIndicator()
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+            ) {
+                items(messages, key = { it.id }) { message ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = if (message.fromPet) Arrangement.Start else Arrangement.End,
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(CHAT_BUBBLE_WIDTH_FRACTION),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (message.fromPet) {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                },
+                                contentColor = if (message.fromPet) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                },
+                            ),
+                        ) {
+                            Text(
+                                text = message.text,
+                                modifier = Modifier.padding(VaiwuSpacing.medium),
+                            )
+                        }
+                    }
+                }
+                if (busy) {
+                    item {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+                            modifier = Modifier.padding(vertical = VaiwuSpacing.xs),
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(CHAT_BUSY_SPINNER_SIZE),
+                                strokeWidth = 2.dp,
+                            )
+                            Text(
+                                text = stringResource(R.string.chat_thinking),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -196,118 +239,135 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(VaiwuSpacing.screenPadding),
+        verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.medium),
     ) {
-        Text(
-            text = stringResource(R.string.settings_title),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(stringResource(R.string.settings_sound_title), style = MaterialTheme.typography.titleLarge)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.settings_sound_label))
-                Text(
-                    text = stringResource(R.string.settings_sound_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            Switch(checked = soundEnabled, onCheckedChange = onSoundEnabled)
-        }
-        Spacer(Modifier.height(20.dp))
-        Text(stringResource(R.string.settings_voice_title), style = MaterialTheme.typography.titleLarge)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.settings_voice_label))
-                Text(
-                    text = stringResource(R.string.settings_voice_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            Switch(checked = settings.speechEnabled, onCheckedChange = onSpeechEnabled)
-        }
-        OutlinedButton(
-            onClick = { voice?.requestNotifications() },
-            enabled = voice != null,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.settings_voice_notify))
-        }
-        Spacer(Modifier.height(20.dp))
-        Text(stringResource(R.string.settings_api_title), style = MaterialTheme.typography.titleMedium)
-        Text(
-            text = if (settings.hasApiKey) {
-                stringResource(R.string.settings_api_key_saved)
-            } else {
-                stringResource(R.string.settings_api_key_missing)
-            },
-            style = MaterialTheme.typography.bodySmall,
-        )
-        OutlinedTextField(
-            value = apiKey,
-            onValueChange = { apiKey = it.take(API_KEY_INPUT_MAX_CHARS) },
-            label = { Text(stringResource(R.string.settings_api_label)) },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (settings.hasApiKey) {
-            TextButton(onClick = onClearApiKey) {
-                Text(stringResource(R.string.settings_api_clear))
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.settings_location_title), style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(
-            value = latitude,
-            onValueChange = { latitude = it },
-            label = { Text(stringResource(R.string.settings_latitude_label)) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = longitude,
-            onValueChange = { longitude = it },
-            label = { Text(stringResource(R.string.settings_longitude_label)) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Button(
-            onClick = {
-                if (onSave(apiKey, latitude, longitude)) {
-                    apiKey = ""
+        SectionCard(title = stringResource(R.string.settings_section_audio)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_sound_label))
+                    Text(
+                        text = stringResource(R.string.settings_sound_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-            },
-            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-        ) {
-            Text(stringResource(R.string.settings_save))
+                Switch(checked = soundEnabled, onCheckedChange = onSoundEnabled)
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_voice_label))
+                    Text(
+                        text = stringResource(R.string.settings_voice_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = settings.speechEnabled, onCheckedChange = onSpeechEnabled)
+            }
+            VaiwuSecondaryButton(
+                text = stringResource(R.string.settings_voice_notify),
+                onClick = { voice?.requestNotifications() },
+                enabled = voice != null,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
-        Text(
-            text = stringResource(R.string.settings_location_note),
-            style = MaterialTheme.typography.bodySmall,
-        )
-        Spacer(Modifier.height(24.dp))
-        Button(
-            onClick = onUpdate,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.settings_update_check))
+        SectionCard(title = stringResource(R.string.settings_api_title)) {
+            Text(
+                text = if (settings.hasApiKey) {
+                    stringResource(R.string.settings_api_key_saved)
+                } else {
+                    stringResource(R.string.settings_api_key_missing)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (settings.hasApiKey) {
+                    MaterialTheme.colorScheme.secondary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            OutlinedTextField(
+                value = apiKey,
+                onValueChange = { apiKey = it.take(API_KEY_INPUT_MAX_CHARS) },
+                label = { Text(stringResource(R.string.settings_api_label)) },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (settings.hasApiKey) {
+                TextButton(
+                    onClick = onClearApiKey,
+                    modifier = Modifier.heightIn(min = VaiwuSizes.minTouchTarget),
+                ) {
+                    Text(stringResource(R.string.settings_api_clear))
+                }
+            }
+            Text(
+                text = stringResource(R.string.settings_location_title),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = VaiwuSpacing.small),
+            )
+            OutlinedTextField(
+                value = latitude,
+                onValueChange = { latitude = it },
+                label = { Text(stringResource(R.string.settings_latitude_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = longitude,
+                onValueChange = { longitude = it },
+                label = { Text(stringResource(R.string.settings_longitude_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = stringResource(R.string.settings_location_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            VaiwuPrimaryButton(
+                text = stringResource(R.string.settings_save),
+                onClick = {
+                    if (onSave(apiKey, latitude, longitude)) {
+                        apiKey = ""
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
-        TextButton(onClick = onHelp) {
-            Text(stringResource(R.string.settings_help))
+        SectionCard(title = stringResource(R.string.settings_section_system)) {
+            VaiwuPrimaryButton(
+                text = stringResource(R.string.settings_update_check),
+                onClick = onUpdate,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            VaiwuSecondaryButton(
+                text = stringResource(R.string.settings_help),
+                onClick = onHelp,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextButton(
+                onClick = onReset,
+                modifier = Modifier.heightIn(min = VaiwuSizes.minTouchTarget),
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_reset),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            Text(
+                text = stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-        TextButton(onClick = onReset) {
-            Text(stringResource(R.string.settings_reset))
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -321,19 +381,14 @@ fun HelpScreen() {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(VaiwuSpacing.screenPadding),
+        verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.medium),
     ) {
-        Text(
-            text = stringResource(R.string.help_title),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
         Text(
             text = stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(8.dp))
         listOf(
             R.string.help_care to R.string.help_care_text,
             R.string.help_feed to R.string.help_feed_text,
@@ -346,14 +401,12 @@ fun HelpScreen() {
             R.string.help_save to R.string.help_save_text,
             R.string.help_assistant to R.string.help_assistant_text,
         ).forEach { (titleRes, textRes) ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = HELP_CARD_VERTICAL_GAP),
-            ) {
-                Column(modifier = Modifier.padding(VaiwuSpacing.cardPadding)) {
-                    Text(stringResource(titleRes), style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(HELP_CARD_VERTICAL_GAP))
-                    Text(stringResource(textRes))
-                }
+            SectionCard(title = stringResource(titleRes)) {
+                Text(
+                    text = stringResource(textRes),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

@@ -4,6 +4,13 @@ import su.neit.vaiwu.combat.TacticalBattleScreen
 import su.neit.vaiwu.combat.TacticalBattleSession
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -65,6 +72,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /** Shop category index for food items displayed in [FeedDialog]. */
@@ -172,117 +180,133 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
             },
             snackbarHostState = snackbarHostState,
         ) { padding ->
+            val reducedMotion = LocalReducedMotion.current
             Column(modifier = Modifier.padding(padding).fillMaxSize()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    when (screen) {
-                        AppScreen.Home -> HomeScreen(
-                            pet = pet,
-                            speech = speech?.text,
-                            hour = hour,
-                            onAction = viewModel::performAction,
-                            onFeedMenu = viewModel::openFeedMenu,
-                            onGames = { viewModel.openTab(AppTab.Games) },
-                            onShop = viewModel::openShop,
-                            onPet = viewModel::openPet,
-                            onRestart = { confirmingReset = true },
-                            inventory = inventory,
-                        )
-                        AppScreen.Games -> GamesScreen(
-                            pet = pet,
-                            onRps = viewModel::startRps,
-                            onMiniGame = { kind, melodyLength -> viewModel.startMiniGame(kind, melodyLength) },
-                            onBattle = viewModel::startBattle,
-                        )
-                        AppScreen.Pet -> PetScreen(
-                            pet = pet,
-                            inventory = inventory,
-                            shopItems = shopItems,
-                            onAllocate = viewModel::allocateStat,
-                            onEquip = { slot, itemId -> viewModel.equip(slot, itemId) },
-                            onSell = { itemId -> viewModel.sell(itemId) },
-                            onUseItem = viewModel::useItem,
-                        )
-                        AppScreen.Chat -> ChatScreen(
-                            messages = chatMessages,
-                            busy = chatBusy,
-                            speechEnabled = assistantSettings.speechEnabled,
-                            voice = voice,
-                            onSend = viewModel::submitChat,
-                        )
-                        AppScreen.Shop -> ShopScreen(
-                            items = shopItems,
-                            category = shopCategory,
-                            coins = pet.coins,
-                            onBuy = viewModel::buyItem,
-                            onUse = viewModel::useItem,
-                            onInventory = viewModel::openPet,
-                            onCategoryChange = viewModel::selectShopCategory,
-                        )
-                        AppScreen.Rps -> RpsScreen(
-                            pet = pet,
-                            result = rpsResult,
-                            onChoice = viewModel::playRps,
-                            onAgain = { viewModel.startRps() },
-                            onExit = {
-                                if (isTacticalRoundActive(AppScreen.Rps, rpsResult, miniGame, tacticalBattle)) {
-                                    confirmingExit = true
-                                } else {
-                                    viewModel.openHome()
-                                }
-                            },
-                        )
-                        AppScreen.MiniGame -> miniGame?.let { game ->
-                            MiniGameScreen(
+                    AnimatedContent(
+                        targetState = screen,
+                        transitionSpec = {
+                            val isTabSwitch = initialState.tab != null && targetState.tab != null
+                            if (reducedMotion || isTabSwitch) {
+                                EnterTransition.None togetherWith ExitTransition.None
+                            } else {
+                                fadeIn(tween(VaiwuMotion.EnterDurationMs, easing = VaiwuMotion.EaseOut)) togetherWith
+                                    fadeOut(tween(VaiwuMotion.ExitDurationMs))
+                            }
+                        },
+                        label = "screen-transition",
+                    ) { activeScreen ->
+                        when (activeScreen) {
+                            AppScreen.Home -> HomeScreen(
                                 pet = pet,
-                                state = game,
-                                onChoice = viewModel::chooseMiniGame,
-                                onNote = viewModel::playNote,
-                                onAgain = { viewModel.startMiniGame(game.kind, game.sequence.size) },
-                                onExit = {
-                                    if (isTacticalRoundActive(AppScreen.MiniGame, rpsResult, miniGame, tacticalBattle)) {
-                                        confirmingExit = true
-                                    } else {
-                                        viewModel.openHome()
-                                    }
-                                },
-                            )
-                        }
-                        AppScreen.Battle -> tacticalBattle?.let { currentSession ->
-                            TacticalBattleScreen(
-                                session = currentSession,
+                                speech = speech?.text,
                                 hour = hour,
-                                coachEnabled = coachEnabled,
-                                fastMode = battleFastMode,
-                                onAction = viewModel::performTacticalAction,
-                                onUndo = viewModel::undoTacticalAction,
-                                onNextRoom = viewModel::nextDungeonRoom,
+                                onAction = viewModel::performAction,
+                                onFeedMenu = viewModel::openFeedMenu,
+                                onGames = { viewModel.openTab(AppTab.Games) },
+                                onShop = viewModel::openShop,
+                                onPet = viewModel::openPet,
+                                onRestart = { confirmingReset = true },
+                                inventory = inventory,
+                            )
+                            AppScreen.Games -> GamesScreen(
+                                pet = pet,
+                                onRps = viewModel::startRps,
+                                onMiniGame = { kind, melodyLength -> viewModel.startMiniGame(kind, melodyLength) },
+                                onBattle = viewModel::startBattle,
+                                onGoHome = viewModel::openHome,
+                            )
+                            AppScreen.Pet -> PetScreen(
+                                pet = pet,
+                                inventory = inventory,
+                                shopItems = shopItems,
+                                onAllocate = viewModel::allocateStat,
+                                onEquip = { slot, itemId -> viewModel.equip(slot, itemId) },
+                                onSell = { itemId -> viewModel.sell(itemId) },
+                                onUseItem = viewModel::useItem,
+                            )
+                            AppScreen.Chat -> ChatScreen(
+                                messages = chatMessages,
+                                busy = chatBusy,
+                                speechEnabled = assistantSettings.speechEnabled,
+                                voice = voice,
+                                onSend = viewModel::submitChat,
+                            )
+                            AppScreen.Shop -> ShopScreen(
+                                items = shopItems,
+                                category = shopCategory,
+                                coins = pet.coins,
+                                onBuy = viewModel::buyItem,
+                                onUse = viewModel::useItem,
+                                onInventory = viewModel::openPet,
+                                onCategoryChange = viewModel::selectShopCategory,
+                            )
+                            AppScreen.Rps -> RpsScreen(
+                                pet = pet,
+                                result = rpsResult,
+                                onChoice = viewModel::playRps,
+                                onAgain = { viewModel.startRps() },
                                 onExit = {
-                                    if (isTacticalRoundActive(AppScreen.Battle, rpsResult, miniGame, tacticalBattle) &&
-                                        !currentSession.awaitingRest
-                                    ) {
+                                    if (isTacticalRoundActive(AppScreen.Rps, rpsResult, miniGame, tacticalBattle)) {
                                         confirmingExit = true
                                     } else {
                                         viewModel.openHome()
                                     }
                                 },
-                                onToggleCoach = viewModel::setCoachEnabled,
-                                onToggleFast = viewModel::setBattleFastMode,
-                                onEventSound = viewModel::playCombatEventSfx,
                             )
+                            AppScreen.MiniGame -> miniGame?.let { game ->
+                                MiniGameScreen(
+                                    pet = pet,
+                                    state = game,
+                                    onChoice = viewModel::chooseMiniGame,
+                                    onNote = viewModel::playNote,
+                                    onAgain = { viewModel.startMiniGame(game.kind, game.sequence.size) },
+                                    onExit = {
+                                        if (isTacticalRoundActive(AppScreen.MiniGame, rpsResult, miniGame, tacticalBattle)) {
+                                            confirmingExit = true
+                                        } else {
+                                            viewModel.openHome()
+                                        }
+                                    },
+                                )
+                            }
+                            AppScreen.Battle -> tacticalBattle?.let { currentSession ->
+                                TacticalBattleScreen(
+                                    session = currentSession,
+                                    hour = hour,
+                                    coachEnabled = coachEnabled,
+                                    fastMode = battleFastMode,
+                                    onAction = viewModel::performTacticalAction,
+                                    onUndo = viewModel::undoTacticalAction,
+                                    onNextRoom = viewModel::nextDungeonRoom,
+                                    onExit = {
+                                        if (isTacticalRoundActive(AppScreen.Battle, rpsResult, miniGame, tacticalBattle) &&
+                                            !currentSession.awaitingRest
+                                        ) {
+                                            confirmingExit = true
+                                        } else {
+                                            viewModel.openHome()
+                                        }
+                                    },
+                                    onToggleCoach = viewModel::setCoachEnabled,
+                                    onToggleFast = viewModel::setBattleFastMode,
+                                    onEventSound = viewModel::playCombatEventSfx,
+                                )
+                            }
+                            AppScreen.Settings -> SettingsScreen(
+                                settings = assistantSettings,
+                                soundEnabled = soundEnabled,
+                                voice = voice,
+                                onSoundEnabled = viewModel::setSoundEnabled,
+                                onSpeechEnabled = viewModel::setSpeechEnabled,
+                                onClearApiKey = viewModel::clearApiKey,
+                                onSave = { apiKey, lat, lon -> viewModel.saveAssistantSettings(apiKey, lat, lon) },
+                                onUpdate = viewModel::checkForUpdates,
+                                onHelp = viewModel::openHelp,
+                                onReset = { confirmingReset = true },
+                            )
+                            AppScreen.Help -> HelpScreen()
                         }
-                        AppScreen.Settings -> SettingsScreen(
-                            settings = assistantSettings,
-                            soundEnabled = soundEnabled,
-                            voice = voice,
-                            onSoundEnabled = viewModel::setSoundEnabled,
-                            onSpeechEnabled = viewModel::setSpeechEnabled,
-                            onClearApiKey = viewModel::clearApiKey,
-                            onSave = { apiKey, lat, lon -> viewModel.saveAssistantSettings(apiKey, lat, lon) },
-                            onUpdate = viewModel::checkForUpdates,
-                            onHelp = viewModel::openHelp,
-                            onReset = { confirmingReset = true },
-                        )
-                        AppScreen.Help -> HelpScreen()
                     }
                     // System messages float OVER the content at the top: an
                     // appearing notification must never push the screen down.
@@ -350,11 +374,15 @@ private fun AppTopBarTitle(
                 text = pet.petName,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             val day = pet.ageSeconds / SECONDS_PER_DAY + 1
             Text(
                 text = pluralStringResource(R.plurals.pet_day, day, day),
                 style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     } else {
@@ -373,6 +401,8 @@ private fun AppTopBarTitle(
             text = title,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

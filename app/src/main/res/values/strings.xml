@@ -117,6 +117,7 @@
     <string name="mini_hearts_title">Поймай сердца</string>
     <string name="mini_hearts_reward">2 монеты</string>
     <string name="mini_hearts_caught">Поймано %1$d из 5</string>
+    <string name="mini_hearts_tap">Поймать сердце</string>
     <string name="mini_math_title">Быстрая математика</string>
     <string name="mini_math_reward">3 монеты</string>
     <string name="mini_melody_title">Повтори мелодию</string>
@@ -129,6 +130,8 @@
 
     <string name="not_enough_energy">Слишком мало энергии для этого действия</string>
     <string name="not_enough_energy_adventure">Питомец слишком устал для приключения</string>
+    <string name="games_tired_hint">Питомец устал и не может играть. Уложи его спать на главном экране.</string>
+    <string name="games_go_home">На главную</string>
 
     <string name="round_finished">Раунд завершён</string>
 
@@ -264,6 +267,11 @@
     <string name="help_assistant_text">Чат умеет ставить напоминания, рассказывать время и анекдоты. Доступен офлайн-режим с canned-фразами.</string>
 
     <string name="settings_title">Настройки</string>
+    <string name="settings_section_audio">Звук и голос</string>
+    <string name="settings_section_system">Приложение</string>
+    <string name="chat_empty_title">Напиши питомцу или задай вопрос</string>
+    <string name="chat_empty_hint">Например: «поставь таймер на 5 минут», «какая погода» или «расскажи шутку»</string>
+    <string name="chat_thinking">Питомец думает…</string>
     <string name="settings_sound_title">Звуки</string>
     <string name="settings_sound_label">Звуковые эффекты</string>
     <string name="settings_sound_hint">Короткие сигналы действий, игр и боя</string>

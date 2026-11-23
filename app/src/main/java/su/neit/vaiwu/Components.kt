@@ -1,10 +1,13 @@
 package su.neit.vaiwu
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,22 +34,26 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-/** Default percentage scale and transition duration for [StatMeter] bars. */
+/** Default percentage scale and RPG bar ceiling for stat meters. */
 private const val STAT_PERCENT_SCALE = 100f
-private const val STAT_BAR_ANIMATION_MS = 300
+private const val RPG_STAT_BAR_MAX = 50f
 
 /** Status chip backdrop and border opacities over the dark surface palette. */
 private const val STATUS_CHIP_BG_ALPHA = 0.16f
@@ -54,6 +61,32 @@ private const val STATUS_CHIP_BORDER_ALPHA = 0.45f
 private val CHIP_HORIZONTAL_PADDING = 10.dp
 private val COIN_DOT_SIZE = 12.dp
 private val COIN_DOT_GAP = 6.dp
+
+/**
+ * Adds a subtle tactile scale-down (`0.97x`) while pressed without shifting layout bounds.
+ * Automatically disabled when system reduced-motion is active.
+ */
+internal fun Modifier.pressScale(
+    interactionSource: MutableInteractionSource,
+    enabled: Boolean = true,
+): Modifier = composed {
+    val reducedMotion = LocalReducedMotion.current
+    val pressed by interactionSource.collectIsPressedAsState()
+    val target = if (pressed && enabled && !reducedMotion) VaiwuMotion.PressScale else 1f
+    val scale by animateFloatAsState(
+        targetValue = target,
+        animationSpec = if (reducedMotion) {
+            snap()
+        } else {
+            tween(durationMillis = VaiwuMotion.PressDurationMs, easing = VaiwuMotion.EaseOut)
+        },
+        label = "press-scale",
+    )
+    graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
+}
 
 /**
  * Shared UI components from `docs/ui-spec.md` (section 4). Screens compose
@@ -68,16 +101,22 @@ fun VaiwuPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Button(
         onClick = onClick,
-        modifier = modifier.heightIn(min = VaiwuSizes.primaryButtonHeight),
+        modifier = modifier
+            .heightIn(min = VaiwuSizes.primaryButtonHeight)
+            .pressScale(interactionSource, enabled),
         enabled = enabled,
         shape = MaterialTheme.shapes.small,
+        interactionSource = interactionSource,
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
             textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -90,16 +129,22 @@ fun VaiwuSecondaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.heightIn(min = VaiwuSizes.secondaryButtonHeight),
+        modifier = modifier
+            .heightIn(min = VaiwuSizes.secondaryButtonHeight)
+            .pressScale(interactionSource, enabled),
         enabled = enabled,
         shape = MaterialTheme.shapes.small,
+        interactionSource = interactionSource,
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
             textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -127,9 +172,14 @@ fun StatMeter(
     val fraction = (value / safeMax).coerceIn(0f, 1f)
     val points = fraction * STAT_PERCENT_SCALE
     val color = toneColor(statTone(points))
+    val reducedMotion = LocalReducedMotion.current
     val animated by animateFloatAsState(
         targetValue = fraction,
-        animationSpec = tween(durationMillis = STAT_BAR_ANIMATION_MS),
+        animationSpec = if (reducedMotion) {
+            snap()
+        } else {
+            tween(durationMillis = VaiwuMotion.BarDurationMs, easing = VaiwuMotion.EaseOut)
+        },
         label = "stat-$label",
     )
     val description = stringResource(R.string.stat_a11y, label, points.toInt())
@@ -146,6 +196,7 @@ fun StatMeter(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = points.toInt().toString(),
@@ -167,6 +218,71 @@ fun StatMeter(
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(VaiwuSizes.statBarHeight / 2))
                     .background(color),
+            )
+        }
+    }
+}
+
+/**
+ * Neutral progress row for RPG attributes (STR, VIT, AGI, MAG, LUCK).
+ * Unlike [StatMeter], low starter values do not flash red Danger warnings.
+ */
+@Composable
+fun RpgStatRow(
+    label: String,
+    value: Int,
+    modifier: Modifier = Modifier,
+    max: Float = RPG_STAT_BAR_MAX,
+) {
+    val safeMax = if (max <= 0f) RPG_STAT_BAR_MAX else max
+    val fraction = (value / safeMax).coerceIn(0f, 1f)
+    val reducedMotion = LocalReducedMotion.current
+    val animated by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = if (reducedMotion) {
+            snap()
+        } else {
+            tween(durationMillis = VaiwuMotion.BarDurationMs, easing = VaiwuMotion.EaseOut)
+        },
+        label = "rpg-stat-$label",
+    )
+    val description = stringResource(R.string.stat_a11y, label, value)
+    val barColor = MaterialTheme.colorScheme.primary
+
+    Column(
+        modifier = modifier.semantics(mergeDescendants = true) {
+            contentDescription = description
+        },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = label,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = value.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                color = barColor,
+            )
+        }
+        Spacer(Modifier.height(VaiwuSpacing.xs))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(VaiwuSizes.statBarHeight)
+                .clip(RoundedCornerShape(VaiwuSizes.statBarHeight / 2))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(animated)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(VaiwuSizes.statBarHeight / 2))
+                    .background(barColor),
             )
         }
     }
@@ -295,9 +411,12 @@ fun CareActionButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
         onClick = onClick,
-        modifier = modifier.heightIn(min = VaiwuSizes.careActionHeight),
+        modifier = modifier
+            .heightIn(min = VaiwuSizes.careActionHeight)
+            .pressScale(interactionSource, enabled),
         enabled = enabled,
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
@@ -305,6 +424,7 @@ fun CareActionButton(
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        interactionSource = interactionSource,
     ) {
         Column(
             modifier = Modifier

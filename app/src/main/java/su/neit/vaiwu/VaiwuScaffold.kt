@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.Image
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -106,6 +107,9 @@ fun VaiwuTopBar(
     )
 }
 
+/** Opacity for unselected raster tab icons so the active tab stands out clearly. */
+private const val UNSELECTED_TAB_ICON_ALPHA = 0.55f
+
 /** Bottom navigation bar switching between the four top-level tabs (`Home`, `Games`, `Pet`, `Chat`). */
 @Composable
 fun VaiwuBottomBar(
@@ -123,14 +127,17 @@ fun VaiwuBottomBar(
         tonalElevation = 0.dp,
     ) {
         AppTab.entries.forEach { tab ->
+            val isSelected = tab == selected
             NavigationBarItem(
-                selected = tab == selected,
+                selected = isSelected,
                 onClick = { onSelect(tab) },
                 icon = {
                     Image(
                         painter = painterResource(tab.iconRes()),
                         contentDescription = null,
-                        modifier = Modifier.size(VaiwuSizes.icon),
+                        modifier = Modifier
+                            .size(VaiwuSizes.icon)
+                            .alpha(if (isSelected) 1f else UNSELECTED_TAB_ICON_ALPHA),
                     )
                 },
                 label = {
