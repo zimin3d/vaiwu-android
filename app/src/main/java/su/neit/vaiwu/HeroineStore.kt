@@ -129,27 +129,28 @@ internal object HeroinePackInstaller {
             if (!metaFile.isFile) {
                 throw IOException("Heroine pack missing meta.json")
             }
-            val meta = JSONObject(metaFile.readText(Charsets.UTF_8))
-            if (meta.optInt("schemaVersion", -1) != 1) {
+            val metaText = metaFile.readText(Charsets.UTF_8)
+            val schemaVersion = extractJsonInt(metaText, "schemaVersion")
+            if (schemaVersion != 1) {
                 throw IOException("Unsupported meta.json schemaVersion")
             }
-            val metaId = meta.optString("id", "")
+            val metaId = extractJsonString(metaText, "id").orEmpty()
             if (metaId != expectedHeroineId) {
                 throw IOException("meta.json id mismatch: $metaId")
             }
-            val version = meta.optString("version", "").trim()
+            val version = extractJsonString(metaText, "version").orEmpty().trim()
             if (version.isEmpty()) {
                 throw IOException("meta.json missing version")
             }
-            val archetypeId = meta.optInt("archetypeId", -1)
+            val archetypeId = extractJsonInt(metaText, "archetypeId") ?: -1
             if (archetypeId !in 0..VALID_ARCHETYPE_MAX) {
                 throw IOException("meta.json invalid archetypeId: $archetypeId")
             }
-            val name = meta.optString("name", "").trim()
+            val name = extractJsonString(metaText, "name").orEmpty().trim()
             if (name.isEmpty()) {
                 throw IOException("meta.json missing name")
             }
-            val tagline = meta.optString("tagline", "").trim()
+            val tagline = extractJsonString(metaText, "tagline").orEmpty().trim()
 
             val spritesDir = File(stagingDir, "sprites")
             val hasIdleSprite = spritesDir.isDirectory && spritesDir.listFiles().orEmpty().any { file ->
@@ -190,6 +191,21 @@ internal object HeroinePackInstaller {
             throw error
         }
     }
+
+    private fun extractJsonInt(json: String, key: String): Int? =
+        Regex("\"${Regex.escape(key)}\"\\s*:\\s*(-?\\d+)")
+            .find(json)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+
+    private fun extractJsonString(json: String, key: String): String? =
+        Regex("\"${Regex.escape(key)}\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"")
+            .find(json)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.replace("\\\"", "\"")
+            ?.replace("\\\\", "\\")
 }
 
 /**
