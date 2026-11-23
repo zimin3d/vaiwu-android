@@ -1,6 +1,7 @@
-# Архитектура сервиса загрузки героинь (клиент + сервер)
+# Архитектура: загрузка героинь (Android-клиент)
 
-**Статус:** утверждённый проект (v2, обновлён по итогам архитектурного аудита).  
+**Статус:** утверждённый проект (v2.1 — синхронизирован с единым бэкендом `vaiwu-service`).  
+**Серверная часть:** отдельный приватный репозиторий [`zimin3d/vaiwu-service`](https://github.com/zimin3d/vaiwu-service) (`docs/architecture.md`) — единый сервис для LLM-прокси, каталога/паков героинь, STT и TTS (для Android и ESP32).  
 **Связанные файлы:** `PetViewModel.kt`, `SecretStore.kt`, `Sprite.kt`, `GitHubUpdateManager.kt`, `OnboardingScreen.kt`, `AssistantScreens.kt`, `combat/EncounterBuilder.kt`, `combat/BattlefieldCanvas.kt`, `res/xml/backup_rules.xml`.
 
 ---
@@ -21,7 +22,7 @@
 
 | Вопрос | Решение | Обоснование |
 |---|---|---|
-| Ключ доступа | Отдельный слот `heroineAccessKey` в `SecretStore` (AES-256-GCM в AndroidKeyStore), независимый от OpenRouter `apiKey`. | Изоляция секретов: ключ OpenRouter не уходит на наш сервер, а ключ героинь — в OpenRouter. |
+| Ключ доступа | Единый `Vaiwu Access Key` (`vw_...`) в `SecretStore` (AES-256-GCM в AndroidKeyStore), выдаваемый сервером `vaiwu-service` со scopes (`chat`, `heroines`, `stt`, `tts`). | Один ключ для всех функций Vaiwu; мастер-ключи OpenRouter/STT/TTS хранятся только на сервере и не попадают на устройства. |
 | Интеграция с C++ (`CharacterId 0..7`) | **Архетип + оверлей:** `meta.json` задаёт `archetypeId: 0..7` для C++ и тактического боя; выбранный `activeHeroineId: String?` хранится в `filesDir/active_heroine.json`. | Не ломает `VaiwuPet` (ESP32), форматы `pet.save` V1–V6 и баланс умений. |
 | Хранение паков | Тяжёлые файлы паков — в `context.noBackupFilesDir/heroines/<id>/`; лёгкие индексы (`heroines_index.json`, `active_heroine.json`) — в `filesDir`. | Android Auto Backup ограничен 25 МБ; `noBackupFilesDir` не ломает бэкап `pet.save` и не очищается ОС как `cacheDir`. |
 | Формат спрайтов | Готовые прозрачные PNG/WebP (≤ 640×640 px), подготовленные на сервере/в CI. Без magenta-конвертации на телефоне. | Исключает OOM, тормоза при установке и артефакты розовой каймы на Android. |
