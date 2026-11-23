@@ -227,6 +227,7 @@ fun SettingsScreen(
     onSpeechEnabled: (Boolean) -> Unit,
     onClearApiKey: () -> Unit,
     onSave: (String, String, String) -> Boolean,
+    onHeroines: () -> Unit,
     onUpdate: () -> Unit,
     onHelp: () -> Unit,
     onReset: () -> Unit,
@@ -344,6 +345,11 @@ fun SettingsScreen(
         }
         SectionCard(title = stringResource(R.string.settings_section_system)) {
             VaiwuPrimaryButton(
+                text = stringResource(R.string.settings_heroines),
+                onClick = onHeroines,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            VaiwuSecondaryButton(
                 text = stringResource(R.string.settings_update_check),
                 onClick = onUpdate,
                 modifier = Modifier.fillMaxWidth(),

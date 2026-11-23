@@ -64,5 +64,6 @@ enum class AppScreen {
     MiniGame,
     Battle,
     Settings,
+    Heroines,
     Help,
 }

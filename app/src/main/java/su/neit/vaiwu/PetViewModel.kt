@@ -58,9 +58,12 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val saveStore = AtomicFile(File(application.filesDir, "pet.save"))
     private val updater = GitHubUpdateManager(application)
     private val assistantClient = AssistantClient(application)
+    private val heroineStore = HeroineStore(application)
+    private val heroineClient = HeroineClient()
     private val reminders = ReminderScheduler(application)
     private val settingsStore = application.getSharedPreferences("settings", 0)
     private val secretStore = SecretStore(settingsStore)
+    private var heroinesCatalogEtag: String? = null
     private val soundPlayer = SoundPlayer()
     private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val saveScope = CoroutineScope(SupervisorJob() + saveDispatcher)
@@ -141,6 +144,15 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _assistantSettings = MutableStateFlow(readAssistantSettings())
     val assistantSettings: StateFlow<AssistantSettings> = _assistantSettings.asStateFlow()
+
+    private val _heroinesState = MutableStateFlow(
+        HeroinesUiState(
+            hasAccessKey = secretStore.hasApiKey(),
+            installed = heroineStore.listInstalled(),
+            activeHeroineId = heroineStore.getActiveHeroineId(),
+        ),
+    )
+    val heroinesState: StateFlow<HeroinesUiState> = _heroinesState.asStateFlow()
 
     private val _soundEnabled = MutableStateFlow(settingsStore.getBoolean(SoundPreference, true))
     val soundEnabled: StateFlow<Boolean> = _soundEnabled.asStateFlow()
@@ -301,6 +313,147 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     fun openSettings() {
         playSfx(Sfx.Tap)
         openFocus(AppScreen.Settings)
+    }
+
+    fun openHeroines() {
+        playSfx(Sfx.Tap)
+        _heroinesState.value = _heroinesState.value.copy(
+            hasAccessKey = secretStore.hasApiKey(),
+            installed = heroineStore.listInstalled(),
+            activeHeroineId = heroineStore.getActiveHeroineId(),
+            errorMessage = null,
+        )
+        openFocus(AppScreen.Heroines)
+        if (secretStore.hasApiKey() && _heroinesState.value.catalog.isEmpty()) {
+            refreshHeroinesCatalog()
+        }
+    }
+
+    fun refreshHeroinesCatalog() {
+        if (_heroinesState.value.loading) return
+        val key = secretStore.readApiKey()
+        if (key.isBlank()) {
+            _heroinesState.value = _heroinesState.value.copy(
+                hasAccessKey = false,
+                errorMessage = text(R.string.heroines_key_required),
+            )
+            return
+        }
+        _heroinesState.value = _heroinesState.value.copy(
+            loading = true,
+            hasAccessKey = true,
+            errorMessage = null,
+        )
+        viewModelScope.launch {
+            val result = try {
+                withContext(Dispatchers.IO) {
+                    heroineClient.fetchCatalog(key, heroinesCatalogEtag)
+                }
+            } catch (error: Exception) {
+                CatalogFetchResult.Error(error.message ?: text(R.string.heroines_network_error))
+            }
+            when (result) {
+                is CatalogFetchResult.Updated -> {
+                    heroinesCatalogEtag = result.etag
+                    _heroinesState.value = _heroinesState.value.copy(
+                        loading = false,
+                        catalog = result.heroines,
+                        installed = heroineStore.listInstalled(),
+                        activeHeroineId = heroineStore.getActiveHeroineId(),
+                        errorMessage = null,
+                    )
+                }
+                CatalogFetchResult.NotModified -> {
+                    _heroinesState.value = _heroinesState.value.copy(
+                        loading = false,
+                        errorMessage = null,
+                    )
+                }
+                is CatalogFetchResult.AuthError -> {
+                    _heroinesState.value = _heroinesState.value.copy(
+                        loading = false,
+                        errorMessage = text(R.string.heroines_auth_error, result.httpCode),
+                    )
+                }
+                is CatalogFetchResult.Error -> {
+                    _heroinesState.value = _heroinesState.value.copy(
+                        loading = false,
+                        errorMessage = result.message,
+                    )
+                }
+            }
+        }
+    }
+
+    fun downloadHeroine(heroine: RemoteHeroine) {
+        if (_heroinesState.value.downloadingId != null) return
+        val key = secretStore.readApiKey()
+        if (key.isBlank()) {
+            postSystemMessage(text(R.string.heroines_key_required))
+            return
+        }
+        _heroinesState.value = _heroinesState.value.copy(
+            downloadingId = heroine.id,
+            downloadProgress = null,
+            errorMessage = null,
+        )
+        viewModelScope.launch {
+            val tmpZip = File(getApplication<Application>().cacheDir, "heroine_${heroine.id}.zip")
+            try {
+                val installed = withContext(Dispatchers.IO) {
+                    val expectedSha = heroineClient.downloadPack(key, heroine, tmpZip) { received, total ->
+                        val fraction = if (total > 0L) (received.toFloat() / total.toFloat()).coerceIn(0f, 1f) else null
+                        _heroinesState.value = _heroinesState.value.copy(downloadProgress = fraction)
+                    }
+                    heroineStore.installPack(tmpZip, heroine.id, expectedSha)
+                }
+                clearSpriteBitmapCache()
+                _heroinesState.value = _heroinesState.value.copy(
+                    downloadingId = null,
+                    downloadProgress = null,
+                    installed = heroineStore.listInstalled(),
+                    activeHeroineId = heroineStore.getActiveHeroineId(),
+                )
+                postSystemMessage(text(R.string.heroines_installed_ok, installed.name))
+                playSfx(Sfx.Win)
+            } catch (error: Exception) {
+                _heroinesState.value = _heroinesState.value.copy(
+                    downloadingId = null,
+                    downloadProgress = null,
+                    errorMessage = error.message ?: text(R.string.heroines_download_failed),
+                )
+                postSystemMessage(text(R.string.heroines_download_failed))
+            } finally {
+                tmpZip.delete()
+            }
+        }
+    }
+
+    fun activateHeroine(heroineId: String?) {
+        heroineStore.setActiveHeroineId(heroineId)
+        clearSpriteBitmapCache()
+        val active = heroineStore.getActiveHeroineId()
+        _heroinesState.value = _heroinesState.value.copy(activeHeroineId = active)
+        postSystemMessage(
+            if (active == null) {
+                text(R.string.heroines_switched_builtin)
+            } else {
+                val name = _heroinesState.value.installed.firstOrNull { it.id == active }?.name ?: active
+                text(R.string.heroines_switched_custom, name)
+            },
+        )
+        playSfx(Sfx.Tap)
+    }
+
+    fun deleteHeroine(heroineId: String) {
+        heroineStore.deleteHeroine(heroineId)
+        clearSpriteBitmapCache()
+        _heroinesState.value = _heroinesState.value.copy(
+            installed = heroineStore.listInstalled(),
+            activeHeroineId = heroineStore.getActiveHeroineId(),
+        )
+        postSystemMessage(text(R.string.heroines_deleted))
+        playSfx(Sfx.Tap)
     }
 
     fun openHelp() {
@@ -717,7 +870,9 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearApiKey() {
         secretStore.writeApiKey("")
+        heroinesCatalogEtag = null
         _assistantSettings.value = readAssistantSettings()
+        _heroinesState.value = _heroinesState.value.copy(hasAccessKey = false)
         postSystemMessage(text(R.string.settings_api_cleared))
         playSfx(Sfx.Tap)
     }
@@ -746,6 +901,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             .putBoolean("location_configured", true)
             .apply()
         _assistantSettings.value = readAssistantSettings()
+        _heroinesState.value = _heroinesState.value.copy(hasAccessKey = secretStore.hasApiKey())
         postSystemMessage(text(R.string.settings_saved))
         playSfx(Sfx.Tap)
         return true

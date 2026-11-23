@@ -49,6 +49,7 @@ val AppScreen.parentScreen: AppScreen
         AppScreen.Shop -> AppScreen.Home
         AppScreen.Rps, AppScreen.MiniGame, AppScreen.Battle -> AppScreen.Games
         AppScreen.Settings -> AppScreen.Home
+        AppScreen.Heroines -> AppScreen.Settings
         AppScreen.Help -> AppScreen.Settings
         else -> AppScreen.Home
     }
@@ -64,6 +65,7 @@ val AppScreen.parentScreen: AppScreen
 fun backTarget(screen: AppScreen, history: List<AppScreen>): AppScreen? = when {
     screen == AppScreen.Home -> null
     screen == AppScreen.Settings -> AppScreen.Home
+    screen == AppScreen.Heroines -> AppScreen.Settings
     screen == AppScreen.Help -> AppScreen.Settings
     screen.tab != null -> AppScreen.Home
     else -> history.lastOrNull() ?: screen.parentScreen

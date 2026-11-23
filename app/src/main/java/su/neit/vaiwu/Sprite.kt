@@ -16,11 +16,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import java.io.File
+import java.io.FileInputStream
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.TransformOrigin
@@ -125,6 +128,12 @@ private object SpriteAssetIndex {
     }
 }
 
+/** Active downloaded heroine ID overlay (`null` uses the built-in character sprites from `assets/`). */
+val LocalActiveHeroineId = compositionLocalOf<String?> { null }
+
+/** Prefix marking frames stored in a downloaded heroine pack on disk instead of `assets/`. */
+private const val FILE_FRAME_PREFIX = "file:"
+
 /** Process-wide LRU bitmap cache sized between [CACHE_MIN_BYTES] and [CACHE_MAX_BYTES]. */
 private object SpriteBitmapCache {
     private val maxBytes = maxOf(
@@ -140,6 +149,33 @@ private object SpriteBitmapCache {
     fun put(assetName: String, bitmap: Bitmap) {
         bitmaps.put(assetName, bitmap)
     }
+
+    fun evictAll() {
+        bitmaps.evictAll()
+    }
+}
+
+/** Evicts cached sprite bitmaps after installing, updating, or removing a heroine pack. */
+internal fun clearSpriteBitmapCache() {
+    SpriteBitmapCache.evictAll()
+}
+
+private fun resolveDownloadedHeroineFrames(
+    context: Context,
+    heroineId: String,
+    emotion: String,
+): List<String>? {
+    val spritesDir = HeroineStore(context).spritesDir(heroineId) ?: return null
+    val available = spritesDir.list()?.toSet().orEmpty()
+    if (available.isEmpty()) return null
+    val candidates = listOf("sprite_${heroineId}_${emotion}", "sprite_${heroineId}_idle")
+    for (base in candidates) {
+        val frames = resolveSpriteFrames(base, available).filter { it in available }
+        if (frames.isNotEmpty()) {
+            return frames.map { name -> "$FILE_FRAME_PREFIX${File(spritesDir, name).absolutePath}" }
+        }
+    }
+    return null
 }
 
 /**
@@ -158,12 +194,18 @@ fun PetSprite(
     frameDurationMs: Long = DEFAULT_FRAME_DURATION_MS,
 ) {
     val context = LocalContext.current
-    val animation = remember(characterId, emotionId, frameDurationMs) {
-        val character = characterIds.getOrElse(characterId) { characterIds.first() }
+    val activeHeroineId = LocalActiveHeroineId.current
+    val animation = remember(characterId, emotionId, frameDurationMs, activeHeroineId) {
         val emotion = emotionIds.getOrElse(emotionId) { emotionIds.first() }
-        val base = "sprite_${character}_${emotion}"
-        val available = SpriteAssetIndex.list(context)
-        SpriteAnimation(resolveSpriteFrames(base, available), frameDurationMs)
+        val customFrames = activeHeroineId?.let { resolveDownloadedHeroineFrames(context, it, emotion) }
+        if (!customFrames.isNullOrEmpty()) {
+            SpriteAnimation(customFrames, frameDurationMs)
+        } else {
+            val character = characterIds.getOrElse(characterId) { characterIds.first() }
+            val base = "sprite_${character}_${emotion}"
+            val available = SpriteAssetIndex.list(context)
+            SpriteAnimation(resolveSpriteFrames(base, available), frameDurationMs)
+        }
     }
     val alive = emotionId != Emotion.Dead
     val reducedMotion = LocalReducedMotion.current
@@ -288,7 +330,7 @@ internal fun calculateInSampleSize(options: BitmapFactory.Options, maxDimension:
 internal fun loadAssetBitmap(context: Context, assetName: String): Bitmap? =
     decodeAsset(context, assetName)
 
-/** Reads [assetName] from [SpriteBitmapCache], decoding from `assets/` with bounded memory on a cache miss. */
+/** Reads [assetName] from [SpriteBitmapCache], decoding from disk (`file:...`) or `assets/` with bounded memory on a cache miss. */
 private fun decodeAsset(
     context: Context,
     assetName: String,
@@ -296,8 +338,15 @@ private fun decodeAsset(
 ): Bitmap? {
     SpriteBitmapCache.get(assetName)?.let { return it }
     val bitmap = runCatching {
+        val openStream = {
+            if (assetName.startsWith(FILE_FRAME_PREFIX)) {
+                FileInputStream(File(assetName.removePrefix(FILE_FRAME_PREFIX)))
+            } else {
+                context.assets.open(assetName)
+            }
+        }
         val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.assets.open(assetName).use { stream ->
+        openStream().use { stream ->
             BitmapFactory.decodeStream(stream, null, boundsOptions)
         }
         val sampleSize = calculateInSampleSize(boundsOptions, maxDimension)
@@ -305,7 +354,7 @@ private fun decodeAsset(
             inSampleSize = sampleSize
             inPreferredConfig = Bitmap.Config.ARGB_8888
         }
-        context.assets.open(assetName).use { stream ->
+        openStream().use { stream ->
             BitmapFactory.decodeStream(stream, null, decodeOptions)
         }
     }.getOrNull() ?: return null

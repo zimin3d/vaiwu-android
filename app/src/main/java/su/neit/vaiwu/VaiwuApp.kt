@@ -57,6 +57,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -110,6 +111,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
     val chatMessages by viewModel.chatMessages.collectAsStateWithLifecycle()
     val chatBusy by viewModel.chatBusy.collectAsStateWithLifecycle()
     val assistantSettings by viewModel.assistantSettings.collectAsStateWithLifecycle()
+    val heroinesState by viewModel.heroinesState.collectAsStateWithLifecycle()
     val soundEnabled by viewModel.soundEnabled.collectAsStateWithLifecycle()
     val shopCategory by viewModel.shopCategory.collectAsStateWithLifecycle()
     val feedMenuOpen by viewModel.feedMenuOpen.collectAsStateWithLifecycle()
@@ -136,6 +138,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
         }
     }
 
+    CompositionLocalProvider(LocalActiveHeroineId provides heroinesState.activeHeroineId) {
     if (pet == null) {
         OnboardingScreen(
             profile = viewModel::characterProfile,
@@ -301,9 +304,17 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                                 onSpeechEnabled = viewModel::setSpeechEnabled,
                                 onClearApiKey = viewModel::clearApiKey,
                                 onSave = { apiKey, lat, lon -> viewModel.saveAssistantSettings(apiKey, lat, lon) },
+                                onHeroines = viewModel::openHeroines,
                                 onUpdate = viewModel::checkForUpdates,
                                 onHelp = viewModel::openHelp,
                                 onReset = { confirmingReset = true },
+                            )
+                            AppScreen.Heroines -> HeroinesScreen(
+                                state = heroinesState,
+                                onRefresh = viewModel::refreshHeroinesCatalog,
+                                onDownload = viewModel::downloadHeroine,
+                                onActivate = viewModel::activateHeroine,
+                                onDelete = viewModel::deleteHeroine,
                             )
                             AppScreen.Help -> HelpScreen()
                         }
@@ -321,6 +332,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                 }
             }
         }
+    }
     }
 
     UpdateDialog(
@@ -418,6 +430,7 @@ internal fun screenTitleRes(screen: AppScreen): Int = when (screen) {
     AppScreen.MiniGame -> R.string.mini_title
     AppScreen.Battle -> R.string.battle_adventure
     AppScreen.Settings -> R.string.settings_title
+    AppScreen.Heroines -> R.string.heroines_title
     AppScreen.Help -> R.string.help_title
 }
 

@@ -68,13 +68,27 @@ internal fun InputStream.readBoundedUtf8(maxBytes: Int, overflowMessage: String 
 internal fun formatWeatherCoordinates(latitude: Double, longitude: Double): String =
     "latitude=${String.format(Locale.US, "%.2f", latitude)}&longitude=${String.format(Locale.US, "%.2f", longitude)}"
 
-/** HTTP client for online LLM chat (OpenRouter) and current weather (Open-Meteo). */
+/**
+ * Routes chat completions to `vaiwu-service` when the user configured a unified
+ * Vaiwu access key (`vw_...`), falling back to OpenRouter for legacy keys.
+ */
+internal fun resolveChatEndpoint(apiKey: String): Pair<String, Boolean> {
+    val clean = sanitizeApiKey(apiKey)
+    return if (clean.startsWith("vw_")) {
+        "$VAIWU_SERVICE_BASE_URL/v1/chat/completions" to true
+    } else {
+        "https://openrouter.ai/api/v1/chat/completions" to false
+    }
+}
+
+/** HTTP client for online LLM chat (`vaiwu-service` / OpenRouter) and current weather (Open-Meteo). */
 class AssistantClient(private val context: Context) {
 
-    /** Sends the last [CHAT_CONTEXT_MESSAGE_LIMIT] messages to OpenRouter and returns the pet's reply. */
+    /** Sends the last [CHAT_CONTEXT_MESSAGE_LIMIT] messages to `vaiwu-service` or OpenRouter and returns the pet's reply. */
     fun chat(apiKey: String, petName: String, characterName: String, messages: List<ChatMessage>): String {
         val cleanKey = sanitizeApiKey(apiKey)
         if (cleanKey.isBlank()) throw IOException(context.getString(R.string.assistant_key_missing))
+        val (endpointUrl, isVaiwuProxy) = resolveChatEndpoint(cleanKey)
         val history = JSONArray()
         messages.takeLast(CHAT_CONTEXT_MESSAGE_LIMIT).forEach { message ->
             history.put(
@@ -90,10 +104,12 @@ class AssistantClient(private val context: Context) {
         )
         for (index in 0 until history.length()) requestMessages.put(history.get(index))
         val body = JSONObject()
-            .put("model", "openrouter/auto")
             .put("max_tokens", CHAT_MAX_OUTPUT_TOKENS)
             .put("messages", requestMessages)
-        val connection = (URL("https://openrouter.ai/api/v1/chat/completions").openConnection() as HttpURLConnection)
+        if (!isVaiwuProxy) {
+            body.put("model", "openrouter/auto")
+        }
+        val connection = (URL(endpointUrl).openConnection() as HttpURLConnection)
         connection.requestMethod = "POST"
         connection.instanceFollowRedirects = false
         connection.connectTimeout = HTTP_CONNECT_TIMEOUT_MS
@@ -101,6 +117,9 @@ class AssistantClient(private val context: Context) {
         connection.doOutput = true
         connection.setRequestProperty("Authorization", "Bearer $cleanKey")
         connection.setRequestProperty("Content-Type", "application/json")
+        if (isVaiwuProxy) {
+            connection.setRequestProperty("X-Vaiwu-Client", "android")
+        }
         return try {
             connection.outputStream.bufferedWriter().use { it.write(body.toString()) }
             val code = connection.responseCode

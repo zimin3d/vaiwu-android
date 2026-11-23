@@ -1,8 +1,8 @@
 # Архитектура: загрузка героинь (Android-клиент)
 
-**Статус:** утверждённый проект (v2.1 — синхронизирован с единым бэкендом `vaiwu-service`).  
-**Серверная часть:** отдельный приватный репозиторий [`zimin3d/vaiwu-service`](https://github.com/zimin3d/vaiwu-service) (`docs/architecture.md`) — единый сервис для LLM-прокси, каталога/паков героинь, STT и TTS (для Android и ESP32).  
-**Связанные файлы:** `PetViewModel.kt`, `SecretStore.kt`, `Sprite.kt`, `GitHubUpdateManager.kt`, `OnboardingScreen.kt`, `AssistantScreens.kt`, `combat/EncounterBuilder.kt`, `combat/BattlefieldCanvas.kt`, `res/xml/backup_rules.xml`.
+**Статус:** реализовано (v2.2 — подключено к продакшн-бэкенду `https://api.t.neit.su`).  
+**Серверная часть:** отдельный приватный репозиторий [`zimin3d/vaiwu-service`](https://github.com/zimin3d/vaiwu-service) (`docs/architecture.md`), развёрнут на `https://api.t.neit.su` — единый сервис для LLM-прокси, каталога/паков героинь, STT и TTS (для Android и ESP32).  
+**Связанные файлы:** `HeroineModels.kt`, `HeroineClient.kt`, `HeroineStore.kt`, `HeroinesScreen.kt`, `AssistantClient.kt`, `PetViewModel.kt`, `SecretStore.kt`, `Sprite.kt` (`LocalActiveHeroineId`), `VaiwuApp.kt`, `Navigation.kt`, `res/xml/backup_rules.xml`.
 
 ---
 
@@ -74,7 +74,8 @@
 
 ## 4. Серверный API-контракт (`v1`)
 
-Базовый URL: конфигурируемый (`https://heroines.vaiwu.example/v1`, пинится через allowlist хостов на клиенте).
+Базовый URL: `https://api.t.neit.su/v1` (жёстко пинится через `ALLOWED_SERVICE_HOSTS` в `HeroineClient.kt` с отключёнными авто-редиректами `instanceFollowRedirects = false`).
+При наличии ключа формата `vw_...` в `SecretStore` этот же сервер автоматически используется для LLM-чата (`POST /v1/chat/completions`, `AssistantClient.resolveChatEndpoint`), сохраняя обратную совместимость с прямыми ключами OpenRouter (`sk-or-...`).
 
 ### 4.1. Аутентификация и ошибки
 - Заголовок на всех защищённых эндпоинтах: `Authorization: Bearer <heroineAccessKey>`.

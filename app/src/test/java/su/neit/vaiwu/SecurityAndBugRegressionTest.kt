@@ -161,6 +161,7 @@ class SecurityAndBugRegressionTest {
         assertEquals(R.string.nav_chat, screenTitleRes(AppScreen.Chat))
         assertEquals(R.string.shop_title, screenTitleRes(AppScreen.Shop))
         assertEquals(R.string.settings_title, screenTitleRes(AppScreen.Settings))
+        assertEquals(R.string.heroines_title, screenTitleRes(AppScreen.Heroines))
         assertEquals(R.string.help_title, screenTitleRes(AppScreen.Help))
     }
 }

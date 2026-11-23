@@ -27,6 +27,10 @@ class NavigationTest {
         )
         assertEquals(
             AppScreen.Settings,
+            backTarget(AppScreen.Heroines, listOf(AppScreen.Settings)),
+        )
+        assertEquals(
+            AppScreen.Settings,
             backTarget(AppScreen.Help, listOf(AppScreen.Settings)),
         )
     }
