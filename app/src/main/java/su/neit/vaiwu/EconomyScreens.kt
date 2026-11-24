@@ -452,11 +452,41 @@ private fun WardrobeSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        VaiwuSecondaryButton(
-            text = stringResource(R.string.wardrobe_browse_catalog),
-            onClick = onOpenCatalog,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val videoResId = remember(pet.characterId, activeId) {
+            resolveHeroVideoRawResId(context, pet.characterId, activeId)
+        }
+        var showVideo by remember { mutableStateOf(false) }
+        if (videoResId != 0) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+            ) {
+                VaiwuPrimaryButton(
+                    text = stringResource(R.string.hero_video_open),
+                    onClick = { showVideo = true },
+                    modifier = Modifier.weight(1f),
+                )
+                VaiwuSecondaryButton(
+                    text = stringResource(R.string.wardrobe_browse_catalog),
+                    onClick = onOpenCatalog,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        } else {
+            VaiwuSecondaryButton(
+                text = stringResource(R.string.wardrobe_browse_catalog),
+                onClick = onOpenCatalog,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (showVideo && videoResId != 0) {
+            HeroVideoDialog(
+                title = pet.petName,
+                rawResId = videoResId,
+                onDismiss = { showVideo = false },
+            )
+        }
     }
 }
 

@@ -190,6 +190,11 @@
     <string name="wardrobe_wear">Надеть</string>
     <string name="wardrobe_browse_catalog">Каталог обликов</string>
     <string name="wardrobe_empty_hint">Скачай новые наряды в каталоге, чтобы переодевать персонажа</string>
+    <string name="hero_video_live_scene">Живая сцена</string>
+    <string name="hero_video_open">Живое видео</string>
+    <string name="hero_video_mute">Выключить звук</string>
+    <string name="hero_video_unmute">Включить звук</string>
+    <string name="hero_video_close">Закрыть</string>
     <string name="buy_with_price">%1$d · Купить</string>
     <string name="coins">Монеты: %1$d</string>
     <string name="shop_in_bag">В сумке: %1$d</string>

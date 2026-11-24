@@ -46,7 +46,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -329,6 +332,13 @@ private fun PetStage(
                 shape = RoundedCornerShape(VaiwuRadius.card),
             ),
     ) {
+        val context = LocalContext.current
+        val activeHeroineId = LocalActiveHeroineId.current
+        val videoResId = remember(pet.characterId, activeHeroineId) {
+            resolveHeroVideoRawResId(context, pet.characterId, activeHeroineId)
+        }
+        var showLiveVideo by remember { mutableStateOf(false) }
+
         val spriteHeight = petSpriteHeightForStage(maxHeight)
         val spriteWidth = spriteHeight * SPRITE_ASPECT_RATIO
         AssetImage(
@@ -361,6 +371,42 @@ private fun PetStage(
                     ),
                 ),
         )
+        if (videoResId != 0) {
+            Surface(
+                onClick = { showLiveVideo = true },
+                shape = RoundedCornerShape(999.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = SIDE_PANEL_ALPHA),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(VaiwuSpacing.small),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.hero_video_live_scene),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
+        if (showLiveVideo && videoResId != 0) {
+            HeroVideoDialog(
+                title = pet.petName,
+                rawResId = videoResId,
+                onDismiss = { showLiveVideo = false },
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
