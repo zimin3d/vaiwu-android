@@ -16,6 +16,7 @@ private val ALLOWED_SERVICE_HOSTS = setOf("api.t.neit.su")
 private const val HEROINE_CONNECT_TIMEOUT_MS = 15_000
 private const val HEROINE_READ_TIMEOUT_MS = 30_000
 private const val HEROINE_CATALOG_MAX_BYTES = 512 * 1024
+private const val HEROINE_PREVIEW_MAX_BYTES = 1024 * 1024
 private const val HEROINE_DOWNLOAD_BUFFER_BYTES = 16 * 1024
 
 sealed interface CatalogFetchResult {
@@ -46,9 +47,16 @@ internal fun parseHeroinesCatalogJson(rawJson: String): List<RemoteHeroine> {
             val item = array.optJSONObject(i) ?: continue
             val id = item.optString("id", "").trim()
             if (!HEROINE_ID_REGEX.matches(id)) continue
+            val targetChar = if (item.has("targetCharacterId") && !item.isNull("targetCharacterId")) {
+                item.optInt("targetCharacterId", -1).takeIf { it in 0..7 }
+            } else {
+                null
+            }
             add(
                 RemoteHeroine(
                     id = id,
+                    kind = item.optString("kind", "heroine").ifBlank { "heroine" },
+                    targetCharacterId = targetChar,
                     version = item.optString("version", "1.0.0"),
                     minAppVersion = item.optInt("minAppVersion", 1),
                     archetypeId = item.optInt("archetypeId", 0),
@@ -108,6 +116,69 @@ class HeroineClient(
                     CatalogFetchResult.Error("HTTP $code")
                 }
             }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * Downloads a heroine/outfit preview image (`GET /v1/heroines/{id}/preview`) into [destination].
+     * Returns true when a valid preview file was written.
+     */
+    fun downloadPreview(
+        apiKey: String,
+        heroine: RemoteHeroine,
+        destination: File,
+    ): Boolean {
+        val cleanKey = sanitizeApiKey(apiKey)
+        val previewRel = heroine.previewUrl ?: return false
+        if (cleanKey.isBlank()) return false
+
+        val relativePath = if (previewRel.startsWith("/")) previewRel else "/v1/heroines/${heroine.id}/preview"
+        val url = validateVaiwuServiceUrl("${baseUrl.trimEnd('/')}$relativePath")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "GET"
+        connection.instanceFollowRedirects = false
+        connection.connectTimeout = HEROINE_CONNECT_TIMEOUT_MS
+        connection.readTimeout = HEROINE_READ_TIMEOUT_MS
+        connection.setRequestProperty("Authorization", "Bearer $cleanKey")
+        connection.setRequestProperty("X-Vaiwu-Client", "android")
+
+        return try {
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                runCatching { connection.errorStream?.close() }
+                return false
+            }
+            if (connection.contentLengthLong > HEROINE_PREVIEW_MAX_BYTES) return false
+            destination.parentFile?.mkdirs()
+            val tmp = File(destination.parentFile, ".${destination.name}.tmp")
+            var total = 0
+            val buffer = ByteArray(HEROINE_DOWNLOAD_BUFFER_BYTES)
+            connection.inputStream.use { input ->
+                FileOutputStream(tmp).use { out ->
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        if (total > HEROINE_PREVIEW_MAX_BYTES) {
+                            tmp.delete()
+                            return false
+                        }
+                        out.write(buffer, 0, read)
+                    }
+                }
+            }
+            if (total == 0) {
+                tmp.delete()
+                return false
+            }
+            if (!tmp.renameTo(destination)) {
+                tmp.copyTo(destination, overwrite = true)
+                tmp.delete()
+            }
+            true
+        } catch (_: Exception) {
+            false
         } finally {
             connection.disconnect()
         }

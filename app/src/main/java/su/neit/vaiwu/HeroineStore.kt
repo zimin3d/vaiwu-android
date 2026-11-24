@@ -151,6 +151,8 @@ internal object HeroinePackInstaller {
                 throw IOException("meta.json missing name")
             }
             val tagline = extractJsonString(metaText, "tagline").orEmpty().trim()
+            val kind = extractJsonString(metaText, "kind")?.trim()?.ifEmpty { "heroine" } ?: "heroine"
+            val targetCharacterId = extractJsonInt(metaText, "targetCharacterId")?.takeIf { it in 0..VALID_ARCHETYPE_MAX }
 
             val spritesDir = File(stagingDir, "sprites")
             val hasIdleSprite = spritesDir.isDirectory && spritesDir.listFiles().orEmpty().any { file ->
@@ -180,6 +182,8 @@ internal object HeroinePackInstaller {
 
             return InstalledHeroine(
                 id = expectedHeroineId,
+                kind = kind,
+                targetCharacterId = targetCharacterId,
                 version = version,
                 archetypeId = archetypeId,
                 name = name,
@@ -233,9 +237,16 @@ class HeroineStore(private val context: Context) {
                     val id = obj.optString("id", "")
                     if (!HEROINE_ID_REGEX.matches(id)) continue
                     if (!File(packsRootDir, id).isDirectory) continue
+                    val targetChar = if (obj.has("targetCharacterId") && !obj.isNull("targetCharacterId")) {
+                        obj.optInt("targetCharacterId", -1).takeIf { it in 0..VALID_ARCHETYPE_MAX }
+                    } else {
+                        null
+                    }
                     add(
                         InstalledHeroine(
                             id = id,
+                            kind = obj.optString("kind", "heroine").ifBlank { "heroine" },
+                            targetCharacterId = targetChar,
                             version = obj.optString("version", "1.0.0"),
                             archetypeId = obj.optInt("archetypeId", 0),
                             name = obj.optString("name", id),
@@ -295,18 +306,36 @@ class HeroineStore(private val context: Context) {
         return if (dir.isDirectory) dir else null
     }
 
+    fun installedPreviewFile(heroineId: String): File? {
+        if (!HEROINE_ID_REGEX.matches(heroineId)) return null
+        val packDir = File(packsRootDir, heroineId)
+        val candidates = listOf(
+            File(packDir, "preview.png"),
+            File(packDir, "preview.webp"),
+            File(File(packDir, "sprites"), "sprite_${heroineId}_idle.png"),
+            File(File(packDir, "sprites"), "sprite_${heroineId}_idle.webp"),
+        )
+        return candidates.firstOrNull { it.isFile && it.length() > 0L }
+    }
+
+    fun cachedPreviewFile(heroineId: String): File {
+        val safeId = if (HEROINE_ID_REGEX.matches(heroineId)) heroineId else "unknown"
+        return File(File(context.cacheDir, "heroine_previews"), "$safeId.png")
+    }
+
     private fun saveIndex(entries: List<InstalledHeroine>) {
         val arr = JSONArray()
         entries.forEach { item ->
-            arr.put(
-                JSONObject()
-                    .put("id", item.id)
-                    .put("version", item.version)
-                    .put("archetypeId", item.archetypeId)
-                    .put("name", item.name)
-                    .put("tagline", item.tagline)
-                    .put("installedAtMs", item.installedAtMs),
-            )
+            val obj = JSONObject()
+                .put("id", item.id)
+                .put("kind", item.kind)
+                .put("version", item.version)
+                .put("archetypeId", item.archetypeId)
+                .put("name", item.name)
+                .put("tagline", item.tagline)
+                .put("installedAtMs", item.installedAtMs)
+            item.targetCharacterId?.let { obj.put("targetCharacterId", it) }
+            arr.put(obj)
         }
         val payload = JSONObject().put("schemaVersion", 1).put("heroines", arr).toString()
         writeAtomically(indexFile, payload)

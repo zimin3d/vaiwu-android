@@ -5,6 +5,8 @@ package su.neit.vaiwu
  */
 data class RemoteHeroine(
     val id: String,
+    val kind: String = "heroine",
+    val targetCharacterId: Int? = null,
     val version: String,
     val minAppVersion: Int,
     val archetypeId: Int,
@@ -21,6 +23,8 @@ data class RemoteHeroine(
  */
 data class InstalledHeroine(
     val id: String,
+    val kind: String = "heroine",
+    val targetCharacterId: Int? = null,
     val version: String,
     val archetypeId: Int,
     val name: String,
@@ -36,6 +40,7 @@ data class HeroinesUiState(
     val hasAccessKey: Boolean = false,
     val catalog: List<RemoteHeroine> = emptyList(),
     val installed: List<InstalledHeroine> = emptyList(),
+    val previewPaths: Map<String, String> = emptyMap(),
     val activeHeroineId: String? = null,
     val downloadingId: String? = null,
     val downloadProgress: Float? = null,

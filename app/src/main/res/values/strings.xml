@@ -298,12 +298,18 @@
     <string name="settings_invalid_coordinates">Проверь координаты</string>
     <string name="settings_saved">Настройки сохранены</string>
 
-    <string name="heroines_title">Героини</string>
+    <string name="heroines_title">Героини и облики</string>
     <string name="heroines_active_title">Активный облик</string>
     <string name="heroines_active_builtin">Используется встроенная героиня</string>
     <string name="heroines_active_custom">%1$s (v%2$s)</string>
     <string name="heroines_use_builtin">Вернуть встроенную</string>
     <string name="heroines_catalog_title">Каталог сервера</string>
+    <string name="heroines_section_heroines">Новые героини</string>
+    <string name="heroines_section_outfits">Облики для героев</string>
+    <string name="heroines_new_heroine">Новая героиня</string>
+    <string name="heroines_outfit_for">Облик для %1$s</string>
+    <string name="heroines_outfit_generic">Альтернативный облик</string>
+    <string name="heroines_preview_desc">Предпросмотр %1$s</string>
     <string name="heroines_key_required">Добавь ключ Vaiwu (vw_…) в настройках, чтобы открывать каталог и скачивать новых героинь.</string>
     <string name="heroines_refresh">Обновить каталог</string>
     <string name="heroines_loading">Загрузка каталога…</string>

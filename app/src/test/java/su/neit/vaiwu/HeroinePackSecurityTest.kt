@@ -87,9 +87,44 @@ class HeroinePackSecurityTest {
             packsRootDir = packsRoot,
         )
         assertEquals("sakura", installed.id)
+        assertEquals("heroine", installed.kind)
+        assertEquals(null, installed.targetCharacterId)
         assertEquals("1.0.0", installed.version)
         assertEquals("Sakura", installed.name)
         assertTrue(File(packsRoot, "sakura/sprites/sprite_sakura_idle.png").isFile)
+    }
+
+    @Test
+    fun outfitPackPreservesKindAndTargetCharacterId() {
+        val meta = """
+            {
+              "schemaVersion": 1,
+              "id": "akane_swimsuit",
+              "kind": "outfit",
+              "targetCharacterId": 4,
+              "version": "1.0.0",
+              "minAppVersion": 1,
+              "archetypeId": 4,
+              "name": "Akane Swimsuit",
+              "tagline": "Summer beach look"
+            }
+        """.trimIndent().toByteArray(Charsets.UTF_8)
+        val zip = buildZip(
+            mapOf(
+                "meta.json" to meta,
+                "sprites/sprite_akane_swimsuit_idle.png" to byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47),
+            ),
+        )
+        val packsRoot = tempFolder.newFolder("packs_outfit")
+        val installed = HeroinePackInstaller.unpackAndValidate(
+            zipFile = zip,
+            expectedHeroineId = "akane_swimsuit",
+            expectedSha256 = sha256Hex(zip),
+            packsRootDir = packsRoot,
+        )
+        assertEquals("akane_swimsuit", installed.id)
+        assertEquals("outfit", installed.kind)
+        assertEquals(4, installed.targetCharacterId)
     }
 
     @Test

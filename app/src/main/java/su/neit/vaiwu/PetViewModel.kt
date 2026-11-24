@@ -317,15 +317,22 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openHeroines() {
         playSfx(Sfx.Tap)
+        val installed = heroineStore.listInstalled()
+        val catalog = _heroinesState.value.catalog
         _heroinesState.value = _heroinesState.value.copy(
             hasAccessKey = secretStore.hasApiKey(),
-            installed = heroineStore.listInstalled(),
+            installed = installed,
+            previewPaths = collectLocalPreviewPaths(catalog, installed),
             activeHeroineId = heroineStore.getActiveHeroineId(),
             errorMessage = null,
         )
         openFocus(AppScreen.Heroines)
-        if (secretStore.hasApiKey() && _heroinesState.value.catalog.isEmpty()) {
-            refreshHeroinesCatalog()
+        if (secretStore.hasApiKey()) {
+            if (catalog.isEmpty()) {
+                refreshHeroinesCatalog()
+            } else {
+                prefetchCatalogPreviews(secretStore.readApiKey(), catalog)
+            }
         }
     }
 
@@ -355,19 +362,25 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             when (result) {
                 is CatalogFetchResult.Updated -> {
                     heroinesCatalogEtag = result.etag
+                    val installed = heroineStore.listInstalled()
                     _heroinesState.value = _heroinesState.value.copy(
                         loading = false,
                         catalog = result.heroines,
-                        installed = heroineStore.listInstalled(),
+                        installed = installed,
+                        previewPaths = collectLocalPreviewPaths(result.heroines, installed),
                         activeHeroineId = heroineStore.getActiveHeroineId(),
                         errorMessage = null,
                     )
+                    prefetchCatalogPreviews(key, result.heroines)
                 }
                 CatalogFetchResult.NotModified -> {
-                    _heroinesState.value = _heroinesState.value.copy(
+                    val current = _heroinesState.value
+                    _heroinesState.value = current.copy(
                         loading = false,
+                        previewPaths = collectLocalPreviewPaths(current.catalog, current.installed),
                         errorMessage = null,
                     )
+                    prefetchCatalogPreviews(key, current.catalog)
                 }
                 is CatalogFetchResult.AuthError -> {
                     _heroinesState.value = _heroinesState.value.copy(
@@ -381,6 +394,52 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                         errorMessage = result.message,
                     )
                 }
+            }
+        }
+    }
+
+    private fun collectLocalPreviewPaths(
+        catalog: List<RemoteHeroine>,
+        installed: List<InstalledHeroine>,
+    ): Map<String, String> {
+        val ids = buildSet {
+            catalog.forEach { add(it.id) }
+            installed.forEach { add(it.id) }
+        }
+        return buildMap {
+            for (id in ids) {
+                val installedPreview = heroineStore.installedPreviewFile(id)
+                if (installedPreview != null) {
+                    put(id, installedPreview.absolutePath)
+                    continue
+                }
+                val cached = heroineStore.cachedPreviewFile(id)
+                if (cached.isFile && cached.length() > 0L) {
+                    put(id, cached.absolutePath)
+                }
+            }
+        }
+    }
+
+    private fun prefetchCatalogPreviews(apiKey: String, catalog: List<RemoteHeroine>) {
+        if (apiKey.isBlank() || catalog.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = mutableMapOf<String, String>()
+            for (heroine in catalog) {
+                if (heroine.previewUrl.isNullOrBlank()) continue
+                if (heroineStore.installedPreviewFile(heroine.id) != null) continue
+                val dest = heroineStore.cachedPreviewFile(heroine.id)
+                if (dest.isFile && dest.length() > 0L) {
+                    updated[heroine.id] = dest.absolutePath
+                    continue
+                }
+                if (heroineClient.downloadPreview(apiKey, heroine, dest)) {
+                    updated[heroine.id] = dest.absolutePath
+                }
+            }
+            if (updated.isNotEmpty()) {
+                val merged = _heroinesState.value.previewPaths + updated
+                _heroinesState.value = _heroinesState.value.copy(previewPaths = merged)
             }
         }
     }
@@ -408,10 +467,12 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                     heroineStore.installPack(tmpZip, heroine.id, expectedSha)
                 }
                 clearSpriteBitmapCache()
+                val installedList = heroineStore.listInstalled()
                 _heroinesState.value = _heroinesState.value.copy(
                     downloadingId = null,
                     downloadProgress = null,
-                    installed = heroineStore.listInstalled(),
+                    installed = installedList,
+                    previewPaths = collectLocalPreviewPaths(_heroinesState.value.catalog, installedList),
                     activeHeroineId = heroineStore.getActiveHeroineId(),
                 )
                 postSystemMessage(text(R.string.heroines_installed_ok, installed.name))
