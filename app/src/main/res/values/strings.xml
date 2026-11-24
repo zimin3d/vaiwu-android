@@ -506,6 +506,10 @@
     <string name="monster_fox">Лиса</string>
     <string name="monster_ghost">Призрак</string>
     <string name="monster_golem">Голем</string>
+    <string name="monster_salamander">Саламандра</string>
+    <string name="monster_moth">Хрустальный мотылёк</string>
+    <string name="monster_mimic">Мимик</string>
+    <string name="monster_automaton">Страж-сова</string>
 
     <string name="skill_aoi_flash">Вспышка</string>
     <string name="skill_aoi_ice_bind">Ледяные оковы</string>
@@ -539,6 +543,13 @@
     <string name="skill_monster_ghost_shield">Призрачный щит</string>
     <string name="skill_monster_golem_slam">Каменный удар</string>
     <string name="skill_monster_golem_shield">Земляной щит</string>
+    <string name="skill_monster_salamander_ember">Угольное дыхание</string>
+    <string name="skill_monster_moth_prism">Призматический луч</string>
+    <string name="skill_monster_moth_blink">Мерцающий скачок</string>
+    <string name="skill_monster_moth_veil">Световая призма</string>
+    <string name="skill_monster_mimic_bite">Жадный укус</string>
+    <string name="skill_monster_automaton_gale">Вихревой залп</string>
+    <string name="skill_monster_automaton_aegis">Бронзовый эгид</string>
 
     <string name="tactical_log_started">Тактический бой начался.</string>
     <string name="tactical_log_moved">%1$s перемещается.</string>

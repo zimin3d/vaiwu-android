@@ -7,8 +7,19 @@ private val EVENING_HOURS = 18..22
 
 private const val SECONDS_PER_MINUTE = 60
 
-/** Ordered monster slugs matching native `MonsterKind` ids (0..5). */
-private val MONSTER_ASSET_SLUGS = listOf("slime", "bat", "shroom", "fox", "ghost", "golem")
+/** Ordered monster slugs matching `MonsterKind` ids (0..9). */
+private val MONSTER_ASSET_SLUGS = listOf(
+    "slime",
+    "bat",
+    "shroom",
+    "fox",
+    "ghost",
+    "golem",
+    "salamander",
+    "moth",
+    "mimic",
+    "automaton",
+)
 
 /** Returns the home-screen room backdrop asset filename for the given 24-hour [hour]. */
 fun homeBackgroundForHour(hour: Int): String = when (hour) {

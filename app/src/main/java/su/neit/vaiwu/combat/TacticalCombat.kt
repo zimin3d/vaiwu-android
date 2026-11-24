@@ -1010,9 +1010,33 @@ private class MutableCombat(
         return best
     }
 
-    /** Executes one enemy's AI turn (knacks, cover-seeking, shield, skill/weapon attack, or advance). */
+    /** Finds a tactical blink tile within [skillRange] that keeps distance in `3..desiredRange` from [target]. */
+    private fun blinkRepositionTile(actor: Combatant, target: Combatant, skillRange: Int, desiredRange: Int): Pos? {
+        val occupied = occupiedFor(actor.id)
+        var best: Pos? = null
+        var bestScore = Int.MIN_VALUE
+        for (x in 0 until grid.width) {
+            for (y in 0 until grid.height) {
+                val p = Pos(x, y)
+                if (p == actor.pos || grid.isCover(p) || p in occupied) continue
+                if (distance(actor.pos, p) > skillRange) continue
+                val d = distance(p, target.pos)
+                if (d < 3 || d > desiredRange) continue
+                val coverBonus = if (hasCover(grid, target.pos, p)) 10 else 0
+                val score = coverBonus + d
+                if (score > bestScore) {
+                    bestScore = score
+                    best = p
+                }
+            }
+        }
+        return best
+    }
+
+    /** Executes one enemy's AI turn (knacks, teleport/cover-seeking, shield, skill/weapon attack, or advance). */
     private fun enemyTurn(actorIdx: Int, trace: MutableList<AiStep>?) {
         var tookCover = false
+        var teleported = false
         var usedKnack = false
         for (iter in 0 until MAX_AI_ACTIONS_PER_TURN) {
             if (winner != null) break
@@ -1027,9 +1051,10 @@ private class MutableCombat(
 
             val castable = actor.skills.filter { s ->
                 s.mpCost <= actor.mp && s.apCost <= actor.ap &&
-                    (s.effect == SkillEffect.Defense || s.effect == SkillEffect.Heal || s.range >= dist)
+                    (s.effect == SkillEffect.Defense || s.effect == SkillEffect.Heal || s.effect == SkillEffect.Teleport || s.range >= dist)
             }
             val shieldSkill = castable.firstOrNull { it.effect == SkillEffect.Defense }
+            val teleportSkill = castable.firstOrNull { it.effect == SkillEffect.Teleport }
             val offensiveSkill = castable
                 .filter { it.effect == SkillEffect.Attack || it.effect == SkillEffect.Control }
                 .maxByOrNull { it.power }
@@ -1066,6 +1091,19 @@ private class MutableCombat(
                     usedKnack = true
                     trace?.add(AiStep(actor.id, AiAct.Command, targetId = target.id))
                     commandPack(actorIdx, targetIdx)
+                    continue
+                }
+            }
+
+            // Mobile caster (e.g. Crystal Moth) blinks to a safe ranged/covered tile when pressured
+            if (!teleported && teleportSkill != null && dist <= 2 && wantedRange >= 3 &&
+                actor.ap - teleportSkill.apCost >= attackAp
+            ) {
+                val dest = blinkRepositionTile(actor, target, teleportSkill.range, wantedRange)
+                if (dest != null) {
+                    teleported = true
+                    trace?.add(AiStep(actor.id, AiAct.Move))
+                    useSkill(actorIdx, teleportSkill.id, null, dest)
                     continue
                 }
             }

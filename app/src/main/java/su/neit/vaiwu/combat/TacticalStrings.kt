@@ -43,6 +43,13 @@ object TacticalStrings {
         SkillId.MonsterGhostShield -> R.string.skill_monster_ghost_shield
         SkillId.MonsterGolemSlam -> R.string.skill_monster_golem_slam
         SkillId.MonsterGolemShield -> R.string.skill_monster_golem_shield
+        SkillId.MonsterSalamanderEmber -> R.string.skill_monster_salamander_ember
+        SkillId.MonsterMothPrism -> R.string.skill_monster_moth_prism
+        SkillId.MonsterMothBlink -> R.string.skill_monster_moth_blink
+        SkillId.MonsterMothVeil -> R.string.skill_monster_moth_veil
+        SkillId.MonsterMimicBite -> R.string.skill_monster_mimic_bite
+        SkillId.MonsterAutomatonGale -> R.string.skill_monster_automaton_gale
+        SkillId.MonsterAutomatonAegis -> R.string.skill_monster_automaton_aegis
     }
 
     fun weaponNameRes(id: WeaponId): Int = when (id) {
@@ -61,6 +68,10 @@ object TacticalStrings {
         MonsterKind.Fox -> R.string.monster_fox
         MonsterKind.Ghost -> R.string.monster_ghost
         MonsterKind.Golem -> R.string.monster_golem
+        MonsterKind.Salamander -> R.string.monster_salamander
+        MonsterKind.Moth -> R.string.monster_moth
+        MonsterKind.Mimic -> R.string.monster_mimic
+        MonsterKind.Automaton -> R.string.monster_automaton
     }
 
     fun elementNameRes(element: Element): Int = when (element) {

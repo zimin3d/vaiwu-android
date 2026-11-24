@@ -76,7 +76,11 @@ enum class MonsterKind(val nativeId: Int) {
     Shroom(2),
     Fox(3),
     Ghost(4),
-    Golem(5);
+    Golem(5),
+    Salamander(6),
+    Moth(7),
+    Mimic(8),
+    Automaton(9);
 
     companion object {
         fun fromNative(id: Int): MonsterKind =
@@ -140,6 +144,13 @@ enum class SkillId {
     MonsterGhostShield,
     MonsterGolemSlam,
     MonsterGolemShield,
+    MonsterSalamanderEmber,
+    MonsterMothPrism,
+    MonsterMothBlink,
+    MonsterMothVeil,
+    MonsterMimicBite,
+    MonsterAutomatonGale,
+    MonsterAutomatonAegis,
 }
 
 data class TacticalSkill(

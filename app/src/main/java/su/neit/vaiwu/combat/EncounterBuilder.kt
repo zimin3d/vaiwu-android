@@ -70,10 +70,13 @@ private const val BOSS_REWARD_MULTIPLIER = 2
 private const val BOSS_ESCORT_DEPTH_PCT = 85
 
 /** Encounter progression thresholds (monster pool unlocks, 2-foe fights, dungeon scaling, chest gold). */
-private const val BASE_MONSTER_KINDS = 3
 private const val UNLOCK_FOX_LEVEL = 3
+private const val UNLOCK_SALAMANDER_LEVEL = 4
 private const val UNLOCK_GHOST_LEVEL = 5
+private const val UNLOCK_MOTH_LEVEL = 6
+private const val UNLOCK_MIMIC_LEVEL = 6
 private const val UNLOCK_GOLEM_LEVEL = 7
+private const val UNLOCK_AUTOMATON_LEVEL = 9
 private const val MULTI_FOE_ADVENTURE_LEVEL = 3
 private const val FOREST_THEME_MIN_LEVEL = 3
 private const val DUNGEON_BASE_DEPTH_PCT = 100
@@ -505,6 +508,10 @@ object EncounterBuilder {
             MonsterKind.Fox -> 95
             MonsterKind.Ghost -> 85
             MonsterKind.Golem -> 145
+            MonsterKind.Salamander -> 95
+            MonsterKind.Moth -> 80
+            MonsterKind.Mimic -> 120
+            MonsterKind.Automaton -> 135
         }
         val atkPct = when (kind) {
             MonsterKind.Slime -> 100
@@ -513,18 +520,27 @@ object EncounterBuilder {
             MonsterKind.Fox -> 110
             MonsterKind.Ghost -> 125
             MonsterKind.Golem -> 105
+            MonsterKind.Salamander -> 110
+            MonsterKind.Moth -> 110
+            MonsterKind.Mimic -> 110
+            MonsterKind.Automaton -> 115
         }
         val rewardPct = when (kind) {
             MonsterKind.Slime, MonsterKind.Bat, MonsterKind.Shroom -> 100
             MonsterKind.Fox -> 115
+            MonsterKind.Salamander -> 120
             MonsterKind.Ghost -> 125
+            MonsterKind.Moth -> 130
+            MonsterKind.Mimic -> 135
             MonsterKind.Golem -> 140
+            MonsterKind.Automaton -> 150
         }
+        val goldBonusPct = if (kind == MonsterKind.Mimic) 165 else rewardPct
 
         var hpMax = ((MONSTER_HP_BASE + lvl * MONSTER_HP_PER_LEVEL) * hpPct / 100) * depthPct / 100
         var atk = ((MONSTER_ATK_BASE + lvl * MONSTER_ATK_PER_LEVEL) * atkPct / 100) * depthPct / 100
         var xp = (MONSTER_XP_BASE + lvl * MONSTER_XP_PER_LEVEL) * rewardPct / 100
-        var gold = (MONSTER_GOLD_BASE + lvl * MONSTER_GOLD_PER_LEVEL) * rewardPct / 100
+        var gold = (MONSTER_GOLD_BASE + lvl * MONSTER_GOLD_PER_LEVEL) * goldBonusPct / 100
         if (boss) {
             hpMax = (hpMax * BOSS_HP_MULTIPLIER).roundToInt()
             atk = (atk * BOSS_ATK_MULTIPLIER).roundToInt()
@@ -742,16 +758,171 @@ object EncounterBuilder {
                 xpReward = xp,
                 goldReward = gold,
             )
+            MonsterKind.Salamander -> Combatant(
+                id = id,
+                side = Side.Enemy,
+                monsterKind = kind,
+                isBoss = boss,
+                level = lvl,
+                maxHp = hpMax,
+                hp = hpMax,
+                maxMp = 16,
+                mp = 16,
+                mpRegen = 3,
+                armor = lvl / 3,
+                weapon = TacticalWeapon(WeaponId.Fists, minHit, maxHit, apCost = 2, range = 2),
+                skills = listOf(
+                    TacticalSkill(
+                        id = SkillId.MonsterSalamanderEmber,
+                        element = Element.Fire,
+                        effect = SkillEffect.Attack,
+                        apCost = 2,
+                        mpCost = 4,
+                        range = 3,
+                        power = atk,
+                        ignoresCover = true,
+                        burnAmount = 3 + lvl / 2,
+                    ),
+                ),
+                pos = pos,
+                aiRole = AiRole.Caster,
+                xpReward = xp,
+                goldReward = gold,
+            )
+            MonsterKind.Moth -> Combatant(
+                id = id,
+                side = Side.Enemy,
+                monsterKind = kind,
+                isBoss = boss,
+                level = lvl,
+                maxHp = hpMax,
+                hp = hpMax,
+                maxMp = 20,
+                mp = 20,
+                mpRegen = 3,
+                agility = 4 + lvl,
+                weapon = TacticalWeapon(WeaponId.Fists, minHit, maxHit, apCost = 2, range = 3),
+                skills = listOf(
+                    TacticalSkill(
+                        id = SkillId.MonsterMothPrism,
+                        element = Element.Light,
+                        effect = SkillEffect.Attack,
+                        apCost = 2,
+                        mpCost = 4,
+                        range = 4,
+                        power = atk + 1,
+                        penetration = 0.25,
+                    ),
+                    TacticalSkill(
+                        id = SkillId.MonsterMothBlink,
+                        element = Element.Light,
+                        effect = SkillEffect.Teleport,
+                        apCost = 1,
+                        mpCost = 3,
+                        range = 3,
+                        power = 0,
+                    ),
+                    TacticalSkill(
+                        id = SkillId.MonsterMothVeil,
+                        element = Element.Light,
+                        effect = SkillEffect.Defense,
+                        apCost = 1,
+                        mpCost = 4,
+                        range = 0,
+                        power = 8 + lvl * 2,
+                    ),
+                ),
+                pos = pos,
+                aiRole = AiRole.Caster,
+                xpReward = xp,
+                goldReward = gold,
+            )
+            MonsterKind.Mimic -> Combatant(
+                id = id,
+                side = Side.Enemy,
+                monsterKind = kind,
+                isBoss = boss,
+                level = lvl,
+                maxHp = hpMax,
+                hp = hpMax,
+                maxMp = 12,
+                mp = 12,
+                mpRegen = 2,
+                armor = 1 + lvl / 3,
+                weapon = TacticalWeapon(WeaponId.Fists, minHit, maxHit + 1, apCost = 2, range = 1),
+                skills = listOf(
+                    TacticalSkill(
+                        id = SkillId.MonsterMimicBite,
+                        element = Element.Dark,
+                        effect = SkillEffect.Attack,
+                        apCost = 2,
+                        mpCost = 4,
+                        range = 1,
+                        power = atk + 1,
+                        lifestealRatio = 0.40,
+                    ),
+                ),
+                pos = pos,
+                aiRole = AiRole.Melee,
+                xpReward = xp,
+                goldReward = gold,
+            )
+            MonsterKind.Automaton -> Combatant(
+                id = id,
+                side = Side.Enemy,
+                monsterKind = kind,
+                isBoss = boss,
+                level = lvl,
+                maxHp = hpMax,
+                hp = hpMax,
+                maxMp = 16,
+                mp = 16,
+                mpRegen = 3,
+                armor = 2 + lvl / 2,
+                poisonImmune = true,
+                weapon = TacticalWeapon(WeaponId.Fists, minHit, maxHit + 1, apCost = 2, range = 3),
+                skills = listOf(
+                    TacticalSkill(
+                        id = SkillId.MonsterAutomatonGale,
+                        element = Element.Wind,
+                        effect = SkillEffect.Attack,
+                        apCost = 2,
+                        mpCost = 4,
+                        range = 4,
+                        power = atk + 1,
+                        pushCells = 1,
+                    ),
+                    TacticalSkill(
+                        id = SkillId.MonsterAutomatonAegis,
+                        element = Element.Light,
+                        effect = SkillEffect.Defense,
+                        apCost = 1,
+                        mpCost = 4,
+                        range = 0,
+                        power = 9 + lvl * 2,
+                        shieldDecay = 0.20,
+                    ),
+                ),
+                pos = pos,
+                aiRole = AiRole.Ranged,
+                xpReward = xp,
+                goldReward = gold,
+            )
         }
     }
 
-    /** Returns how many monster archetypes are unlocked for [petLevel] (3 base + Fox/Ghost/Golem). */
-    private fun unlockedMonsterCount(petLevel: Int): Int {
-        var kinds = BASE_MONSTER_KINDS
-        if (petLevel >= UNLOCK_FOX_LEVEL) kinds++
-        if (petLevel >= UNLOCK_GHOST_LEVEL) kinds++
-        if (petLevel >= UNLOCK_GOLEM_LEVEL) kinds++
-        return kinds
+    /** Returns the list of monster archetypes unlocked for [petLevel]. */
+    fun unlockedMonsters(petLevel: Int): List<MonsterKind> = buildList {
+        add(MonsterKind.Slime)
+        add(MonsterKind.Bat)
+        add(MonsterKind.Shroom)
+        if (petLevel >= UNLOCK_FOX_LEVEL) add(MonsterKind.Fox)
+        if (petLevel >= UNLOCK_SALAMANDER_LEVEL) add(MonsterKind.Salamander)
+        if (petLevel >= UNLOCK_GHOST_LEVEL) add(MonsterKind.Ghost)
+        if (petLevel >= UNLOCK_MOTH_LEVEL) add(MonsterKind.Moth)
+        if (petLevel >= UNLOCK_MIMIC_LEVEL) add(MonsterKind.Mimic)
+        if (petLevel >= UNLOCK_GOLEM_LEVEL) add(MonsterKind.Golem)
+        if (petLevel >= UNLOCK_AUTOMATON_LEVEL) add(MonsterKind.Automaton)
     }
 
     /** Starts a fresh Adventure (1 room) or Dungeon (`3..5` rooms) tactical battle session. */
@@ -799,12 +970,12 @@ object EncounterBuilder {
             !dungeon && hero.level >= MULTI_FOE_ADVENTURE_LEVEL -> 2
             else -> 1
         }
-        val kinds = unlockedMonsterCount(hero.level)
+        val pool = unlockedMonsters(hero.level)
         val depthPct = if (dungeon) DUNGEON_BASE_DEPTH_PCT + (room - 1) * DUNGEON_DEPTH_PCT_PER_ROOM else DUNGEON_BASE_DEPTH_PCT
 
         val enemies = mutableListOf<Combatant>()
         for (i in 0 until foeCount) {
-            val (kindIdx, r1) = rng.nextInt(0, kinds - 1)
+            val (kindIdx, r1) = rng.nextInt(0, pool.lastIndex)
             val (lvlDrop, r2) = r1.nextInt(0, 1)
             rng = r2
             val isThisBoss = isBoss && i == 0
@@ -813,7 +984,7 @@ object EncounterBuilder {
             val pos = ENEMY_SPAWN_SLOTS[i % ENEMY_SPAWN_SLOTS.size]
             enemies += buildMonster(
                 id = "foe_$i",
-                kind = MonsterKind.fromNative(kindIdx),
+                kind = pool[kindIdx],
                 level = enemyLevel,
                 pos = pos,
                 depthPct = if (isBoss && !isThisBoss) BOSS_ESCORT_DEPTH_PCT else depthPct,

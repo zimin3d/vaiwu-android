@@ -20,6 +20,10 @@ class PresentationTest {
     @Test
     fun unknownMonsterUsesSafeAsset() {
         assertEquals("monster_golem.png", monsterAsset(5))
+        assertEquals("monster_salamander.png", monsterAsset(6))
+        assertEquals("monster_moth.png", monsterAsset(7))
+        assertEquals("monster_mimic.png", monsterAsset(8))
+        assertEquals("monster_automaton.png", monsterAsset(9))
         assertEquals("monster_slime.png", monsterAsset(-1))
         assertEquals("monster_slime.png", monsterAsset(99))
     }

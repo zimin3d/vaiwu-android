@@ -54,19 +54,26 @@ class EncounterBalanceTest {
     }
 
     @Test
-    fun allEightHeroinesHaveThreeUniqueSkillsAndAllSixMonstersBuildCleanly() {
+    fun allEightHeroinesHaveThreeUniqueSkillsAndAllTenMonstersBuildCleanly() {
         for (characterId in 0..7) {
             val hero = EncounterBuilder.buildHero(starterBuild(characterId, 1))
             assertEquals(3, hero.skills.size)
             assertEquals(3, hero.skills.map { it.id }.distinct().size)
         }
+        assertEquals(10, MonsterKind.entries.size)
         for (kind in MonsterKind.entries) {
-            val m = EncounterBuilder.buildMonster("m", kind, level = 5, pos = Pos(7, 2))
+            val m = EncounterBuilder.buildMonster("m", kind, level = 9, pos = Pos(7, 2))
             assertTrue(m.maxHp > 0)
             assertTrue(m.xpReward > 0)
             assertTrue(m.goldReward > 0)
             assertTrue(m.skills.isNotEmpty())
         }
+        assertEquals(3, EncounterBuilder.unlockedMonsters(1).size)
+        assertTrue(MonsterKind.Salamander in EncounterBuilder.unlockedMonsters(4))
+        assertTrue(MonsterKind.Moth in EncounterBuilder.unlockedMonsters(6))
+        assertTrue(MonsterKind.Mimic in EncounterBuilder.unlockedMonsters(6))
+        assertTrue(MonsterKind.Automaton in EncounterBuilder.unlockedMonsters(9))
+        assertEquals(10, EncounterBuilder.unlockedMonsters(9).size)
     }
 
     @Test
@@ -82,7 +89,7 @@ class EncounterBalanceTest {
 
     @Test
     fun autoSimulationAllHeroinesAcrossLevelsCompletesAndWinsMajority() {
-        val levels = listOf(1, 3, 5, 7)
+        val levels = listOf(1, 3, 5, 7, 9)
         for (characterId in 0..7) {
             var wins = 0
             var total = 0
