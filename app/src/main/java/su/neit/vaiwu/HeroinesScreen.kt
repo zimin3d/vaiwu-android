@@ -378,7 +378,7 @@ private fun RemotePackCard(
 }
 
 @Composable
-private fun HeroinePreviewThumb(
+internal fun HeroinePreviewThumb(
     previewPath: String?,
     contentDescription: String,
 ) {

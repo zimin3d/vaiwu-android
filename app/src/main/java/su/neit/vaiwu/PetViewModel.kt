@@ -146,11 +146,14 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     val assistantSettings: StateFlow<AssistantSettings> = _assistantSettings.asStateFlow()
 
     private val _heroinesState = MutableStateFlow(
-        HeroinesUiState(
-            hasAccessKey = secretStore.hasApiKey(),
-            installed = heroineStore.listInstalled(),
-            activeHeroineId = heroineStore.getActiveHeroineId(),
-        ),
+        heroineStore.listInstalled().let { initialInstalled ->
+            HeroinesUiState(
+                hasAccessKey = secretStore.hasApiKey(),
+                installed = initialInstalled,
+                previewPaths = collectLocalPreviewPaths(emptyList(), initialInstalled),
+                activeHeroineId = heroineStore.getActiveHeroineId(),
+            )
+        },
     )
     val heroinesState: StateFlow<HeroinesUiState> = _heroinesState.asStateFlow()
 

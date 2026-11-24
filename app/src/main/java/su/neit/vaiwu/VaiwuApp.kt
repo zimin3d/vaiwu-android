@@ -227,6 +227,9 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                                 onEquip = { slot, itemId -> viewModel.equip(slot, itemId) },
                                 onSell = { itemId -> viewModel.sell(itemId) },
                                 onUseItem = viewModel::useItem,
+                                heroinesState = heroinesState,
+                                onActivateOutfit = viewModel::activateHeroine,
+                                onOpenWardrobeCatalog = viewModel::openHeroines,
                             )
                             AppScreen.Chat -> ChatScreen(
                                 messages = chatMessages,
@@ -243,6 +246,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                                 onUse = viewModel::useItem,
                                 onInventory = viewModel::openPet,
                                 onCategoryChange = viewModel::selectShopCategory,
+                                onOpenWardrobeCatalog = viewModel::openHeroines,
                             )
                             AppScreen.Rps -> RpsScreen(
                                 pet = pet,

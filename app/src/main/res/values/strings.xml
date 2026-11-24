@@ -183,6 +183,13 @@
     <string name="shop_balance_note">монет</string>
     <string name="shop_empty">В этой категории пока нет товаров</string>
     <string name="shop_cosmetics_coming_soon">Скоро: предметы, меняющие внешний вид питомца</string>
+    <string name="shop_cosmetics_hint">Новые наряды и облики доступны в каталоге сервера</string>
+    <string name="wardrobe_title">Гардероб</string>
+    <string name="wardrobe_default_outfit">Обычный наряд</string>
+    <string name="wardrobe_wearing">Надето</string>
+    <string name="wardrobe_wear">Надеть</string>
+    <string name="wardrobe_browse_catalog">Каталог обликов</string>
+    <string name="wardrobe_empty_hint">Скачай новые наряды в каталоге, чтобы переодевать персонажа</string>
     <string name="buy_with_price">%1$d · Купить</string>
     <string name="coins">Монеты: %1$d</string>
     <string name="shop_in_bag">В сумке: %1$d</string>

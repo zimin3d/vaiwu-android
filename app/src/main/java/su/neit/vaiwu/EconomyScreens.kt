@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -16,9 +17,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -31,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -80,6 +85,7 @@ fun ShopScreen(
     onUse: (Int) -> Unit,
     onInventory: () -> Unit,
     onCategoryChange: (Int) -> Unit,
+    onOpenWardrobeCatalog: (() -> Unit)? = null,
 ) {
     val categories = stringArrayResource(R.array.shop_categories)
     Column(
@@ -131,13 +137,17 @@ fun ShopScreen(
             }
             if (items.none { it.categoryId == category }) {
                 item {
+                    val isCosmetics = category == categories.lastIndex
                     EmptyState(
-                        title = if (category == categories.lastIndex)
-                            stringResource(R.string.shop_cosmetics_coming_soon)
+                        title = if (isCosmetics)
+                            stringResource(R.string.shop_cosmetics_hint)
                         else
                             stringResource(R.string.shop_empty),
-                        actionLabel = null,
-                        onAction = null,
+                        actionLabel = if (isCosmetics && onOpenWardrobeCatalog != null)
+                            stringResource(R.string.wardrobe_browse_catalog)
+                        else
+                            null,
+                        onAction = if (isCosmetics) onOpenWardrobeCatalog else null,
                     )
                 }
             }
@@ -367,6 +377,157 @@ private fun BagItemCard(
     }
 }
 
+/** Wardrobe card width for horizontal outfit carousel on [PetScreen]. */
+private val WARDROBE_CARD_WIDTH = 124.dp
+private val WARDROBE_PREVIEW_WIDTH = 76.dp
+private val WARDROBE_PREVIEW_HEIGHT = 104.dp
+
+@Composable
+private fun WardrobeSection(
+    pet: PetSnapshot,
+    heroinesState: HeroinesUiState,
+    onActivateOutfit: (String?) -> Unit,
+    onOpenCatalog: () -> Unit,
+) {
+    val outfits = heroinesState.installed
+        .filter { it.targetCharacterId == null || it.targetCharacterId == pet.characterId }
+        .sortedByDescending { it.kind == "outfit" && it.targetCharacterId == pet.characterId }
+    val activeId = heroinesState.activeHeroineId
+
+    SectionCard(title = stringResource(R.string.wardrobe_title)) {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            item(key = "default_outfit") {
+                val isSelected = activeId == null
+                WardrobeOutfitCard(
+                    title = stringResource(R.string.wardrobe_default_outfit),
+                    selected = isSelected,
+                    onClick = { onActivateOutfit(null) },
+                    preview = {
+                        Box(
+                            modifier = Modifier
+                                .width(WARDROBE_PREVIEW_WIDTH)
+                                .height(WARDROBE_PREVIEW_HEIGHT)
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                    shape = RoundedCornerShape(12.dp),
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CompositionLocalProvider(LocalActiveHeroineId provides null) {
+                                PetSprite(
+                                    characterId = pet.characterId,
+                                    emotionId = 0,
+                                    description = pet.petName,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(4.dp),
+                                )
+                            }
+                        }
+                    },
+                )
+            }
+            items(outfits, key = { it.id }) { item ->
+                val isSelected = activeId == item.id
+                WardrobeOutfitCard(
+                    title = item.name,
+                    selected = isSelected,
+                    onClick = { onActivateOutfit(item.id) },
+                    preview = {
+                        HeroinePreviewThumb(
+                            previewPath = heroinesState.previewPaths[item.id],
+                            contentDescription = stringResource(R.string.heroines_preview_desc, item.name),
+                        )
+                    },
+                )
+            }
+        }
+        if (outfits.isEmpty()) {
+            Text(
+                text = stringResource(R.string.wardrobe_empty_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        VaiwuSecondaryButton(
+            text = stringResource(R.string.wardrobe_browse_catalog),
+            onClick = onOpenCatalog,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun WardrobeOutfitCard(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    preview: @Composable () -> Unit,
+) {
+    Card(
+        modifier = Modifier.width(WARDROBE_CARD_WIDTH),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
+        border = BorderStroke(
+            width = if (selected) 2.dp else 1.dp,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(VaiwuSpacing.small),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.xs),
+        ) {
+            preview()
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                minLines = 2,
+            )
+            if (selected) {
+                OutlinedButton(
+                    onClick = onClick,
+                    enabled = false,
+                    contentPadding = PaddingValues(horizontal = VaiwuSpacing.small, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.wardrobe_wearing),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                    )
+                }
+            } else {
+                Button(
+                    onClick = onClick,
+                    contentPadding = PaddingValues(horizontal = VaiwuSpacing.small, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.wardrobe_wear),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
 /**
  * Pet screen: stats, equipment and the bag live on one screen (I-5,
  * UI-ECO-05…07).
@@ -380,6 +541,9 @@ fun PetScreen(
     onEquip: (Int, Int) -> Unit,
     onSell: (Int) -> Unit,
     onUseItem: (Int) -> Unit,
+    heroinesState: HeroinesUiState = HeroinesUiState(),
+    onActivateOutfit: (String?) -> Unit = {},
+    onOpenWardrobeCatalog: () -> Unit = {},
 ) {
     var pendingSale by remember { mutableStateOf<EquipmentSnapshot?>(null) }
     Column(
@@ -392,6 +556,13 @@ fun PetScreen(
             text = pet.petName,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(VaiwuSpacing.small))
+        WardrobeSection(
+            pet = pet,
+            heroinesState = heroinesState,
+            onActivateOutfit = onActivateOutfit,
+            onOpenCatalog = onOpenWardrobeCatalog,
         )
         inventory?.let { stats ->
             Spacer(Modifier.height(VaiwuSpacing.small))
