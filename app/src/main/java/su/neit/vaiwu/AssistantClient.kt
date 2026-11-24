@@ -81,11 +81,23 @@ internal fun resolveChatEndpoint(apiKey: String): Pair<String, Boolean> {
     }
 }
 
+/** Combines the base localized system prompt with an optional pack-defined persona addendum. */
+internal fun composeSystemPrompt(basePrompt: String, extraPrompt: String?): String {
+    val cleanExtra = extraPrompt?.trim()?.take(MAX_DIALOGUE_SYSTEM_PROMPT_CHARS).orEmpty()
+    return if (cleanExtra.isEmpty()) basePrompt else "$basePrompt\n\n$cleanExtra"
+}
+
 /** HTTP client for online LLM chat (`vaiwu-service` / OpenRouter) and current weather (Open-Meteo). */
 class AssistantClient(private val context: Context) {
 
     /** Sends the last [CHAT_CONTEXT_MESSAGE_LIMIT] messages to `vaiwu-service` or OpenRouter and returns the pet's reply. */
-    fun chat(apiKey: String, petName: String, characterName: String, messages: List<ChatMessage>): String {
+    fun chat(
+        apiKey: String,
+        petName: String,
+        characterName: String,
+        messages: List<ChatMessage>,
+        extraSystemPrompt: String? = null,
+    ): String {
         val cleanKey = sanitizeApiKey(apiKey)
         if (cleanKey.isBlank()) throw IOException(context.getString(R.string.assistant_key_missing))
         val (endpointUrl, isVaiwuProxy) = resolveChatEndpoint(cleanKey)
@@ -97,10 +109,11 @@ class AssistantClient(private val context: Context) {
                     .put("content", message.text.take(CHAT_MESSAGE_MAX_CHARS)),
             )
         }
+        val basePrompt = context.getString(R.string.assistant_system_prompt, petName, characterName)
         val requestMessages = JSONArray().put(
             JSONObject()
                 .put("role", "system")
-                .put("content", context.getString(R.string.assistant_system_prompt, petName, characterName)),
+                .put("content", composeSystemPrompt(basePrompt, extraSystemPrompt)),
         )
         for (index in 0 until history.length()) requestMessages.put(history.get(index))
         val body = JSONObject()

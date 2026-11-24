@@ -241,7 +241,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         pet.startNew(characterId, petName, System.currentTimeMillis())
         refreshPet()
         refreshEconomy()
-        postSpeech(pet.phrase(PhraseContext.Greeting) ?: text(R.string.pet_greeting))
+        postSpeech(phraseFor(PhraseContext.Greeting) ?: text(R.string.pet_greeting))
         playSfx(Sfx.Win)
         savePet()
     }
@@ -506,7 +506,30 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 text(R.string.heroines_switched_custom, name)
             },
         )
+        if (active != null) {
+            heroineStore.loadDialogues(active)
+                ?.phrases
+                ?.get(phraseContextKey(PhraseContext.Greeting))
+                ?.takeIf { it.isNotEmpty() }
+                ?.random()
+                ?.let { postSpeech(it) }
+        }
         playSfx(Sfx.Tap)
+    }
+
+    private fun activePackDialogues(): HeroineDialogues? {
+        val activeId = _heroinesState.value.activeHeroineId ?: heroineStore.getActiveHeroineId() ?: return null
+        return heroineStore.loadDialogues(activeId)
+    }
+
+    private fun phraseFor(context: Int): String? {
+        val key = phraseContextKey(context)
+        val custom = if (key != null) {
+            activePackDialogues()?.phrases?.get(key)?.takeIf { it.isNotEmpty() }?.random()
+        } else {
+            null
+        }
+        return custom ?: pet.phrase(context)
     }
 
     fun deleteHeroine(heroineId: String) {
@@ -777,7 +800,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 ).coerceAtLeast(0)
 
                 if (applyPlayBonus) {
-                    postSpeech(pet.phrase(PhraseContext.Victory) ?: text(R.string.battle_victory))
+                    postSpeech(phraseFor(PhraseContext.Victory) ?: text(R.string.battle_victory))
                 }
                 session.copy(
                     state = finished,
@@ -806,7 +829,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                     goldDelta = netGold,
                     applyPlayOutcome = true,
                 )
-                postSpeech(pet.phrase(PhraseContext.Fainted) ?: text(R.string.battle_fainted))
+                postSpeech(phraseFor(PhraseContext.Fainted) ?: text(R.string.battle_fainted))
                 session.copy(
                     state = finished,
                     undoStack = emptyList(),
@@ -872,10 +895,10 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         if (result.over && !result.awaitingRest) {
             when (result.outcome) {
                 BattleOutcome.Victory -> {
-                    postSpeech(pet.phrase(PhraseContext.Victory) ?: text(R.string.battle_victory))
+                    postSpeech(phraseFor(PhraseContext.Victory) ?: text(R.string.battle_victory))
                 }
                 BattleOutcome.Defeat -> {
-                    postSpeech(pet.phrase(PhraseContext.Fainted) ?: text(R.string.battle_fainted))
+                    postSpeech(phraseFor(PhraseContext.Fainted) ?: text(R.string.battle_fainted))
                 }
                 else -> postSystemMessage(text(R.string.battle_loot_saved))
             }
@@ -990,7 +1013,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _chatMessages.value = (_chatMessages.value + ChatMessage(text, false, messageCounter++)).takeLast(MaxChatHistorySize)
         val intent = pet.parseIntent(text)
         if (intent == null) {
-            answerChat(pet.phrase(PhraseContext.Talked) ?: text(R.string.pet_talked_fallback))
+            answerChat(phraseFor(PhraseContext.Talked) ?: text(R.string.pet_talked_fallback))
             return
         }
         when (intent.kind) {
@@ -1046,19 +1069,26 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadChatAnswer() {
         val key = secretStore.readApiKey()
         if (key.isBlank()) {
-            answerChat(pet.phrase(PhraseContext.Talked) ?: text(R.string.chat_idle))
+            answerChat(phraseFor(PhraseContext.Talked) ?: text(R.string.chat_idle))
             return
         }
         val current = _snapshot.value ?: return
+        val extraPrompt = activePackDialogues()?.systemPrompt
         _chatBusy.value = true
         viewModelScope.launch {
             val answer = try {
                 withContext(Dispatchers.IO) {
-                    assistantClient.chat(key, current.petName, current.characterName, _chatMessages.value)
+                    assistantClient.chat(
+                        apiKey = key,
+                        petName = current.petName,
+                        characterName = current.characterName,
+                        messages = _chatMessages.value,
+                        extraSystemPrompt = extraPrompt,
+                    )
                 }
             } catch (_: Exception) {
                 if (!isActive) return@launch
-                pet.phrase(PhraseContext.Talked)?.let { text(R.string.chat_offline, it) }
+                phraseFor(PhraseContext.Talked)?.let { text(R.string.chat_offline, it) }
                     ?: text(R.string.chat_offline_fallback)
             }
             _chatBusy.value = false
@@ -1106,7 +1136,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             UseResult.FreeRiceNotHungry -> text(R.string.action_already_full)
             else -> text(R.string.action_unavailable)
         }
-        val speechText = if (result == UseResult.Ok) pet.phrase(PhraseContext.Fed) else null
+        val speechText = if (result == UseResult.Ok) phraseFor(PhraseContext.Fed) else null
         if (message != null) {
             _systemMessage.value = SystemMessage(messageCounter++, message)
         }
@@ -1201,7 +1231,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
                 PetAction.Hug -> PhraseContext.Hugged
                 else -> null
             }
-            context?.let { pet.phrase(it) }
+            context?.let { phraseFor(it) }
         } else {
             null
         }

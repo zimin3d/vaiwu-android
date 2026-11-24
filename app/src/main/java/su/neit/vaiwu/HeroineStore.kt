@@ -212,11 +212,171 @@ internal object HeroinePackInstaller {
             ?.replace("\\\\", "\\")
 }
 
+/** Security and token-budget limits for optional `dialogues.json` files inside heroine/outfit packs. */
+internal const val MAX_DIALOGUES_FILE_BYTES = 128L * 1024L
+internal const val MAX_DIALOGUE_SYSTEM_PROMPT_CHARS = 1_200
+internal const val MAX_DIALOGUE_PHRASE_CHARS = 240
+internal const val MAX_DIALOGUE_PHRASES_PER_CONTEXT = 24
+private const val HEX_RADIX = 16
+private const val UNICODE_ESCAPE_LEN = 4
+
+/**
+ * Pure JVM-safe parser for optional `dialogues.json` inside unpacked heroine/outfit packs.
+ * Avoids `org.json` so unit tests run directly on the JVM without Android stubs.
+ */
+internal object HeroineDialoguesParser {
+
+    fun parseFile(file: File): HeroineDialogues? {
+        if (!file.isFile || file.length() <= 0L || file.length() > MAX_DIALOGUES_FILE_BYTES) return null
+        return runCatching { parse(file.readText(Charsets.UTF_8)) }.getOrNull()
+    }
+
+    fun parse(json: String): HeroineDialogues? {
+        val root = MiniJsonReader(json).readObjectOrNull() ?: return null
+        val prompt = (root["systemPrompt"] as? String)
+            ?.trim()
+            ?.take(MAX_DIALOGUE_SYSTEM_PROMPT_CHARS)
+            ?.ifEmpty { null }
+        val rawPhrases = root["phrases"] as? Map<*, *>
+        val phrases = buildMap<String, List<String>> {
+            rawPhrases?.forEach { (k, v) ->
+                val key = (k as? String)?.trim()?.lowercase().orEmpty()
+                val list = (v as? List<*>)
+                    ?.mapNotNull { (it as? String)?.trim()?.take(MAX_DIALOGUE_PHRASE_CHARS)?.ifEmpty { null } }
+                    ?.take(MAX_DIALOGUE_PHRASES_PER_CONTEXT)
+                    .orEmpty()
+                if (key.isNotEmpty() && list.isNotEmpty()) {
+                    put(key, list)
+                }
+            }
+        }
+        return if (prompt == null && phrases.isEmpty()) null else HeroineDialogues(prompt, phrases)
+    }
+
+    private class MiniJsonReader(private val s: String) {
+        private var pos = 0
+
+        fun readObjectOrNull(): Map<String, Any?>? {
+            skipWs()
+            if (pos >= s.length || s[pos] != '{') return null
+            return runCatching { readObject() }.getOrNull()
+        }
+
+        private fun skipWs() {
+            while (pos < s.length && s[pos].isWhitespace()) pos++
+        }
+
+        private fun readValue(): Any? {
+            skipWs()
+            if (pos >= s.length) throw IllegalArgumentException("Unexpected EOF")
+            return when (s[pos]) {
+                '{' -> readObject()
+                '[' -> readArray()
+                '"' -> readString()
+                't' -> { expectLiteral("true"); true }
+                'f' -> { expectLiteral("false"); false }
+                'n' -> { expectLiteral("null"); null }
+                else -> readNumber()
+            }
+        }
+
+        private fun readObject(): Map<String, Any?> {
+            pos++ // '{'
+            skipWs()
+            val map = LinkedHashMap<String, Any?>()
+            if (pos < s.length && s[pos] == '}') {
+                pos++
+                return map
+            }
+            while (true) {
+                skipWs()
+                val key = readString()
+                skipWs()
+                if (pos >= s.length || s[pos] != ':') throw IllegalArgumentException("Expected ':'")
+                pos++
+                map[key] = readValue()
+                skipWs()
+                if (pos >= s.length) throw IllegalArgumentException("Unterminated object")
+                when (s[pos]) {
+                    ',' -> pos++
+                    '}' -> { pos++; return map }
+                    else -> throw IllegalArgumentException("Expected ',' or '}'")
+                }
+            }
+        }
+
+        private fun readArray(): List<Any?> {
+            pos++ // '['
+            skipWs()
+            val list = ArrayList<Any?>()
+            if (pos < s.length && s[pos] == ']') {
+                pos++
+                return list
+            }
+            while (true) {
+                list.add(readValue())
+                skipWs()
+                if (pos >= s.length) throw IllegalArgumentException("Unterminated array")
+                when (s[pos]) {
+                    ',' -> pos++
+                    ']' -> { pos++; return list }
+                    else -> throw IllegalArgumentException("Expected ',' or ']'")
+                }
+            }
+        }
+
+        private fun readString(): String {
+            if (pos >= s.length || s[pos] != '"') throw IllegalArgumentException("Expected '\"'")
+            pos++
+            val sb = StringBuilder()
+            while (pos < s.length) {
+                val c = s[pos++]
+                if (c == '"') return sb.toString()
+                if (c == '\\') {
+                    if (pos >= s.length) throw IllegalArgumentException("Unterminated escape")
+                    when (val esc = s[pos++]) {
+                        '"', '\\', '/' -> sb.append(esc)
+                        'b' -> sb.append('\b')
+                        'f' -> sb.append('\u000C')
+                        'n' -> sb.append('\n')
+                        'r' -> sb.append('\r')
+                        't' -> sb.append('\t')
+                        'u' -> {
+                            if (pos + UNICODE_ESCAPE_LEN > s.length) throw IllegalArgumentException("Bad \\u")
+                            val code = s.substring(pos, pos + UNICODE_ESCAPE_LEN).toInt(HEX_RADIX)
+                            sb.append(code.toChar())
+                            pos += UNICODE_ESCAPE_LEN
+                        }
+                        else -> sb.append(esc)
+                    }
+                } else {
+                    sb.append(c)
+                }
+            }
+            throw IllegalArgumentException("Unterminated string")
+        }
+
+        private fun expectLiteral(lit: String) {
+            if (!s.startsWith(lit, pos)) throw IllegalArgumentException("Expected $lit")
+            pos += lit.length
+        }
+
+        private fun readNumber(): Number {
+            val start = pos
+            while (pos < s.length && s[pos] in "0123456789+-.eE") pos++
+            if (pos == start) throw IllegalArgumentException("Expected number")
+            val token = s.substring(start, pos)
+            return token.toLongOrNull() ?: token.toDouble()
+        }
+    }
+}
+
 /**
  * Manages downloaded heroine packs in `noBackupFilesDir/heroines/` and lightweight
  * index / active-selection metadata in `filesDir`.
  */
 class HeroineStore(private val context: Context) {
+    private val dialoguesCache = HashMap<String, HeroineDialogues?>()
     private val packsRootDir: File
         get() = File(context.noBackupFilesDir, "heroines")
 
@@ -287,17 +447,28 @@ class HeroineStore(private val context: Context) {
         )
         val updated = listInstalled().filterNot { it.id == installed.id } + installed
         saveIndex(updated.sortedBy { it.id })
+        dialoguesCache.remove(installed.id)
         return installed
     }
 
     fun deleteHeroine(heroineId: String) {
         if (!HEROINE_ID_REGEX.matches(heroineId)) return
         File(packsRootDir, heroineId).deleteRecursively()
+        dialoguesCache.remove(heroineId)
         val updated = listInstalled().filterNot { it.id == heroineId }
         saveIndex(updated)
         if (getActiveHeroineId() == heroineId) {
             setActiveHeroineId(null)
         }
+    }
+
+    /** Loads and caches optional `dialogues.json` for an installed pack, or `null` if absent. */
+    fun loadDialogues(heroineId: String): HeroineDialogues? {
+        if (!HEROINE_ID_REGEX.matches(heroineId)) return null
+        if (dialoguesCache.containsKey(heroineId)) return dialoguesCache[heroineId]
+        val parsed = HeroineDialoguesParser.parseFile(File(File(packsRootDir, heroineId), "dialogues.json"))
+        dialoguesCache[heroineId] = parsed
+        return parsed
     }
 
     fun spritesDir(heroineId: String): File? {

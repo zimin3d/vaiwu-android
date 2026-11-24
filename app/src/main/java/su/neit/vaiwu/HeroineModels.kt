@@ -46,3 +46,35 @@ data class HeroinesUiState(
     val downloadProgress: Float? = null,
     val errorMessage: String? = null,
 )
+
+/**
+ * Optional custom dialogue lines and LLM system prompt loaded from `dialogues.json`
+ * inside an installed heroine or outfit pack.
+ */
+data class HeroineDialogues(
+    val systemPrompt: String? = null,
+    val phrases: Map<String, List<String>> = emptyMap(),
+)
+
+/** Maps a [PhraseContext] integer constant to its canonical key in `dialogues.json`. */
+internal fun phraseContextKey(context: Int): String? = when (context) {
+    PhraseContext.Greeting -> "greeting"
+    PhraseContext.Fed -> "fed"
+    PhraseContext.Played -> "played"
+    PhraseContext.Washed -> "washed"
+    PhraseContext.Toilet -> "toilet"
+    PhraseContext.Talked -> "talked"
+    PhraseContext.Hugged -> "hugged"
+    PhraseContext.Patted -> "patted"
+    PhraseContext.Treated -> "treated"
+    PhraseContext.RefusedFood -> "refused_food"
+    PhraseContext.Sleeping -> "sleeping"
+    PhraseContext.Sick -> "sick"
+    PhraseContext.Sad -> "sad"
+    PhraseContext.Dead -> "dead"
+    PhraseContext.Poked -> "poked"
+    PhraseContext.Woken -> "woken"
+    PhraseContext.Victory -> "victory"
+    PhraseContext.Fainted -> "fainted"
+    else -> null
+}

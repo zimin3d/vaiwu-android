@@ -180,6 +180,41 @@ class HeroinePackSecurityTest {
         }
     }
 
+    @Test
+    fun dialoguesParserReadsSystemPromptAndPhrasesAndHandlesEscapes() {
+        val raw = """
+            {
+              "schemaVersion": 1,
+              "systemPrompt": "Speak with starry festival grace.\nKeep replies concise.",
+              "phrases": {
+                "greeting": ["Hello under the \"stars\"!", "Good evening!"],
+                "fed": ["Delicious!"],
+                "empty_list": []
+              }
+            }
+        """.trimIndent()
+        val parsed = HeroineDialoguesParser.parse(raw)
+        assertTrue(parsed != null)
+        assertEquals("Speak with starry festival grace.\nKeep replies concise.", parsed!!.systemPrompt)
+        assertEquals(listOf("Hello under the \"stars\"!", "Good evening!"), parsed.phrases["greeting"])
+        assertEquals(listOf("Delicious!"), parsed.phrases["fed"])
+        assertFalse(parsed.phrases.containsKey("empty_list"))
+        assertEquals("greeting", phraseContextKey(PhraseContext.Greeting))
+        assertEquals("victory", phraseContextKey(PhraseContext.Victory))
+    }
+
+    @Test
+    fun dialoguesParserIgnoresMalformedJsonAndComposeSystemPromptAppendsExtra() {
+        assertEquals(null, HeroineDialoguesParser.parse("{not valid json"))
+        assertEquals(null, HeroineDialoguesParser.parse("""{"schemaVersion": 1}"""))
+        assertEquals("Base prompt", composeSystemPrompt("Base prompt", null))
+        assertEquals("Base prompt", composeSystemPrompt("Base prompt", "   "))
+        assertEquals(
+            "Base prompt\n\nExtra persona",
+            composeSystemPrompt("Base prompt", "  Extra persona  "),
+        )
+    }
+
     private fun assertFailsWithIo(block: () -> Unit) {
         var threw = false
         try {
