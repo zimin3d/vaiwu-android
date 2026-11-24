@@ -235,6 +235,17 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Creates a new pet for [characterId] with sanitized [name] (up to [MaxPetNameLength] chars). */
     fun createPet(characterId: Int, name: String = "") {
+        val activeId = heroineStore.getActiveHeroineId()
+        if (activeId != null) {
+            val activePack = heroineStore.listInstalled().firstOrNull { it.id == activeId }
+            val mismatchedOutfit = activePack == null ||
+                (activePack.targetCharacterId != null && activePack.targetCharacterId != characterId)
+            if (mismatchedOutfit) {
+                heroineStore.setActiveHeroineId(null)
+                clearSpriteBitmapCache()
+                _heroinesState.value = _heroinesState.value.copy(activeHeroineId = null)
+            }
+        }
         val profile = pet.characterProfile(characterId)
         val safeName = name.filter { it != '\n' && it != '\r' }.take(MaxPetNameLength).trim()
         val petName = safeName.ifBlank { profile?.name.orEmpty() }
@@ -266,6 +277,9 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _chatMessages.value = emptyList()
         _speech.value = null
         _systemMessage.value = null
+        heroineStore.setActiveHeroineId(null)
+        clearSpriteBitmapCache()
+        _heroinesState.value = _heroinesState.value.copy(activeHeroineId = null)
         // Queued on the same single-thread dispatcher, so pending saves land
         // before the files are removed.
         saveScope.launch { saveStore.delete() }

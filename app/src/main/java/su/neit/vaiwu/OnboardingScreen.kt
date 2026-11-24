@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -174,12 +175,14 @@ private fun CharacterCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
             ) {
-                PetSprite(
-                    characterId = id,
-                    emotionId = Emotion.Idle,
-                    description = name,
-                    modifier = Modifier.size(CHARACTER_CARD_SPRITE_WIDTH, CHARACTER_CARD_SPRITE_HEIGHT),
-                )
+                CompositionLocalProvider(LocalActiveHeroineId provides null) {
+                    PetSprite(
+                        characterId = id,
+                        emotionId = Emotion.Idle,
+                        description = name,
+                        modifier = Modifier.size(CHARACTER_CARD_SPRITE_WIDTH, CHARACTER_CARD_SPRITE_HEIGHT),
+                    )
+                }
                 Text(name, style = MaterialTheme.typography.titleMedium)
                 profile?.let {
                     Text(
