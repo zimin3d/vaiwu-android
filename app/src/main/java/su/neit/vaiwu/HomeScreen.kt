@@ -126,6 +126,7 @@ fun HomeScreen(
     onShop: () -> Unit,
     onPet: () -> Unit,
     onRestart: () -> Unit,
+    onDismissSpeech: () -> Unit = {},
     inventory: InventorySnapshot? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -145,6 +146,7 @@ fun HomeScreen(
                     pet = pet,
                     speech = speech,
                     backgroundAsset = homeBackgroundForHour(hour),
+                    onDismissSpeech = onDismissSpeech,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight(),
@@ -321,6 +323,7 @@ private fun PetStage(
     pet: PetSnapshot,
     speech: String?,
     backgroundAsset: String,
+    onDismissSpeech: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(
@@ -440,7 +443,7 @@ private fun PetStage(
                 },
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    SpeechBubble(text = speech.orEmpty())
+                    SpeechBubble(text = speech.orEmpty(), onDismiss = onDismissSpeech)
                     Spacer(Modifier.height(VaiwuSpacing.small))
                 }
             }
@@ -481,8 +484,13 @@ private fun PetStage(
 
 /** Capped dialogue bubble shown above the heroine sprite when she reacts to an action. */
 @Composable
-private fun SpeechBubble(text: String, modifier: Modifier = Modifier) {
+private fun SpeechBubble(
+    text: String,
+    onDismiss: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     Surface(
+        onClick = onDismiss,
         modifier = modifier.heightIn(max = SPEECH_BUBBLE_MAX_HEIGHT),
         shape = RoundedCornerShape(VaiwuRadius.card),
         color = MaterialTheme.colorScheme.surface,

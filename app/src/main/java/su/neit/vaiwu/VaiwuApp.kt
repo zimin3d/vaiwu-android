@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -210,6 +212,7 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                                 onShop = viewModel::openShop,
                                 onPet = viewModel::openPet,
                                 onRestart = { confirmingReset = true },
+                                onDismissSpeech = viewModel::dismissSpeech,
                                 inventory = inventory,
                             )
                             AppScreen.Games -> GamesScreen(
@@ -332,6 +335,12 @@ fun VaiwuApp(viewModel: PetViewModel, voice: VoiceController? = null) {
                             .fillMaxWidth()
                             .padding(horizontal = VaiwuSpacing.screenPadding)
                             .padding(top = VaiwuSpacing.small),
+                        snackbar = { data ->
+                            Snackbar(
+                                snackbarData = data,
+                                modifier = Modifier.clickable { data.dismiss() },
+                            )
+                        },
                     )
                 }
             }

@@ -97,6 +97,10 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         _systemMessage.value = null
     }
 
+    fun dismissSpeech() {
+        _speech.value = null
+    }
+
     private fun postSystemMessage(text: String) {
         _systemMessage.value = SystemMessage(messageCounter++, text)
     }

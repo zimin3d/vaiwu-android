@@ -258,30 +258,38 @@ fun TacticalBattleScreen(
                     Column(
                         modifier = Modifier
                             .weight(WIDE_CONTROLS_COLUMN_WEIGHT)
-                            .fillMaxHeight()
-                            .verticalScroll(rememberScrollState()),
+                            .fillMaxHeight(),
                         verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
                     ) {
-                        HeroHudCard(
-                            session = session,
-                            player = player,
-                            shown = shown,
-                            coachEnabled = coachEnabled,
-                            fastMode = fastMode,
-                            busy = playback.busy,
-                            onToggleCoach = onToggleCoach,
-                            onToggleFast = onToggleFast,
-                            onSkip = playback.skip,
-                        )
-                        if (coachEnabled && coachHint != null && !session.isOver) {
-                            CoachBannerCard(text = TacticalStrings.formatCoachHint(context, state, coachHint))
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+                        ) {
+                            HeroHudCard(
+                                session = session,
+                                player = player,
+                                shown = shown,
+                                coachEnabled = coachEnabled,
+                                fastMode = fastMode,
+                                busy = playback.busy,
+                                onToggleCoach = onToggleCoach,
+                                onToggleFast = onToggleFast,
+                                onSkip = playback.skip,
+                            )
+                            if (coachEnabled && coachHint != null && !session.isOver) {
+                                CoachBannerCard(text = TacticalStrings.formatCoachHint(context, state, coachHint))
+                            }
+                            if (!session.isOver || playback.busy) {
+                                selectedTarget?.let {
+                                    TargetForecastCard(state = shown, target = it, intent = intentsById[it.id])
+                                }
+                            }
                         }
                         if (session.isOver && !playback.busy) {
                             BattleResultCard(session = session, onNextRoom = onNextRoom, onExit = onExit)
                         } else {
-                            selectedTarget?.let {
-                                TargetForecastCard(state = shown, target = it, intent = intentsById[it.id])
-                            }
                             ActionDeck(
                                 state = state,
                                 player = player,
@@ -302,68 +310,87 @@ fun TacticalBattleScreen(
                     }
                 }
             } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = VaiwuSpacing.medium, vertical = VaiwuSpacing.small),
-                    verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
-                ) {
-                    HeroHudCard(
-                        session = session,
-                        player = player,
-                        shown = shown,
-                        coachEnabled = coachEnabled,
-                        fastMode = fastMode,
-                        busy = playback.busy,
-                        onToggleCoach = onToggleCoach,
-                        onToggleFast = onToggleFast,
-                        onSkip = playback.skip,
-                    )
-                    TurnOrderStrip(state = shown, selectedTargetId = selectedTarget?.id, onSelectEnemy = handleEnemyTap)
-                    BattlefieldCanvas(
-                        state = state,
-                        playback = playback,
-                        selectedTargetId = selectedTarget?.id,
-                        pendingMovePath = pendingMovePath,
-                        teleportSkill = armedTeleportSkill,
-                        intents = intentsById,
-                        coachHint = coachHint,
-                        onCellTap = handleCellTap,
-                        onEnemyTap = handleEnemyTap,
-                        bottomOverlayText = overlayPrompt,
-                    )
-                    if (coachEnabled && coachHint != null && !session.isOver) {
-                        CoachBannerCard(text = TacticalStrings.formatCoachHint(context, state, coachHint))
-                    }
-                    if (session.isOver && !playback.busy) {
-                        BattleResultCard(session = session, onNextRoom = onNextRoom, onExit = onExit)
-                    } else {
-                        selectedTarget?.let {
-                            TargetForecastCard(state = shown, target = it, intent = intentsById[it.id])
-                        }
-                        ActionDeck(
-                            state = state,
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = VaiwuSpacing.medium, vertical = VaiwuSpacing.small),
+                        verticalArrangement = Arrangement.spacedBy(VaiwuSpacing.small),
+                    ) {
+                        HeroHudCard(
+                            session = session,
                             player = player,
-                            target = selectedTarget,
-                            canAct = canAct,
-                            canUndo = session.undoStack.isNotEmpty() && canAct,
+                            shown = shown,
+                            coachEnabled = coachEnabled,
+                            fastMode = fastMode,
+                            busy = playback.busy,
+                            onToggleCoach = onToggleCoach,
+                            onToggleFast = onToggleFast,
+                            onSkip = playback.skip,
+                        )
+                        TurnOrderStrip(state = shown, selectedTargetId = selectedTarget?.id, onSelectEnemy = handleEnemyTap)
+                        BattlefieldCanvas(
+                            state = state,
+                            playback = playback,
+                            selectedTargetId = selectedTarget?.id,
+                            pendingMovePath = pendingMovePath,
+                            teleportSkill = armedTeleportSkill,
+                            intents = intentsById,
                             coachHint = coachHint,
-                            armedTeleportId = armedTeleportSkill?.id,
-                            onWeapon = { selectedTarget?.let { onAction(CombatAction.WeaponAttack(it.id)) } },
-                            onSkill = handleSkillTap,
-                            onHpPotion = { onAction(CombatAction.UseHpPotion) },
-                            onMpPotion = { onAction(CombatAction.UseMpPotion) },
-                            onUndo = onUndo,
-                            onFlee = { onAction(CombatAction.Flee) },
-                            onEndTurn = { onAction(CombatAction.EndTurn) },
+                            onCellTap = handleCellTap,
+                            onEnemyTap = handleEnemyTap,
+                            bottomOverlayText = overlayPrompt,
+                        )
+                        if (coachEnabled && coachHint != null && !session.isOver) {
+                            CoachBannerCard(text = TacticalStrings.formatCoachHint(context, state, coachHint))
+                        }
+                        if (!session.isOver || playback.busy) {
+                            selectedTarget?.let {
+                                TargetForecastCard(state = shown, target = it, intent = intentsById[it.id])
+                            }
+                        }
+                        CombatLogCard(
+                            state = shown,
+                            expanded = logExpanded,
+                            onToggle = { logExpanded = !logExpanded },
                         )
                     }
-                    CombatLogCard(
-                        state = shown,
-                        expanded = logExpanded,
-                        onToggle = { logExpanded = !logExpanded },
-                    )
+                    // Pinned bottom controls dock: dynamic arena/coach/target height
+                    // above never shifts the player's action buttons mid-turn.
+                    Surface(
+                        color = Color(Palette.Surface).copy(alpha = 0.94f),
+                        border = BorderStroke(1.dp, Color(Palette.OutlineMuted)),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = VaiwuSpacing.medium, vertical = VaiwuSpacing.small),
+                        ) {
+                            if (session.isOver && !playback.busy) {
+                                BattleResultCard(session = session, onNextRoom = onNextRoom, onExit = onExit)
+                            } else {
+                                ActionDeck(
+                                    state = state,
+                                    player = player,
+                                    target = selectedTarget,
+                                    canAct = canAct,
+                                    canUndo = session.undoStack.isNotEmpty() && canAct,
+                                    coachHint = coachHint,
+                                    armedTeleportId = armedTeleportSkill?.id,
+                                    onWeapon = { selectedTarget?.let { onAction(CombatAction.WeaponAttack(it.id)) } },
+                                    onSkill = handleSkillTap,
+                                    onHpPotion = { onAction(CombatAction.UseHpPotion) },
+                                    onMpPotion = { onAction(CombatAction.UseMpPotion) },
+                                    onUndo = onUndo,
+                                    onFlee = { onAction(CombatAction.Flee) },
+                                    onEndTurn = { onAction(CombatAction.EndTurn) },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -979,7 +1006,7 @@ private fun ActionSkillButton(
         shape = RoundedCornerShape(VaiwuRadius.field),
         interactionSource = interactionSource,
         modifier = modifier
-            .heightIn(min = VaiwuSizes.primaryButtonHeight)
+            .height(VaiwuSizes.primaryButtonHeight + 8.dp)
             .pressScale(interactionSource, enabled),
     ) {
         Column(
