@@ -213,6 +213,8 @@ class HeroinePackSecurityTest {
             "Base prompt\n\nExtra persona",
             composeSystemPrompt("Base prompt", "  Extra persona  "),
         )
+        assertEquals(12, voiceLineKey("Hello").length)
+        assertEquals(voiceLineKey("Hello"), voiceLineKey("  Hello  "))
     }
 
     private fun assertFailsWithIo(block: () -> Unit) {

@@ -14,15 +14,24 @@ import java.util.zip.ZipInputStream
 internal val HEROINE_ID_REGEX = Regex("^[a-z0-9_-]{2,32}$")
 
 /** Allowed file extensions inside a heroine pack ZIP. */
-private val ALLOWED_PACK_EXTENSIONS = setOf("json", "png", "webp")
+private val ALLOWED_PACK_EXTENSIONS = setOf("json", "png", "webp", "ogg")
 
 /** Security limits enforced while verifying and unpacking heroine ZIP archives. */
 internal const val MAX_HEROINE_ZIP_BYTES = 25L * 1024L * 1024L
 internal const val MAX_HEROINE_UNPACKED_BYTES = 48L * 1024L * 1024L
-internal const val MAX_HEROINE_PACK_FILES = 80
+internal const val MAX_HEROINE_PACK_FILES = 120
 
 private const val COPY_BUFFER_SIZE = 8 * 1024
 private const val VALID_ARCHETYPE_MAX = 7
+
+/** Computes lowercase 12-char hex SHA-256 voice key for a dialogue line. */
+internal fun voiceLineKey(text: String): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    val bytes = digest.digest(text.trim().toByteArray(Charsets.UTF_8))
+    return bytes.take(VOICE_KEY_BYTES).joinToString("") { "%02x".format(it) }
+}
+
+private const val VOICE_KEY_BYTES = 6
 
 /** Computes lowercase hex SHA-256 of [file]. */
 internal fun sha256Hex(file: File): String {
@@ -475,6 +484,13 @@ class HeroineStore(private val context: Context) {
         if (!HEROINE_ID_REGEX.matches(heroineId)) return null
         val dir = File(File(packsRootDir, heroineId), "sprites")
         return if (dir.isDirectory) dir else null
+    }
+
+    /** Returns an unpacked `.ogg` voice line file inside a heroine/outfit pack if present. */
+    fun voiceFile(heroineId: String, text: String): File? {
+        if (!HEROINE_ID_REGEX.matches(heroineId) || text.isBlank()) return null
+        val file = File(File(File(packsRootDir, heroineId), "voices"), "${voiceLineKey(text)}.ogg")
+        return if (file.isFile && file.length() > 0L) file else null
     }
 
     fun installedPreviewFile(heroineId: String): File? {

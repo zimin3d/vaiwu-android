@@ -65,6 +65,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
     private val secretStore = SecretStore(settingsStore)
     private var heroinesCatalogEtag: String? = null
     private val soundPlayer = SoundPlayer()
+    private val voiceLinePlayer = VoiceLinePlayer(application)
     private val saveDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val saveScope = CoroutineScope(SupervisorJob() + saveDispatcher)
     private var lastSaveAt = 0L
@@ -99,6 +100,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissSpeech() {
         _speech.value = null
+        voiceLinePlayer.stop()
     }
 
     private fun postSystemMessage(text: String) {
@@ -107,6 +109,15 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun postSpeech(text: String) {
         _speech.value = PetSpeech(messageCounter++, text)
+        playVoiceLine(text)
+    }
+
+    private fun playVoiceLine(text: String) {
+        if (!_soundEnabled.value || text.isBlank()) return
+        val charId = _snapshot.value?.characterId ?: return
+        val activeId = _heroinesState.value.activeHeroineId ?: heroineStore.getActiveHeroineId()
+        val packFile = activeId?.let { heroineStore.voiceFile(it, text) }
+        voiceLinePlayer.play(charId, text, packFile)
     }
 
     private fun text(id: Int, vararg formatArgs: Any): String =
@@ -1159,7 +1170,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             _systemMessage.value = SystemMessage(messageCounter++, message)
         }
         if (speechText != null) {
-            _speech.value = PetSpeech(messageCounter++, speechText)
+            postSpeech(speechText)
         }
         playSfx(if (result == UseResult.Ok) Sfx.Feed else Sfx.Tap)
         refreshPet()
@@ -1257,7 +1268,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
             _systemMessage.value = SystemMessage(messageCounter++, message)
         }
         if (speechText != null) {
-            _speech.value = PetSpeech(messageCounter++, speechText)
+            postSpeech(speechText)
         }
         playSfx(
             sfxForCareAction(
@@ -1452,6 +1463,7 @@ class PetViewModel(application: Application) : AndroidViewModel(application) {
         flushSave()
         saveDispatcher.close()
         soundPlayer.close()
+        voiceLinePlayer.release()
         super.onCleared()
         pet.close()
     }
